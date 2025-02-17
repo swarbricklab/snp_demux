@@ -39,14 +39,14 @@ rule souporcell:
     shell:
         """
         echo "Starting ..." > {log}
-        souporcell_dir="$(dirname "{output.clusters}")"
-        echo "Souporcell directory: $souporcell_dir"
+        souporcell_dir="$(dirname {output.clusters})"
+        echo "Souporcell directory: $souporcell_dir" >> {log}
         cmd="souporcell_pipeline.py -i {input.bam} \
-            -b {input.barcodes} \
-            -f {input.genome_fasta} \
-            -t {resources.threads} \
-            -o $souporcell_dir \
-            -k {params.sample_number} \
-            >> {log} 2>&1"
-        echo $cmd; eval $cmd
+           -b {input.barcodes} \
+           -f {input.genome_fasta} \
+           -t {resources.threads} \
+           -o $souporcell_dir \
+           -k {params.sample_number} \
+           >> {log} 2>&1"
+        echo $cmd >> {log}; eval $cmd >> {log}
         """
