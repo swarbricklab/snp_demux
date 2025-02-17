@@ -11,11 +11,11 @@ rule demuxafy:
         vireo=rules.vireo.output.summary
     output:
         # TODO: add wildcard based logic to determine the combine method (e.g., AtLeastHalfSinglet)
-        combined_results=out_dir/"assignment/{capture_id}/combined_results.tsv",
-        combined_resultsSinglets_upset=out_dir/"assignment/{capture_id}/combined_resultsSinglets_upset.pdf",
-        combined_results_annotated=out_dir/"assignment/{capture_id}/combined_results_w_combined_assignments.tsv",
-        combined_results_demultiplexing_summary=out_dir/"assignment/{capture_id}/combined_results_demultiplexing_summary.tsv",
-        combined_results_summary=out_dir/"assignment/{capture_id}/combined_results_summary.tsv"
+        combined_results=temp(out_dir/"assignment/{capture_id}/combined_results.tsv"),
+        combined_resultsSinglets_upset=temp(out_dir/"assignment/{capture_id}/combined_resultsSinglets_upset.pdf"),
+        combined_results_annotated=temp(out_dir/"assignment/{capture_id}/combined_results_w_combined_assignments.tsv"),
+        combined_results_demultiplexing_summary=temp(out_dir/"assignment/{capture_id}/combined_results_demultiplexing_summary.tsv"),
+        combined_results_summary=temp(out_dir/"assignment/{capture_id}/combined_results_summary.tsv")
     params:
         freemuxlet_correlation_limit=config['params']['demuxafy']['freemuxlet_correlation_limit'],
         souporcell_correlation_limit=config['params']['demuxafy']['souporcell_correlation_limit'],
@@ -43,6 +43,20 @@ rule demuxafy:
             > {log}
         """
 
+# Convert PDF plot above to PNG format
+rule pdf_to_png:
+    input:
+        Singlets_upset_pdf=rules.demuxafy.output.combined_resultsSinglets_upset
+    output:
+        Singlets_upset_png=out_dir/"assignment/{capture_id}/plots/combined_resultsSinglets_upset.png"
+    conda:
+        "../envs/pdftools.yaml"
+    log:
+        logs/"pdf_to_png/{capture_id}.log"
+    script:
+        "../scripts/pdf_to_png.R"
+
+
 # ==================================
 # add_vireosnp_to_combined_results
 # ----------------------------------
@@ -53,7 +67,7 @@ rule add_vireosnp_to_combined_results:
         demuxafy_assignments=rules.demuxafy.output.combined_results_annotated,
         vireosnp_assignments=rules.vireosnp.output.clusters_annotated
     output:
-        assignments_with_vireosnp=out_dir/"assignment/{capture_id}/combined_results_w_combined_assignments.inc_vireosnp.tsv"
+        assignments_with_vireosnp=temp(out_dir/"assignment/{capture_id}/combined_results_w_combined_assignments.inc_vireosnp.tsv")
     conda:
         "../envs/report.yaml"
     log:
@@ -73,7 +87,7 @@ rule wrangle_demuxafy_output:
         demuxafy_assignments=rules.add_vireosnp_to_combined_results.output.assignments_with_vireosnp
     output:
         # TODO: think about more readable/informative name
-        combined_results_w_combined_assignments_edited=out_dir/"assignment/{capture_id}/combined_results_w_combined_assignments_edited.tsv",
+        combined_results_w_combined_assignments_edited=out_dir/"assignment/{capture_id}/sample_barcode_assignments.tsv",
         all_cells_stats=out_dir/"assignment/{capture_id}/all_cells_stats.tsv",
         all_singlets_stats=out_dir/"assignment/{capture_id}/all_singlets_stats.tsv",
         cell_assignment=out_dir/"assignment/{capture_id}/cell_assignment.tsv"
@@ -88,3 +102,19 @@ rule wrangle_demuxafy_output:
         logs/"assignment/{capture_id}/wrangle_demuxafy_output.log"
     script:
         "../scripts/wrangle_demuxafy_output.R"
+
+rule demuxafy_count_cells_AtLeastHalfSinglet:
+    input:
+        clusters_annotated=rules.wrangle_demuxafy_output.output.combined_results_w_combined_assignments_edited
+    output:
+        cell_counts_all=out_dir/"assignment/{capture_id}/plots/demuxafy_cell_count_all.png",
+        cell_counts_singlets=out_dir/"assignment/{capture_id}/plots/demuxafy_cell_count_singlets.png",
+        table_cell_counts_all=out_dir/"assignment/{capture_id}/demuxafy_cell_count_table.tsv"
+    params:
+        dir_output=out_dir/"assignment/{capture_id}/"
+    conda:
+        "../envs/vireosnp.yaml"
+    log:
+        logs/"assignment/{capture_id}/output.count_cells.log"
+    script:
+        "../scripts/demuxafy_counts_AtLeastHalfSinglet.py"
