@@ -13,8 +13,6 @@ include: "rules/demuxlet.smk"
 include: "rules/freemuxlet.smk"
 include: "rules/demuxafy.smk"
 include: "rules/prepare_data_for_report.smk"
-include: "rules/demuxafy_count_cells.smk"
-include: "rules/pdf_to_png.smk"
 # include: "rules/summarise.smk"
 
 
@@ -28,4 +26,4 @@ rule all:
         out_dir/"assignment/report/all_cells_stats_full.tsv",
         out_dir/"assignment/report/combined_results_w_combined_assignments_edited_full.tsv",
         expand(out_dir/"assignment/{capture_id}/demuxafy_cell_count_table.tsv", capture_id=captures.index.tolist()),
-        expand(out_dir/"assignment/{capture_id}/combined_resultsSinglets_upset.png", capture_id=captures.index.tolist()),
+        expand(out_dir/"assignment/{capture_id}/plots/combined_resultsSinglets_upset.png", capture_id=captures.index.tolist()),
