@@ -1,0 +1,9 @@
+name:
+    generate_cel_genotype_sample_mappings_file
+channels:
+    - conda-forge
+    - bioconda
+dependencies:
+    - samtools=1.17
+    - pysam
+    - pandas

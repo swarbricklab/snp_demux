@@ -1,0 +1,35 @@
+# ==================================
+# Dan Roden
+# ----------------------------------
+# CREATED: 09/09/2020
+# ----------------------------------
+# Snakemake file for running post-imputation part of the ctp-demaxafy workflow
+# ==================================
+from snakemake.utils import min_version
+min_version("6.4.0")
+
+# ==================================
+# config
+# ==================================
+configfile: "config/config.yaml"
+
+# ==================================
+# Rules
+# ==================================
+include: "rules/common.smk"
+include: "rules/vireo.smk"
+include: "rules/souporcell.smk"
+include: "rules/freemuxlet.smk"
+include: "rules/demuxlet.smk"
+include: "rules/demuxafy.smk"
+include: "rules/prepare_data_for_report.smk"
+include: "rules/demuxafy_count_cells.smk"
+include: "rules/pdf_to_png.smk"
+include: "rules/summarise.smk"
+
+# ==================================
+
+rule all:
+    input:
+        post_imputation_output
+
