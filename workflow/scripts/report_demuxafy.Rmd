@@ -1,0 +1,54 @@
+---
+title: "Test Report"
+author:
+    - "Your Name"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+params:
+   rmd: "report_demuxafy.Rmd"
+output:
+  html_document:
+  highlight: tango
+  number_sections: no
+  theme: default
+  toc: yes
+  toc_depth: 3
+  toc_float:
+    collapsed: no
+    smooth_scroll: yes
+---
+
+## R Markdown
+
+This is an R Markdown document.
+
+Test include from snakemake `r snakemake@input`.
+Upset plot: `r snakemake@input[[1]]`
+`r snakemake@input[["combined_resultsSinglets_upset"]]`
+
+```{r}
+#library(knitr)
+
+img1_path <- snakemake@input[[1]]
+message("img1_path: ", img1_path)
+
+#img1 <- readPNG(img1_path, native = TRUE, info = TRUE)
+#attr(img1, "info")
+#image(img1)
+
+# knitr::include_graphics(img_path1)
+input <- snakemake@input[["combined_resultsSinglets_upset"]]
+print(input)
+input <- paste0("/directflow/TumourProgressionGroupTemp/projects/tmp/beakie/brca_atlas/brca_atlas-data", input)
+print(input)
+
+#knitr::include_graphics(input)
+```
+
+
+
+# .center[<img src=input width=90%/>]  
+
+# ![**Figure 2:** Caption for this figure 2](in){width=100%}
+
+## Source
+<a download="report_demuxafy.Rmd" href="`r base64enc::dataURI(file = params$rmd, mime = 'text/rmd', encoding = 'base64')`">R Markdown source file (to produce this document)</a>

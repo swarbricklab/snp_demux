@@ -1,0 +1,31 @@
+from pathlib import Path
+import pandas as pd
+
+# Path roots as global variables
+out_dir=Path(config['outs']['root'])
+logs=Path("logs/demuxafy")
+
+include: "rules/common.smk"
+include: "rules/vireo.smk"
+include: "rules/souporcell.smk"
+include: "rules/souporcell_genotyping.smk"
+include: "rules/demuxlet.smk"
+include: "rules/freemuxlet.smk"
+include: "rules/demuxafy.smk"
+include: "rules/prepare_data_for_report.smk"
+include: "rules/demuxafy_count_cells.smk"
+include: "rules/pdf_to_png.smk"
+# include: "rules/summarise.smk"
+
+
+rule all:
+    input:
+        expand(out_dir/"demuxlet/{capture_id}/summary.txt", capture_id=captures.index.tolist()),
+        expand(out_dir/"freemuxlet/{capture_id}/summary.txt", capture_id=captures.index.tolist()),
+        expand(out_dir/"assignment/{capture_id}/combined_results.tsv", capture_id=captures.index.tolist()),
+        expand(out_dir/"assignment/{capture_id}/combined_results_w_combined_assignments.inc_vireosnp.tsv", capture_id=captures.index.tolist()),
+        out_dir/"assignment/report/all_singlets_stats_full.tsv",
+        out_dir/"assignment/report/all_cells_stats_full.tsv",
+        out_dir/"assignment/report/combined_results_w_combined_assignments_edited_full.tsv",
+        expand(out_dir/"assignment/{capture_id}/demuxafy_cell_count_table.tsv", capture_id=captures.index.tolist()),
+        expand(out_dir/"assignment/{capture_id}/combined_resultsSinglets_upset.png", capture_id=captures.index.tolist()),

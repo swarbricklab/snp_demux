@@ -1,0 +1,26 @@
+# Sample sheet
+deps:
+  samples: config/samples.csv
+  captures: config/captures.csv
+  vcf: test/data/imputation/imputed_filtered.hg38.vcf.gz
+
+params:
+  cellsnp_lite:
+    minMAF: 0.1
+    minCOUNT: 20
+  demuxafy:
+    freemuxlet_correlation_limit: 0.7 # default
+    souporcell_correlation_limit: 0.7 # default
+    pct_agreement: 0.7 # default
+
+ref:
+  souporcell:
+    genome_fasta: resources/genomes/refdata-gex-GRCh38-2020-A/fasta/genome.fa
+
+# If True, runs the souporcell_test rule
+run_souporcell_test: False
+
+spikein_sample_id: PMBC6
+
+containers: 
+  demuxafy: resources/containers/Demuxafy.sif

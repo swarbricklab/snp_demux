@@ -1,0 +1,51 @@
+# This config file specifies root paths across all phases of the demuxay workflow
+# It is intended to be specified jointly with the other config files for each phase
+
+# This file can be used unchanged, or can be edited as necessary
+
+# Logs: root directory for log files
+# Formerly log files were output alongside result files
+log_dir: logs/demuxafy/
+
+# Output top: all other output paths in this config file use this as a root
+# Add further subdirectories to distinguish sub-projects if necessary
+output_dir: results/demuxafy 
+
+# Genotyping: directory hosting the transformation of .CEL files into a well-formed VCF file
+# This path is relative to 'output' above
+# Formerly results/demuxafy/{project_id}/genotypting/{projectname}/{projectname}/
+genotyping_dir: genotyping
+
+# Plink: directory hosting plink data, including both pre-imputation and imputation
+# This path is relative to 'output' above
+plink_dir: plink
+
+# Imputation: directory hosting imputation steps
+# This path is relative to 'output' above
+# Formerly: results/demuxafy/{project_id}/genotypting/{projectname}/{projectname}/imputation
+imputation_dir: imputation
+
+# Assignment: directory containing barcode-sample assignments for each capture
+# This path is relative to 'output' above
+# Formerly: results/demuxafy/{project_id}/combined_AtLeastHalfSinglet
+assignment_dir: assignment
+
+# Souporcell: directory for souporcell results
+# Formerly: results/demuxafy/{project_id}/souporcell/{projectname}
+souporcell_dir: souporcell
+
+# Vireo: directory for vireo results
+# Formerly: results/demuxafy/{project_id}/vireo/{projectname}
+vireo_dir: vireo
+
+# Freemuxlet: directory for freemuxlet results
+# Formerly: results/demuxafy/{project_id}/freemuxlet/{projectname}
+freemuxlet_dir: freemuxlet
+
+# Demuxlet: directory for demuxlet results
+# Formerly: results/demuxafy/{project_id}/demuxlet/{projectname}
+demuxlet_dir: demuxlet
+
+# Combined: directory for combined results across all tools
+# Formerly: results/demuxafy/combined/{projectname}
+combined_dir: combined

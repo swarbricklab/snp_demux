@@ -1,0 +1,13 @@
+md5: 1fca1693f6eee3603b30ad5e6dd37d6d
+frozen: true
+deps:
+- path: 10x/transcriptomes/refdata-gex-GRCh38-2020-A
+  repo:
+    url: git@github.com:Swarbricklab/references.git
+    rev_lock: 27326fe8563e5831fb181ecb624c89cb5842ed9d
+outs:
+- md5: cae331e4207e813c9be23dc99187b4d3.dir
+  size: 18221209670
+  nfiles: 20
+  hash: md5
+  path: refdata-gex-GRCh38-2020-A

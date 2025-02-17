@@ -1,0 +1,12 @@
+md5: 618fe2695e79bbc6feb5632dd09f6e3c
+frozen: true
+deps:
+- path: souporcell/genomes/refdata-cellranger-GRCh38-3.0.0
+  repo:
+    url: git@github.com:Swarbricklab-registries/references.git
+    rev_lock: 4d1c06d8de6afb0a05fc6af436e84488da9da543
+outs:
+- md5: b9633b5d6242e95f3e651be7d903ab31.dir
+  size: 3151432687
+  nfiles: 3
+  path: refdata-cellranger-GRCh38-3.0.0

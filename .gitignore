@@ -1,0 +1,15 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+demultiuplexing_tools_testing_with_DEMUXAFY.Rproj
+.cache/
+.snakemake/
+logs*/
+metadata/
+results/
+resources/genotyping/variants/common_variants_grch38.vcf
+temp/
+.vscode/
+Rplots.pdf
+*.pyc

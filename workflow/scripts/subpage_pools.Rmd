@@ -1,0 +1,78 @@
+`r paste0('# ', pool, '{data-navmenu="Sample dissociation pools"}')`
+
+`r shiny::tags$h1(pool, style="text-align:center")`
+
+Row 
+-----------------------------------------------------------------------
+### cell numbers in the pool (demuxafy assignment)
+```{r fig.height=3, fig.width=8}
+# DEBUG
+# save.image("temp/report.subpage_pools.debug.RData")
+# stop("DEBUG forced stop")
+
+# sum <- sum(subpage_data$number_of_cells[!subpage_data$sample_id %in% c("doublet", "unassigned")])
+# subpage_data$frac <- subpage_data$number_of_cells/sum
+# subpage_data$sample_id <- factor(subpage_data$sample_id)
+
+subpage_data %>% 
+  select(sample_id, number_of_cells) %>%
+  filter(sample_id != "doublet" & sample_id != "unassigned") %>%
+  ggplot(aes(x = reorder(sample_id, -number_of_cells), y = number_of_cells, fill = sample_id), show.legend = FALSE) +
+  geom_bar(stat="identity", width=0.8, size=3) +
+  scale_y_continuous() +
+  #geom_hline(yintercept = 0.05, linetype='dotted', col = 'red') + 
+  #annotate("text", x = "PBMC_spike", y = 0.052, label = "Expected PBMC fraction", vjust = -0.5, size = 3) +
+  theme(axis.text.x = element_text(angle = 60, hjust=1), legend.title = element_text(size=2), legend.position = "none") + 
+  ylab("Number of cells") +
+  xlab("sample_id")
+```
+
+Row 
+-----------------------------------------------------------------------
+### cell fractions in the pool (demuxafy assignment)
+```{r fig.height=3, fig.width=8}
+sum <- sum(subpage_data$number_of_cells[!subpage_data$sample_id %in% c("doublet", "unassigned")])
+subpage_data$frac <- subpage_data$number_of_cells/sum
+subpage_data$sample_id <- factor(subpage_data$sample_id)
+
+subpage_data %>% 
+  select(sample_id, frac) %>%
+  filter(sample_id != "doublet" & sample_id != "unassigned") %>%
+  # TODO: fix ordering by fraction
+  ggplot(aes(x = reorder(sample_id, -frac), y = frac, fill = sample_id), show.legend = FALSE) +
+  geom_bar(stat="identity", width=0.8, size=3) +
+  #facet_grid(. ~ Pool) + 
+  scale_y_continuous(labels = scales::percent) +
+  geom_hline(yintercept = 0.05, linetype='dotted', col = 'red') + 
+  # TODO: generalise PBMC specific spikein (or if there any at all used)
+  annotate("text", x = "PBMC", y = 0.052, label = "Expected spike-in fraction", vjust = -0.5, size = 2) +
+  theme(axis.text.x = element_text(angle = 60, hjust=1), legend.title = element_text(size=2), legend.position = "none") + 
+  ylab("Fraction of cells") +
+  xlab("sample_id")
+```
+s
+
+Row 
+-------------------------------------
+### Table with cell counts and cell fractions in the pool
+
+```{r}
+library(kableExtra)
+subpage_data %>% 
+  knitr::kable() %>% kable_styling("striped", full_width = T) %>% 
+  scroll_box(height = "200px")
+```
+
+Row
+-----------------------------------------------------------------------
+### Total number of cells 
+```{r}
+expected_cells <- sum(subpage_data$possible_live_cells)
+print(paste("Number of cells expected in the pool:", expected_cells))
+
+total_cells <- subpage_data %>% 
+  filter(sample_id!="doublet" & sample_id!="unassigned")
+sum_total_cells <- sum(total_cells$number_of_cells)
+print(paste("Total number of cells captured in the pool:", sum_total_cells))
+
+

@@ -1,0 +1,4 @@
+[core]
+    remote = gadi-demultiplexing_tools_testing_with_demuxafy
+['remote "gadi-demultiplexing_tools_testing_with_demuxafy"']
+    url = ssh://gadi-dm.nci.org.au/g/data/a56/dvc/remotes/demultiplexing_tools_testing_with_DEMUXAFY

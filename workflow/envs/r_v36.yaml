@@ -1,0 +1,19 @@
+# conda env create -f conda_environment.yml
+#name: r_v36
+#channels:
+#  - conda-forge
+#  - bioconda
+#  - defaults
+#dependencies:
+#  - r-base=3.6
+
+name: plots 
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - r-dplyr
+  - r-tidyr
+  - r-knitr
+  - r-rmarkdown
+  - r-xfun
