@@ -1,8 +1,0 @@
-name:
-    identify_bam_chr_encoding
-channels:
-    - conda-forge
-    - bioconda
-dependencies:
-    - samtools=1.17
-    - pysam
