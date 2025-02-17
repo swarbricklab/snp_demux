@@ -4,6 +4,9 @@ deps:
   captures: config/captures.csv
   vcf: test/data/imputation/imputed_filtered.hg38.vcf.gz
 
+outs:
+  root: test/results
+
 params:
   cellsnp_lite:
     minMAF: 0.1

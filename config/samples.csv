@@ -1,8 +1,8 @@
-sample_id,subtype,capture_id
-3558,LumB_HER2,Mixed_1
-3561,LumB,Mixed_1
-3564,LumA,Mixed_1
-3840,LumA,Mixed_1
-3930,LumB_HER2,Mixed_1
-3947,LumB,Mixed_1
-PBMC,NA,Mixed_1
+sample_id,donor_id,capture_id
+3558,3558,Mixed_1
+3561,3561,Mixed_1
+3564,3564,Mixed_1
+3840,3840,Mixed_1
+3930,3930,Mixed_1
+3947,3947,Mixed_1
+PBMC,PBMC,Mixed_1
