@@ -1,0 +1,6 @@
+outs:
+- md5: 1663980434acc2239c326a5b276925ba.dir
+  size: 50150462806
+  nfiles: 3
+  hash: md5
+  path: cellranger
