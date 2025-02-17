@@ -1,8 +1,8 @@
-sample_id,subtype,capture_id
+sample_id,donor_id,capture_id
 ***REMOVED***,***REMOVED***,Mixed_1
 ***REMOVED***,***REMOVED***,Mixed_1
 ***REMOVED***,***REMOVED***,Mixed_1
 ***REMOVED***,***REMOVED***,Mixed_1
 ***REMOVED***,***REMOVED***,Mixed_1
 ***REMOVED***,***REMOVED***,Mixed_1
-PBMC,NA,Mixed_1
+PBMC,PBMC,Mixed_1
