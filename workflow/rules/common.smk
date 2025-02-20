@@ -22,8 +22,8 @@ def get_donors_in_capture(wildcards):
     """
     Return a comma-separated list of the donors in wildcards.capture_id
     """
-    capture=samples.loc[samples['donor_id']==wildcards.capture_id]
-    donor_list=",".join(capture.index.tolist())
+    capture=samples.loc[samples['capture_id']==wildcards.capture_id]
+    donor_list=",".join(capture['donor_id'].tolist())
     return donor_list
 
 def get_number_of_samples_in_capture_pool(wildcards):
