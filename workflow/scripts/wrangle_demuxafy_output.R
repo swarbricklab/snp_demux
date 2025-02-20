@@ -46,7 +46,7 @@ message("file_demuxafy_assignments: ", file_demuxafy_assignments)
 message("")
 
 message("OUTPUT")
-combined_edited <- snakemake@output[["combined_results_w_combined_assignments_edited"]]
+combined_edited <- snakemake@output[["sample_barcode_assignments"]]
 message("combined df: ", combined_edited)
 file_all_cells_stats <- snakemake@output[["all_cells_stats"]]
 message("all_cells_stats: ", file_all_cells_stats)

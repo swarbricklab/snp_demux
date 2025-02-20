@@ -86,8 +86,7 @@ rule wrangle_demuxafy_output:
         metadata=config["deps"]["samples"],
         demuxafy_assignments=rules.add_vireosnp_to_combined_results.output.assignments_with_vireosnp
     output:
-        # TODO: think about more readable/informative name
-        combined_results_w_combined_assignments_edited=out_dir/"assignment/{capture_id}/sample_barcode_assignments.tsv",
+        sample_barcode_assignments=out_dir/"assignment/{capture_id}/sample_barcode_assignments.tsv",
         all_cells_stats=out_dir/"assignment/{capture_id}/all_cells_stats.tsv",
         all_singlets_stats=out_dir/"assignment/{capture_id}/all_singlets_stats.tsv",
         cell_assignment=out_dir/"assignment/{capture_id}/cell_assignment.tsv"
@@ -105,7 +104,7 @@ rule wrangle_demuxafy_output:
 
 rule demuxafy_count_cells_AtLeastHalfSinglet:
     input:
-        clusters_annotated=rules.wrangle_demuxafy_output.output.combined_results_w_combined_assignments_edited
+        clusters_annotated=rules.wrangle_demuxafy_output.output.sample_barcode_assignments
     output:
         cell_counts_all=out_dir/"assignment/{capture_id}/plots/demuxafy_cell_count_all.png",
         cell_counts_singlets=out_dir/"assignment/{capture_id}/plots/demuxafy_cell_count_singlets.png",
