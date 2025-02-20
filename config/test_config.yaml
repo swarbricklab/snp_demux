@@ -11,6 +11,9 @@ params:
   cellsnp_lite:
     minMAF: 0.1
     minCOUNT: 20
+  demuxlet:
+    coeff: 1.0
+    offset: 0.05
   demuxafy:
     freemuxlet_correlation_limit: 0.7 # default
     souporcell_correlation_limit: 0.7 # default
