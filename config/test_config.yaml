@@ -23,9 +23,6 @@ ref:
   souporcell:
     genome_fasta: resources/genomes/refdata-gex-GRCh38-2020-A/fasta/genome.fa
 
-# If True, runs the souporcell_test rule
-run_souporcell_test: False
-
 spikein_sample_id: PMBC6
 
 containers: 
