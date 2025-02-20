@@ -29,4 +29,4 @@ run_souporcell_test: False
 spikein_sample_id: PMBC6
 
 containers: 
-  demuxafy: resources/containers/Demuxafy.sif
+  demuxafy: resources/Demuxafy.sif
