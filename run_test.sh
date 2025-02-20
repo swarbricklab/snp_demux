@@ -15,5 +15,5 @@ fi
 
 snakemake $global_profile $workflow_profile \
     --snakefile workflow/Snakefile \
-    --configfile config/config.yaml \
+    --configfile config/test_config.yaml \
     $@
