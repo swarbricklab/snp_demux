@@ -94,7 +94,6 @@ rule wrangle_demuxafy_output:
         # TODO: add wildcard based processing to demuxafy "method"
         assignment_column="AtLeastHalfSinglet_Individual_Assignment",
         droplettype_column="AtLeastHalfSinglet_DropletType",
-        spikein_sample_id=config["spikein_sample_id"]
     conda:
         "../envs/report.yaml"
     log:
