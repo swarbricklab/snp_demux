@@ -1,14 +1,4 @@
 # ==================================
-# Dan Roden
-# ----------------------------------
-# CREATED: 22/09/2020
-# MODIFIED: 22/09/2020
-# ----------------------------------
-# Rules for running Souporcell sample demux
-# ------------------------------------------------------------------------------
-# ==================================
-
-# ==================================
 # Generate cell barcode lists (from )
 # ----------------------------------
 # TODO: Description - Extract cell subsets based on a meta-data column from infercnv
