@@ -33,14 +33,14 @@ rule split_vcf_by_chromosome:
         bcftools index {output.vcf} 2>> {log}
         """
 
-rule extract_sample_ids:
+rule extract_donor_ids:
     output:
-        sample_ids=temp(out_dir/"demuxlet/{capture_id}/sample_list.txt")
+        donor_ids=temp(out_dir/"demuxlet/{capture_id}/donor_list.txt")
     params:
-        sample_ids=get_samples_in_capture
+        donor_ids=get_donors_in_capture
     shell:
         """
-        echo {params.sample_ids} | tr ',' '\n' > {output.sample_ids}
+        echo {params.donor_ids} | tr ',' '\n' > {output.donor_ids}
         """
 
 rule dsc_pileup_demuxlet_by_chromosome:
@@ -48,7 +48,7 @@ rule dsc_pileup_demuxlet_by_chromosome:
         bam=rules.split_bam_by_chromosome.output.bam,
         vcf=rules.split_vcf_by_chromosome.output.vcf,
         barcodes=lookup(captures, "barcodes"),
-        sample_ids=rules.extract_sample_ids.output.sample_ids
+        donor_ids=rules.extract_donor_ids.output.donor_ids
     output:
         cel=temp(out_dir/"demuxlet/pileup/{capture_id}/{chrom}.cel.gz"),
         plp=temp(out_dir/"demuxlet/pileup/{capture_id}/{chrom}.plp.gz"),
@@ -67,7 +67,7 @@ rule dsc_pileup_demuxlet_by_chromosome:
             --vcf {input.vcf} \
             --group-list {input.barcodes} \
             --out $out_prefix \
-            --sm-list {input.sample_ids} \
+            --sm-list {input.donor_ids} \
             > {log} 2>&1
         """
 

@@ -39,7 +39,7 @@ rule subset_vcf:
     output:
         donor_subset=temp(out_dir/"vireo/{capture_id}/donor_subset.vcf")
     params:
-        sample_ids=get_samples_in_capture
+        donor_ids=get_donors_in_capture
     log:
         logs/"subset_vcf/subset_{capture_id}.log"
     container:
@@ -48,7 +48,7 @@ rule subset_vcf:
         """
         bcftools view {input.vcf} \
             --regions-file {input.base} \
-            --samples {params.sample_ids} \
+            --samples {params.donor_ids} \
             --force-samples \
             -Ov -o {output.donor_subset} \
             2> {log}
@@ -59,7 +59,6 @@ rule vireo:
         base=rules.cellsnp_lite.output.base,
         ad_mtx=rules.cellsnp_lite.output.ad_mtx,
         dp_mtx=rules.cellsnp_lite.output.dp_mtx,
-        samples=rules.cellsnp_lite.output.samples,
         donor_vcf=rules.subset_vcf.output.donor_subset
     output:
         donor_ids=out_dir/"vireo/{capture_id}/donor_ids.tsv",
