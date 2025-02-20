@@ -57,6 +57,7 @@ rule subset_vcf:
 rule vireo:
     input:
         base=rules.cellsnp_lite.output.base,
+        samples=rules.cellsnp_lite.output.samples,
         ad_mtx=rules.cellsnp_lite.output.ad_mtx,
         dp_mtx=rules.cellsnp_lite.output.dp_mtx,
         donor_vcf=rules.subset_vcf.output.donor_subset
