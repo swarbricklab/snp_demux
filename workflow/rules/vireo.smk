@@ -67,7 +67,7 @@ rule vireo:
         prob_singlet=out_dir/"vireo/{capture_id}/prob_singlet.tsv.gz",
         summary=out_dir/"vireo/{capture_id}/summary.tsv"
     params:
-        FIELD="GT",
+        field="GT",
         vireo_out_dir=out_dir/"vireo/{capture_id}/"
     log:
         console=logs/"vireo/{capture_id}.console.log",
@@ -83,7 +83,7 @@ rule vireo:
         cmd="vireo --cellData=$cell_data \
             --donorFile={input.donor_vcf} \
             --outDir=$vireo_dir \
-            --genoTag={params.FIELD} \
+            --genoTag={params.field} \
             > {log.console} 2>&1"
         echo $cmd; eval $cmd
         mv $vireo_dir/_log.txt {log.vireo}
