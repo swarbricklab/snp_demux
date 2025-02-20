@@ -98,7 +98,9 @@ rule demuxlet:
     output:
         best=out_dir/"demuxlet/{capture_id}/demuxlet.best"
     params:
-        tag="GT"
+        tag="GT",
+        coeff=config['params']['demuxlet']['coeff'],
+        offset=config['params']['demuxlet']['offset']
     container:
         config["containers"]["demuxafy"]
     log:
@@ -114,8 +116,8 @@ rule demuxlet:
             --vcf {input.vcf} \
             --field {params.tag} \
             --group-list {input.barcodes} \
-            --geno-error-coeff 1.0 \
-            --geno-error-offset 0.05 \
+            --geno-error-coeff {params.coeff} \
+            --geno-error-offset {params.offset} \
             --out $out_prefix \
             > {log} 2>&1
         """
