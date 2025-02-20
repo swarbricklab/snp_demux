@@ -5,7 +5,7 @@ deps:
   vcf: data/snp/imputation/imputed_filtered.hg38.vcf.gz
 
 outs:
-  root: test/results
+  root: data/demux/
 
 params:
   cellsnp_lite:
@@ -22,9 +22,6 @@ params:
 ref:
   souporcell:
     genome_fasta: resources/genomes/refdata-gex-GRCh38-2020-A/fasta/genome.fa
-
-# If True, runs the souporcell_test rule
-run_souporcell_test: False
 
 spikein_sample_id: PMBC6
 
