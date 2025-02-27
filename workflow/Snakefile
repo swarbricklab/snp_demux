@@ -3,16 +3,17 @@ import pandas as pd
 
 # Path roots as global variables
 out_dir=Path(config['outs']['root'])
-logs=Path("logs/demuxafy")
+logs=Path(config['outs']['logs'])
 
 include: "rules/common.smk"
 include: "rules/vireo.smk"
-include: "rules/souporcell.smk"
-include: "rules/souporcell_genotyping.smk"
 include: "rules/demuxlet.smk"
 include: "rules/freemuxlet.smk"
+include: "rules/souporcell.smk"
+include: "rules/souporcell_genotyping.smk"
 include: "rules/demuxafy.smk"
 include: "rules/prepare_data_for_report.smk"
+include: "rules/aggregate.smk"
 # include: "rules/summarise.smk"
 
 
