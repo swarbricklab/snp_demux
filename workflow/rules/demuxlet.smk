@@ -33,14 +33,39 @@ rule split_vcf_by_chromosome:
         bcftools index {output.vcf} 2>> {log}
         """
 
-rule extract_donor_ids:
+rule get_all_genotyped_donors:
+    input:
+        vcf=config['deps']['vcf']
     output:
-        donor_ids=temp(out_dir/"demuxlet/{capture_id}/donor_list.txt")
+        full_donor_list=temp(out_dir/"all_genotyped_donors.txt")
+    container:
+        config['containers']['demuxafy']
+    shell:
+        """
+        bcftools query -l {input.vcf} > {output.full_donor_list}
+        """
+
+rule extract_donor_ids:
+    input:
+        samples=config['deps']['samples'] # used by get_donors_in_capture
+    output:
+        donors_in_capture=temp(out_dir/"demuxlet/{capture_id}/donors_in_capture.txt")
     params:
         donor_ids=get_donors_in_capture
     shell:
         """
-        echo {params.donor_ids} | tr ',' '\n' > {output.donor_ids}
+        echo {params.donor_ids} | tr ',' '\n' > {output.donors_in_capture}
+        """
+
+rule extract_genotyped_donors:
+    input:
+        full_donor_list=rules.get_all_genotyped_donors.output.full_donor_list,
+        donors_in_capture=rules.extract_donor_ids.output.donors_in_capture
+    output:
+        genotyped_donors=temp(out_dir/"demuxlet/{capture_id}/genotyped_donors.txt")
+    shell:
+        """
+            grep -Fx -f {input.donors_in_capture} {input.full_donor_list} > {output.genotyped_donors}
         """
 
 rule dsc_pileup_demuxlet_by_chromosome:
@@ -48,7 +73,7 @@ rule dsc_pileup_demuxlet_by_chromosome:
         bam=rules.split_bam_by_chromosome.output.bam,
         vcf=rules.split_vcf_by_chromosome.output.vcf,
         barcodes=lookup(captures, "barcodes"),
-        donor_ids=rules.extract_donor_ids.output.donor_ids
+        donor_ids=rules.extract_genotyped_donors.output.genotyped_donors
     output:
         cel=temp(out_dir/"demuxlet/pileup/{capture_id}/{chrom}.cel.gz"),
         plp=temp(out_dir/"demuxlet/pileup/{capture_id}/{chrom}.plp.gz"),
@@ -93,7 +118,7 @@ rule demuxlet:
         cel=rules.merge_pileup.output.cel,
         plp=rules.merge_pileup.output.plp,
         umi=rules.merge_pileup.output.umi,
-        vcf=config['deps']['vcf'],
+        vcf=rules.subset_vcf.output.donor_subset,
         barcodes=lookup(captures, "barcodes")
     output:
         best=out_dir/"demuxlet/{capture_id}/demuxlet.best"
