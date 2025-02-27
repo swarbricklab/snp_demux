@@ -59,6 +59,7 @@ rule freemuxlet:
         logs/"freemuxlet/{capture_id}/output.freemuxlet.log"
     shell:
         """
+        echo "Looking for {params.N} samples in capture"
         plp={input.plp}
         in_prefix=${{plp%.plp.gz}}
         lmix={output.lmix}
