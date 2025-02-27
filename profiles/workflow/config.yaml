@@ -15,19 +15,20 @@ conda-frontend: mamba
 set-resources:
   dsc_pileup_demuxlet_by_chromosome:
     threads: 1
-    mem: "12GB"
+    mem: "32GB"
   dsc_pileup_freemuxlet_by_chromosome:
     threads: 1
-    mem: "12GB"
+    mem: "32GB"
   cellsnp-lite:
-    threads: 16
-    mem: "16GB"
+    threads: 32
+    mem: "32GB"
+    runtime: 1440
   merge_pileup:
     threads: 1
-    mem: "96GB"
+    mem: "320GB"
   merge_pileup_freemuxlet:
     threads: 1
-    mem: "96GB"
+    mem: "320GB"
   demuxafy:
     mem: "2GB"
     runtime: 60
@@ -37,12 +38,6 @@ set-resources:
   demuxlet_summary:
     mem: "8GB"
     runtime: 5
-  dsc_pileup_demuxlet:
-    mem: "640GB"
-    runtime: 1440
-  dsc_pileup_freemuxlet:
-    mem: "640GB"
-    runtime: 1400
   freemuxlet:
     threads: 2
     mem: "16GB"
