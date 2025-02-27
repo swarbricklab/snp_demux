@@ -17,3 +17,4 @@ snakemake $global_profile $workflow_profile \
     --snakefile modules/snp_demux/workflow/Snakefile \
     --configfile config/snp_demux/config.yaml \
     $@
+
