@@ -29,7 +29,7 @@ rule souporcell:
         vcf=temp(out_dir/"souporcell/{capture_id}/souporcell_merged_sorted_vcf.vcf.gz"),
         tbi=temp(out_dir/"souporcell/{capture_id}/souporcell_merged_sorted_vcf.vcf.gz.tbi")
     params:
-        sample_number=get_number_of_samples_in_capture_pool, # number of samples expected in sc pool -> number of SNP clusters to generate. 
+        sample_number=get_number_of_samples_in_capture_pool # number of samples expected in sc pool -> number of SNP clusters to generate. 
     container:
         config["containers"]["demuxafy"]
     log:
@@ -38,15 +38,10 @@ rule souporcell:
         out_dir/"souporcell/{capture_id}/benchmark.souporcell.log"
     shell:
         """
-        echo "Starting ..." > {log}
+        echo "Starting ..."
         souporcell_dir="$(dirname {output.clusters})"
-        echo "Souporcell directory: $souporcell_dir" >> {log}
-        cmd="souporcell_pipeline.py -i {input.bam} \
-           -b {input.barcodes} \
-           -f {input.genome_fasta} \
-           -t {resources.threads} \
-           -o $souporcell_dir \
-           -k {params.sample_number} \
-           >> {log} 2>&1"
-        echo $cmd >> {log}; eval $cmd >> {log}
+        souporcell_pipeline.py -i {input.bam} -b {input.barcodes} \
+           -f {input.genome_fasta} -o $souporcell_dir \
+           -t {resources.threads} -k {params.sample_number} \
+           >> {log} 2>&1
         """
