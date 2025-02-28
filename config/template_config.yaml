@@ -5,7 +5,8 @@ deps:
   vcf: data/snp/imputation/imputed_filtered.hg38.vcf.gz
 
 outs:
-  root: data/demux/
+  root: data/snp/demux/
+  logs: logs/snp/demux
 
 params:
   cellsnp_lite:
