@@ -31,11 +31,9 @@ rule souporcell:
     params:
         sample_number=get_number_of_samples_in_capture_pool # number of samples expected in sc pool -> number of SNP clusters to generate. 
     container:
-        config["containers"]["demuxafy"]
+        "docker://johnyaku/souporcell:2023.6"
     log:
         logs/"souporcell/{capture_id}/output.souporcell.log"
-    benchmark:
-        out_dir/"souporcell/{capture_id}/benchmark.souporcell.log"
     shell:
         """
         echo "Starting ..."
