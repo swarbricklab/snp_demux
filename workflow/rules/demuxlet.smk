@@ -48,7 +48,7 @@ rule demuxlet:
         cel=rules.merge_pileup.output.cel,
         plp=rules.merge_pileup.output.plp,
         umi=rules.merge_pileup.output.umi,
-        vcf=rules.subset_vcf.output.donor_subset,
+        vcf=rules.known_genotypes.output.vcf,
         barcodes=lookup(captures, "barcodes")
     output:
         best=out_dir/"demuxlet/{capture_id}/demuxlet.best"
