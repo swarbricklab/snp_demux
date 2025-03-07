@@ -37,9 +37,15 @@ rule souporcell:
     shell:
         """
         echo "Starting ..."
-        souporcell_dir="$(dirname {output.clusters})"
-        souporcell_pipeline.py -i {input.bam} -b {input.barcodes} \
-           -f {input.genome_fasta} -o $souporcell_dir \
-           -t {resources.threads} -k {params.sample_number} \
-           >> {log} 2>&1
+        echo "TMPDIR: $TMPDIR"
+        if \
+            souporcell_dir="$(dirname {output.clusters})"
+            souporcell_pipeline.py -i {input.bam} -b {input.barcodes} \
+            -f {input.genome_fasta} -o $souporcell_dir \
+            -t {resources.threads} -k {params.sample_number} \
+            >> {log} 2>&1; then \
+            echo "Souporcell complete"
+        else
+            cp $TMPDIR/*.toml $souporcell_dir
+        fi
         """
