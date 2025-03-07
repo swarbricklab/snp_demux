@@ -1,16 +1,10 @@
-# ==================================
-# run vireosnp
-# ----------------------------------
 # Use vireoSNP to do the scRNA SNP to known genotype mapping
-# NOTE: this was taken from here: https://git.gimr.garvan.org.au/CTP/soup-or-cell/-/blob/main/workflow/rules/annotation.smk
-# ==================================
 rule vireosnp:
     input:
         clusters=out_dir/"souporcell/{capture_id}/clusters.tsv",
         cluster_genotypes=out_dir/"souporcell/{capture_id}/cluster_genotypes.vcf",
         genotyped_donors=rules.extract_genotyped_donors.output.genotyped_donors,
-        # NOTE: this has to be int encoded otherwise it generates an error
-        known_genotype_vcf=rules.subset_vcf.output.donor_subset
+        known_genotype_vcf=rules.known_genotypes.output.vcf
     output:
         clusters_annotated=out_dir/"souporcell/annotation/vireosnp/{capture_id}/clusters_annotated.tsv",
         scores_matched=out_dir/"souporcell/annotation/vireosnp/{capture_id}/matched_GPb_diff_scores_cluster_genotype.tsv",
