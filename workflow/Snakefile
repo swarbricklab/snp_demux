@@ -20,12 +20,11 @@ include: "rules/aggregate.smk"
 
 rule all:
     input:
-        expand(out_dir/"demuxlet/{capture_id}/summary.txt", capture_id=captures.index.tolist()),
-        expand(out_dir/"freemuxlet/{capture_id}/summary.txt", capture_id=captures.index.tolist()),
-        expand(out_dir/"assignment/{capture_id}/combined_results.tsv", capture_id=captures.index.tolist()),
-        expand(out_dir/"assignment/{capture_id}/combined_results_w_combined_assignments.inc_vireosnp.tsv", capture_id=captures.index.tolist()),
+        rules.aggregate_demuxlet.output.checkpoint_file,
+        rules.aggregate_freemuxlet.output.checkpoint_file,
+        rules.aggregate_vireo.output.checkpoint_file,
+        rules.aggregate_souporcell.output.checkpoint_file,
+        rules.aggregate_demuxafy.output.checkpoint_file,
         out_dir/"assignment/report/all_singlets_stats_full.tsv",
         out_dir/"assignment/report/all_cells_stats_full.tsv",
-        out_dir/"assignment/report/combined_results_w_combined_assignments_edited_full.tsv",
-        expand(out_dir/"assignment/{capture_id}/demuxafy_cell_count_table.tsv", capture_id=captures.index.tolist()),
-        expand(out_dir/"assignment/{capture_id}/plots/combined_resultsSinglets_upset.png", capture_id=captures.index.tolist()),
+        out_dir/"assignment/report/combined_results.tsv",
