@@ -51,8 +51,8 @@ set-resources:
     mem: "2GB"
     runtime: 5
   souporcell:
-    threads: 16
-    mem: "512GB"
+    threads: 32
+    mem: "190GB"
     runtime: 1440
   souporcell_genotyping:
     mem: "20GB"
