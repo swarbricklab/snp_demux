@@ -6,6 +6,7 @@ out_dir=Path(config['outs']['root'])
 logs=Path(config['outs']['logs'])
 
 include: "rules/common.smk"
+include: "rules/split.smk"
 include: "rules/vireo.smk"
 include: "rules/demuxlet.smk"
 include: "rules/freemuxlet.smk"
