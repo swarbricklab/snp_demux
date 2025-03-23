@@ -23,12 +23,36 @@ set-resources:
     threads: 32
     mem: "32GB"
     runtime: 1440
-  merge_pileup:
+  merge_cel_demuxlet:
     threads: 1
-    mem: "320GB"
-  merge_pileup_freemuxlet:
+    mem: 4GB
+  merge_var_demuxlet:
     threads: 1
-    mem: "320GB"
+    mem: 4GB
+  merge_plp_demuxlet:
+    threads: 1
+    mem: 4GB
+  merge_umi_demuxlet:
+    threads: 1
+    mem: 4GB
+  wrangle_umi_demuxlet:
+    threads: 1
+    mem: 4GB
+  merge_cel_demuxlet:
+    threads: 1
+    mem: 4GB
+  merge_var_demuxlet:
+    threads: 1
+    mem: 4GB
+  merge_plp_demuxlet:
+    threads: 1
+    mem: 4GB
+  merge_umi_demuxlet:
+    threads: 1
+    mem: 4GB
+  wrangle_umi_demuxlet:
+    threads: 1
+    mem: 4GB
   demuxafy:
     mem: "2GB"
     runtime: 60

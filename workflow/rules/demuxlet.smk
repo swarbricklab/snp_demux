@@ -26,28 +26,85 @@ rule dsc_pileup_demuxlet_by_chromosome:
             > {log} 2>&1
         """
 
-rule merge_pileup:
+rule merge_cel_demuxlet:
     input:
-        cel=expand(out_dir/"demuxlet/pileup/{capture_id}/{chrom}.cel.gz", chrom=chromosomes, capture_id="{capture_id}"),
-        var=expand(out_dir/"demuxlet/pileup/{capture_id}/{chrom}.var.gz", chrom=chromosomes, capture_id="{capture_id}"),
-        plp=expand(out_dir/"demuxlet/pileup/{capture_id}/{chrom}.plp.gz", chrom=chromosomes, capture_id="{capture_id}"),
-        umi=expand(out_dir/"demuxlet/pileup/{capture_id}/{chrom}.umi.gz", chrom=chromosomes, capture_id="{capture_id}")
+        cel=expand(out_dir/"demuxlet/pileup/{capture_id}/{chrom}.cel.gz", chrom=chromosomes, capture_id="{capture_id}")
     output:
         cel=temp(out_dir/"demuxlet/{capture_id}/pileup.cel.gz"),
-        var=temp(out_dir/"demuxlet/{capture_id}/pileup.var.gz"),
-        plp=temp(out_dir/"demuxlet/{capture_id}/pileup.plp.gz"),
-        umi=temp(out_dir/"demuxlet/{capture_id}/pileup.umi.gz")
+        sample_map=temp(out_dir/"demuxlet/{capture_id}/full_sample_map.tsv.gz")
     log:
-        logs/"merge_pileup/{capture_id}/merge_cel.log"
+        logs/"merge_pileup/demuxlet/{capture_id}/merge_cel.log"
     script:
-        "../scripts/merge_pileup.py"
+        "../scripts/merge_cel.py"
+
+rule merge_var_demuxlet:
+    input:
+        var=expand(out_dir/"demuxlet/pileup/{capture_id}/{chrom}.var.gz", chrom=chromosomes, capture_id="{capture_id}")
+    output:
+        var=temp(out_dir/"demuxlet/{capture_id}/pileup.var.gz"),
+        snp_map=temp(out_dir/"demuxlet/{capture_id}/snp_map.tsv.gz")
+    log:
+        logs/"merge_pileup/demuxlet/{capture_id}/merge_var.log"
+    script:
+        "../scripts/merge_var.py"
+
+rule wrangle_plp_demuxlet:
+    input:
+        plp=out_dir/"demuxlet/pileup/{capture_id}/{chrom}.plp.gz",
+        sample_map=rules.merge_cel_demuxlet.output.sample_map,
+        snp_map=rules.merge_var_demuxlet.output.snp_map
+    output:
+        plp=temp(out_dir/"demuxlet/wrangle/{capture_id}/{chrom}.plp")
+    log:
+        logs/"merge_pileup/demuxlet/{capture_id}/wrangle_plp_{chrom}.log"
+    script:
+        "../scripts/wrangle_plp.py"
+
+rule merge_plp_demuxlet:
+    input:
+        plp=expand(out_dir/"demuxlet/wrangle/{capture_id}/{chrom}.plp", 
+                chrom=chromosomes, 
+                capture_id="{capture_id}"
+            )
+    output:
+        plp=out_dir/"demuxlet/{capture_id}/pileup.plp.gz"
+    container:
+        "docker://johnyaku/csvkit:1.1.1"
+    log:
+        logs/"merge_pileup/demuxlet/{capture_id}/merge_plp.log"
+    shell:
+        """
+        csvstack --tabs {input.plp} | csvformat -T | gzip -n > {output.plp}
+        """
+
+rule wrangle_umi_demuxlet:
+    input:
+        umi=out_dir/"demuxlet/pileup/{capture_id}/{chrom}.umi.gz",
+        sample_map=rules.merge_cel_demuxlet.output.sample_map
+    output:
+        umi=temp(out_dir/"demuxlet/wrangle/{capture_id}/{chrom}.umi.gz")
+    log:
+        logs/"merge_pileup/demuxlet/{capture_id}/wrangle_umi_{chrom}.log"
+    script:
+        "../scripts/wrangle_umi.py"
+
+rule merge_umi_demuxlet:
+    input:
+        umi=expand(out_dir/"demuxlet/wrangle/{capture_id}/{chrom}.umi.gz", chrom=chromosomes, capture_id="{capture_id}")
+    output:
+        umi=out_dir/"demuxlet/{capture_id}/pileup.umi.gz"
+    log:
+        logs/"merge_pileup/demuxlet/{capture_id}/merge_umi.log"
+    shell:
+        "zcat {input.umi} | gzip > {output.umi}"
+
 
 rule demuxlet:
     input:
-        var=rules.merge_pileup.output.var,
-        cel=rules.merge_pileup.output.cel,
-        plp=rules.merge_pileup.output.plp,
-        umi=rules.merge_pileup.output.umi,
+        var=rules.merge_var_demuxlet.output.var,
+        cel=rules.merge_cel_demuxlet.output.cel,
+        plp=rules.merge_plp_demuxlet.output.plp,
+        umi=rules.merge_umi_demuxlet.output.umi,
         vcf=rules.known_genotypes.output.vcf,
         barcodes=lookup(captures, "barcodes")
     output:
