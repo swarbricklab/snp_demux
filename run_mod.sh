@@ -5,7 +5,7 @@ eval  "$(conda shell.bash hook)"
 conda activate snakemake_7.32.4
 
 if [[ "$(hostname)" == *"nci"* ]]; then
-    global_profile="--profile modules/snp_demux/profiles/global/nci_a56"
+    global_profile="--profile modules/snp_demux/profiles/global/nci"
     workflow_profile="--workflow-profile modules/snp_demux/profiles/workflow "
     module load singularity
     mkdir -p logs/joblogs
