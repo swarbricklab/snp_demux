@@ -31,7 +31,7 @@ rule souporcell:
     params:
         sample_number=get_number_of_samples_in_capture_pool # number of samples expected in sc pool -> number of SNP clusters to generate. 
     container:
-        "docker://johnyaku/souporcell:2023.6"
+        "docker://cumulusprod/souporcell:2.5"
     log:
         logs/"souporcell/{capture_id}/output.souporcell.log"
     shell:
