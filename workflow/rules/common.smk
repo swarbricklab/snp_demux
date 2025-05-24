@@ -18,13 +18,13 @@ def lookup(df,field):
     return handle_wildcards
 
 
-def get_samples_in_capture(wildcards):
+def get_donors_in_capture(wildcards):
     """
-    Return a comma-separated list of the samples in wildcards.capture_id
+    Return a comma-separated list of the donors in wildcards.capture_id
     """
     capture=samples.loc[samples['capture_id']==wildcards.capture_id]
-    sample_list=",".join(capture.index.tolist())
-    return sample_list
+    donor_list=",".join(capture['donor_id'].tolist())
+    return donor_list
 
 def get_number_of_samples_in_capture_pool(wildcards):
     """

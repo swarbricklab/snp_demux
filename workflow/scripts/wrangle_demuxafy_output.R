@@ -46,7 +46,7 @@ message("file_demuxafy_assignments: ", file_demuxafy_assignments)
 message("")
 
 message("OUTPUT")
-combined_edited <- snakemake@output[["combined_results_w_combined_assignments_edited"]]
+combined_edited <- snakemake@output[["sample_barcode_assignments"]]
 message("combined df: ", combined_edited)
 file_all_cells_stats <- snakemake@output[["all_cells_stats"]]
 message("all_cells_stats: ", file_all_cells_stats)
@@ -82,14 +82,6 @@ if(debug) {
     droplettype_column <- snakemake@params[["droplettype_column"]]
 }
 message("droplettype_column: ", droplettype_column)
-
-if(debug) {
-    spikein_sample_id <- "PBMC"
-} else {
-    spikein_sample_id <- snakemake@params[["spikein_sample_id"]]
-}
-message("spikein_sample_id: ", spikein_sample_id)
-message("----------------------------------")
 
 message("Parse meta-data sample-sheet")
 df_metadata <- read.delim(file_metadata, header = TRUE, sep = "\t")
@@ -209,14 +201,8 @@ table_singlets <- df_assignments_summary %>%
 sum_singlets <- sum(table_singlets$number_of_cells)
 table_singlets$fraction_of_all_singlets_captured <- paste0(round((table_singlets$number_of_cells)/sum_singlets * 100), "%")
 
-table_singlets_no_spikein <- table_singlets %>% 
-    filter(!(paste(assignment_column) %in% spikein_sample_id)) %>%
-    select(sample_id, number_of_cells)
-sum_singlets_no_spikein <- sum(table_singlets_no_spikein$number_of_cells)
-table_singlets_no_spikein$fraction_of_singlets_captured_without_spikein <- paste0(round((table_singlets_no_spikein$number_of_cells)/sum_singlets_no_spikein * 100), "%")
-
 message("Join the tables")
-df_all_singlets <- left_join(table_singlets, table_singlets_no_spikein, by = c("sample_id", "number_of_cells"))
+df_all_singlets <- left_join(table_singlets, table_singlets, by = c("sample_id", "number_of_cells"))
 df_all_singlets$capture_id <- paste(capture_id)
 
 df_all_cells <- left_join(df_assignments_summary, df_all_singlets, by = c("sample_id", "number_of_cells"))
@@ -232,11 +218,6 @@ doublets <- df_assignments_summary %>%
 unassigned <- df_assignments_summary %>% 
     filter(sample_id %in% c("singlet", "unassigned")) %>% 
     pull("number_of_cells")
-
-# TODO: is this needed? It's not used in the code?
-spikeins <- df_assignments_summary %>% 
-    filter(sample_id == spikein_sample_id) %>% 
-    pull("number_of_cells") 
 
 write.table(df_all_cells, file=paste(file_all_cells_stats), append = FALSE, quote = FALSE, sep = "\t", row.names = FALSE, col.names = TRUE)
 write.table(df_all_singlets, file=paste(file_all_singlets_stats), append = FALSE, quote = FALSE, sep = "\t", row.names = FALSE, col.names = TRUE)
