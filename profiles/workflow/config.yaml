@@ -15,19 +15,44 @@ conda-frontend: mamba
 set-resources:
   dsc_pileup_demuxlet_by_chromosome:
     threads: 1
-    mem: "12GB"
+    mem: "32GB"
   dsc_pileup_freemuxlet_by_chromosome:
     threads: 1
-    mem: "12GB"
+    mem: "32GB"
   cellsnp-lite:
-    threads: 16
-    mem: "16GB"
-  merge_pileup:
+    threads: 32
+    mem: "32GB"
+    runtime: 1440
+  merge_cel_demuxlet:
     threads: 1
-    mem: "96GB"
-  merge_pileup_freemuxlet:
+    mem: 4GB
+  merge_var_demuxlet:
     threads: 1
-    mem: "96GB"
+    mem: 4GB
+  merge_plp_demuxlet:
+    threads: 1
+    mem: 4GB
+  merge_umi_demuxlet:
+    threads: 1
+    mem: 4GB
+  wrangle_umi_demuxlet:
+    threads: 1
+    mem: 4GB
+  merge_cel_demuxlet:
+    threads: 1
+    mem: 4GB
+  merge_var_demuxlet:
+    threads: 1
+    mem: 4GB
+  merge_plp_demuxlet:
+    threads: 1
+    mem: 4GB
+  merge_umi_demuxlet:
+    threads: 1
+    mem: 4GB
+  wrangle_umi_demuxlet:
+    threads: 1
+    mem: 4GB
   demuxafy:
     mem: "2GB"
     runtime: 60
@@ -37,12 +62,6 @@ set-resources:
   demuxlet_summary:
     mem: "8GB"
     runtime: 5
-  dsc_pileup_demuxlet:
-    mem: "640GB"
-    runtime: 1440
-  dsc_pileup_freemuxlet:
-    mem: "640GB"
-    runtime: 1400
   freemuxlet:
     threads: 2
     mem: "16GB"
@@ -56,8 +75,8 @@ set-resources:
     mem: "2GB"
     runtime: 5
   souporcell:
-    threads: 16
-    mem: "512GB"
+    threads: 32
+    mem: "190GB"
     runtime: 1440
   souporcell_genotyping:
     mem: "20GB"

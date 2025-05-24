@@ -10,8 +10,8 @@ rule souporcell:
         ambient_rna=out_dir/"souporcell/{capture_id}/ambient_rna.txt",
         bam=temp(out_dir/"souporcell/{capture_id}/souporcell_minimap_tagged_sorted.bam"),
         bai=temp(out_dir/"souporcell/{capture_id}/souporcell_minimap_tagged_sorted.bam.bai"),
-        alt=temp(out_dir/"souporcell/{capture_id}/alt.mtx"),
-        ref=temp(out_dir/"souporcell/{capture_id}/ref.mtx"),
+        alt=out_dir/"souporcell/{capture_id}/alt.mtx",
+        ref=out_dir/"souporcell/{capture_id}/ref.mtx",
         bc=temp(out_dir/"souporcell/{capture_id}/barcodes.tsv"),
         bcf_err=temp(out_dir/"souporcell/{capture_id}/bcftools.err"),
         cl_done=temp(out_dir/"souporcell/{capture_id}/clustering.done"),
@@ -29,24 +29,23 @@ rule souporcell:
         vcf=temp(out_dir/"souporcell/{capture_id}/souporcell_merged_sorted_vcf.vcf.gz"),
         tbi=temp(out_dir/"souporcell/{capture_id}/souporcell_merged_sorted_vcf.vcf.gz.tbi")
     params:
-        sample_number=get_number_of_samples_in_capture_pool, # number of samples expected in sc pool -> number of SNP clusters to generate. 
+        sample_number=get_number_of_samples_in_capture_pool # number of samples expected in sc pool -> number of SNP clusters to generate. 
     container:
-        config["containers"]["demuxafy"]
+        "docker://cumulusprod/souporcell:2.5"
     log:
         logs/"souporcell/{capture_id}/output.souporcell.log"
-    benchmark:
-        out_dir/"souporcell/{capture_id}/benchmark.souporcell.log"
     shell:
         """
-        echo "Starting ..." > {log}
-        souporcell_dir="$(dirname {output.clusters})"
-        echo "Souporcell directory: $souporcell_dir" >> {log}
-        cmd="souporcell_pipeline.py -i {input.bam} \
-           -b {input.barcodes} \
-           -f {input.genome_fasta} \
-           -t {resources.threads} \
-           -o $souporcell_dir \
-           -k {params.sample_number} \
-           >> {log} 2>&1"
-        echo $cmd >> {log}; eval $cmd >> {log}
+        echo "Starting ..."
+        echo "TMPDIR: $TMPDIR"
+        if \
+            souporcell_dir="$(dirname {output.clusters})"
+            souporcell_pipeline.py -i {input.bam} -b {input.barcodes} \
+            -f {input.genome_fasta} -o $souporcell_dir \
+            -t {resources.threads} -k {params.sample_number} \
+            >> {log} 2>&1; then \
+            echo "Souporcell complete"
+        else
+            cp $TMPDIR/*.toml $souporcell_dir
+        fi
         """

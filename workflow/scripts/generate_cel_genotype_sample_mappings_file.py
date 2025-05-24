@@ -37,14 +37,6 @@ log.info("file_samples: " + file_samples)
 
 file_vcf = snakemake.input["vcf"]
 log.info("file_vcf: " + file_vcf)
-# ----------
-# DEBUG
-#file_samples = "resources/testing/config/samples.tsv"
-#file_vcf = "results/demuxafy/genotyping/demuxafy_test/demuxafy_test/preimputation/chr24_to_X_b37.clean.reheader.dict_updated.chr_encoded.sorted.removed_unknowns.vcf"
-#file_genotype_sample_mappings = "temp/file_genotype_sample_mappings.txt"
-#print("DEBUG: file_vcf: ")
-#print(file_vcf)
-# ----------
 log.info("")
 
 log.info("OUTPUT")

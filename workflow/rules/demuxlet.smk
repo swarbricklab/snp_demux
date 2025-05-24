@@ -1,54 +1,9 @@
-chromosomes=['chr1', 'chr2', 'chr3','chr4', 'chr5', 'chr6','chr7', 'chr8', 'chr9','chr10', 'chr11', 'chr12',
-'chr13', 'chr14', 'chr15','chr16', 'chr17', 'chr18','chr19', 'chr20', 'chr21', 'chr22']
-
-rule split_bam_by_chromosome:
-    input:
-        bam=lookup(captures, "bam")
-    output:
-        bam=temp(out_dir/"split/{capture_id}/bams/{chrom}.bam"),
-        index=temp(out_dir/"split/{capture_id}/bams/{chrom}.bam.bai")
-    log:
-        logs/"split_bam/{capture_id}/{chrom}.log"
-    container:
-        config["containers"]["demuxafy"]
-    shell:
-        """
-        samtools view -b {input.bam} {wildcards.chrom} > {output.bam} 2> {log}
-        samtools index {output.bam} 2>> {log}
-        """
-
-rule split_vcf_by_chromosome:
-    input:
-        vcf=config['deps']['vcf']
-    output:
-        vcf=temp(out_dir/"split/{capture_id}/vcfs/{chrom}.vcf.gz"),
-        index=temp(out_dir/"split/{capture_id}/vcfs/{chrom}.vcf.gz.csi")
-    log:
-        logs/"split_vcf/{capture_id}/{chrom}.log"
-    container:
-        config["containers"]["demuxafy"]
-    shell:
-        """
-        bcftools view -r {wildcards.chrom} {input.vcf} -Oz -o {output.vcf} 2> {log}
-        bcftools index {output.vcf} 2>> {log}
-        """
-
-rule extract_sample_ids:
-    output:
-        sample_ids=temp(out_dir/"demuxlet/{capture_id}/sample_list.txt")
-    params:
-        sample_ids=get_samples_in_capture
-    shell:
-        """
-        echo {params.sample_ids} | tr ',' '\n' > {output.sample_ids}
-        """
-
 rule dsc_pileup_demuxlet_by_chromosome:
     input:
         bam=rules.split_bam_by_chromosome.output.bam,
         vcf=rules.split_vcf_by_chromosome.output.vcf,
         barcodes=lookup(captures, "barcodes"),
-        sample_ids=rules.extract_sample_ids.output.sample_ids
+        donor_ids=rules.extract_genotyped_donors.output.genotyped_donors
     output:
         cel=temp(out_dir/"demuxlet/pileup/{capture_id}/{chrom}.cel.gz"),
         plp=temp(out_dir/"demuxlet/pileup/{capture_id}/{chrom}.plp.gz"),
@@ -67,38 +22,97 @@ rule dsc_pileup_demuxlet_by_chromosome:
             --vcf {input.vcf} \
             --group-list {input.barcodes} \
             --out $out_prefix \
-            --sm-list {input.sample_ids} \
+            --sm-list {input.donor_ids} \
             > {log} 2>&1
         """
 
-rule merge_pileup:
+rule merge_cel_demuxlet:
     input:
-        cel=expand(out_dir/"demuxlet/pileup/{capture_id}/{chrom}.cel.gz", chrom=chromosomes, capture_id="{capture_id}"),
-        var=expand(out_dir/"demuxlet/pileup/{capture_id}/{chrom}.var.gz", chrom=chromosomes, capture_id="{capture_id}"),
-        plp=expand(out_dir/"demuxlet/pileup/{capture_id}/{chrom}.plp.gz", chrom=chromosomes, capture_id="{capture_id}"),
-        umi=expand(out_dir/"demuxlet/pileup/{capture_id}/{chrom}.umi.gz", chrom=chromosomes, capture_id="{capture_id}")
+        cel=expand(out_dir/"demuxlet/pileup/{capture_id}/{chrom}.cel.gz", chrom=chromosomes, capture_id="{capture_id}")
     output:
         cel=temp(out_dir/"demuxlet/{capture_id}/pileup.cel.gz"),
-        var=temp(out_dir/"demuxlet/{capture_id}/pileup.var.gz"),
-        plp=temp(out_dir/"demuxlet/{capture_id}/pileup.plp.gz"),
-        umi=temp(out_dir/"demuxlet/{capture_id}/pileup.umi.gz")
+        sample_map=temp(out_dir/"demuxlet/{capture_id}/full_sample_map.tsv.gz")
     log:
-        logs/"merge_pileup/{capture_id}/merge_cel.log"
+        logs/"merge_pileup/demuxlet/{capture_id}/merge_cel.log"
     script:
-        "../scripts/merge_pileup.py"
+        "../scripts/merge_cel.py"
+
+rule merge_var_demuxlet:
+    input:
+        var=expand(out_dir/"demuxlet/pileup/{capture_id}/{chrom}.var.gz", chrom=chromosomes, capture_id="{capture_id}")
+    output:
+        var=temp(out_dir/"demuxlet/{capture_id}/pileup.var.gz"),
+        snp_map=temp(out_dir/"demuxlet/{capture_id}/snp_map.tsv.gz")
+    log:
+        logs/"merge_pileup/demuxlet/{capture_id}/merge_var.log"
+    script:
+        "../scripts/merge_var.py"
+
+rule wrangle_plp_demuxlet:
+    input:
+        plp=out_dir/"demuxlet/pileup/{capture_id}/{chrom}.plp.gz",
+        sample_map=rules.merge_cel_demuxlet.output.sample_map,
+        snp_map=rules.merge_var_demuxlet.output.snp_map
+    output:
+        plp=temp(out_dir/"demuxlet/wrangle/{capture_id}/{chrom}.plp")
+    log:
+        logs/"merge_pileup/demuxlet/{capture_id}/wrangle_plp_{chrom}.log"
+    script:
+        "../scripts/wrangle_plp.py"
+
+rule merge_plp_demuxlet:
+    input:
+        plp=expand(out_dir/"demuxlet/wrangle/{capture_id}/{chrom}.plp", 
+                chrom=chromosomes, 
+                capture_id="{capture_id}"
+            )
+    output:
+        plp=out_dir/"demuxlet/{capture_id}/pileup.plp.gz"
+    container:
+        "docker://johnyaku/csvkit:1.1.1"
+    log:
+        logs/"merge_pileup/demuxlet/{capture_id}/merge_plp.log"
+    shell:
+        """
+        csvstack --tabs {input.plp} | csvformat -T | gzip -n > {output.plp}
+        """
+
+rule wrangle_umi_demuxlet:
+    input:
+        umi=out_dir/"demuxlet/pileup/{capture_id}/{chrom}.umi.gz",
+        sample_map=rules.merge_cel_demuxlet.output.sample_map
+    output:
+        umi=temp(out_dir/"demuxlet/wrangle/{capture_id}/{chrom}.umi.gz")
+    log:
+        logs/"merge_pileup/demuxlet/{capture_id}/wrangle_umi_{chrom}.log"
+    script:
+        "../scripts/wrangle_umi.py"
+
+rule merge_umi_demuxlet:
+    input:
+        umi=expand(out_dir/"demuxlet/wrangle/{capture_id}/{chrom}.umi.gz", chrom=chromosomes, capture_id="{capture_id}")
+    output:
+        umi=out_dir/"demuxlet/{capture_id}/pileup.umi.gz"
+    log:
+        logs/"merge_pileup/demuxlet/{capture_id}/merge_umi.log"
+    shell:
+        "zcat {input.umi} | gzip > {output.umi}"
+
 
 rule demuxlet:
     input:
-        var=rules.merge_pileup.output.var,
-        cel=rules.merge_pileup.output.cel,
-        plp=rules.merge_pileup.output.plp,
-        umi=rules.merge_pileup.output.umi,
-        vcf=config['deps']['vcf'],
+        var=rules.merge_var_demuxlet.output.var,
+        cel=rules.merge_cel_demuxlet.output.cel,
+        plp=rules.merge_plp_demuxlet.output.plp,
+        umi=rules.merge_umi_demuxlet.output.umi,
+        vcf=rules.known_genotypes.output.vcf,
         barcodes=lookup(captures, "barcodes")
     output:
         best=out_dir/"demuxlet/{capture_id}/demuxlet.best"
     params:
-        tag="GT"
+        tag="GT",
+        coeff=config['params']['demuxlet']['coeff'],
+        offset=config['params']['demuxlet']['offset']
     container:
         config["containers"]["demuxafy"]
     log:
@@ -114,8 +128,8 @@ rule demuxlet:
             --vcf {input.vcf} \
             --field {params.tag} \
             --group-list {input.barcodes} \
-            --geno-error-coeff 1.0 \
-            --geno-error-offset 0.05 \
+            --geno-error-coeff {params.coeff} \
+            --geno-error-offset {params.offset} \
             --out $out_prefix \
             > {log} 2>&1
         """

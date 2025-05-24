@@ -17,7 +17,7 @@ rule combine_cell_assignments:
         data_files=expand(out_dir/"assignment/{capture_id}/sample_barcode_assignments.tsv", capture_id=captures.index.tolist())
     output:
         # TODO: should this be defined as an input to the report rule/script?
-        combined=out_dir/"assignment/report/combined_results_w_combined_assignments_edited_full.tsv"
+        combined=out_dir/"assignment/report/combined_results.tsv"
     log:
         logs/"assignment/report/output.combine_cell_assignments.log"
     conda:
