@@ -1,0 +1,11 @@
+name: wrangle_demuxafy
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - r-base>=4.2
+  - r-dplyr
+  - r-readr
+  - r-stringr
+  - bioconductor-variantannotation
