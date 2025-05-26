@@ -69,7 +69,8 @@ rule vireo:
         summary=out_dir/"vireo/{capture_id}/summary.tsv"
     params:
         field="GT",
-        vireo_out_dir=out_dir/"vireo/{capture_id}/"
+        vireo_out_dir=out_dir/"vireo/{capture_id}/",
+        n=get_number_of_samples_in_capture_pool
     log:
         console=logs/"vireo/{capture_id}.console.log",
         vireo=logs/"vireo/{capture_id}_log.txt"
@@ -83,6 +84,9 @@ rule vireo:
         vireo_dir=$(dirname $donor_ids)
         cmd="vireo --cellData=$cell_data \
             --donorFile={input.donor_vcf} \
+            --nDonor={params.n} \
+            --nproc={resources.threads} \
+            --callAmbientRNAs \
             --outDir=$vireo_dir \
             --genoTag={params.field} \
             > {log.console} 2>&1"
