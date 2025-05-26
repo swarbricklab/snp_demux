@@ -60,7 +60,7 @@ if(length(donors_without_SNP) > 0) {
     # Override for samples without SNP genotypes
     df_assign <- df_assign %>% dplyr::mutate(
       !!assignment_column := if_else(
-        Souporcell_vireosnp_Individual_Assignment %in% donors_without_SNP,
+        (Souporcell_vireosnp_Individual_Assignment %in% donors_without_SNP) & (!!droplettype_column == "singlet"),
         Souporcell_vireosnp_Individual_Assignment,
         !!sym(assignment_column)
       ),
