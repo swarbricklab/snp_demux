@@ -81,18 +81,26 @@ map_vec <- df_map %>%
 print(map_vec)
 
 # Recode *_Individual_Assignment columns from donors to samples
+# Prefix barcode with capture id
 df_assign <- df_assign %>%
   dplyr::mutate(
     across(
       ends_with("_Individual_Assignment"),
       ~ recode(.x, !!!map_vec, .default = .x)
     )
+  ) %>%
+  dplyr::mutate(
+    barcode = paste0(capture,"_",Barcode)
+  ) %>%
+  dplyr::select(-Barcode) %>%
+  dplyr::select(
+    barcode, everything()
   )
 
 message("Creating assignment summary")
 df_summary <- df_assign %>%
   dplyr::select(
-    barcode    = Barcode,
+    barcode,
     assignment = !!sym(assignment_column),
     status     = !!sym(droplettype_column)
   ) %>%
