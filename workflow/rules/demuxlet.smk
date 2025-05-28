@@ -67,7 +67,7 @@ rule merge_plp_demuxlet:
                 capture_id="{capture_id}"
             )
     output:
-        plp=out_dir/"demuxlet/{capture_id}/pileup.plp.gz"
+        plp=temp(out_dir/"demuxlet/{capture_id}/pileup.plp.gz")
     container:
         "docker://johnyaku/csvkit:1.1.1"
     log:
@@ -92,7 +92,7 @@ rule merge_umi_demuxlet:
     input:
         umi=expand(out_dir/"demuxlet/wrangle/{capture_id}/{chrom}.umi.gz", chrom=chromosomes, capture_id="{capture_id}")
     output:
-        umi=out_dir/"demuxlet/{capture_id}/pileup.umi.gz"
+        umi=temp(out_dir/"demuxlet/{capture_id}/pileup.umi.gz")
     log:
         logs/"merge_pileup/demuxlet/{capture_id}/merge_umi.log"
     shell:

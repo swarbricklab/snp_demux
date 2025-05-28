@@ -75,35 +75,42 @@ rule add_vireosnp_to_combined_results:
     script:
         "../scripts/add_vireosnp_to_combined_results.R"
 
-
-# # ==================================
-# # wrangle_demuxafy_output
-# # ----------------------------------
-# # post-processing of demuxafy results and summary stats from cells and singlets
-# # ==================================
-rule wrangle_demuxafy_output:
+rule wrangle_demuxafy_assignments:
     input:
-        metadata=config["deps"]["samples"],
+        sample_map=config["deps"]["samples"],
+        vcf=config["deps"]["vcf"],
         demuxafy_assignments=rules.add_vireosnp_to_combined_results.output.assignments_with_vireosnp
     output:
         sample_barcode_assignments=out_dir/"assignment/{capture_id}/sample_barcode_assignments.tsv",
-        all_cells_stats=out_dir/"assignment/{capture_id}/all_cells_stats.tsv",
-        all_singlets_stats=out_dir/"assignment/{capture_id}/all_singlets_stats.tsv",
         cell_assignment=out_dir/"assignment/{capture_id}/cell_assignment.tsv"
     params:
-        # TODO: add wildcard based processing to demuxafy "method"
         assignment_column="AtLeastHalfSinglet_Individual_Assignment",
         droplettype_column="AtLeastHalfSinglet_DropletType",
     conda:
-        "../envs/report.yaml"
+        "../envs/wrangle_demuxafy.yaml"
     log:
-        logs/"assignment/{capture_id}/wrangle_demuxafy_output.log"
+        logs/"assignment/{capture_id}/wrangle_demuxafy_output.assignments.log"
     script:
-        "../scripts/wrangle_demuxafy_output.R"
+        "../scripts/wrangle_assignments.R"
+
+rule wrangle_stats:
+    input:
+        sample_barcode_assignments=rules.wrangle_demuxafy_assignments.output.sample_barcode_assignments
+    output:
+        all_cells_stats=out_dir/"assignment/{capture_id}/all_cells_stats.tsv",
+        all_singlets_stats=out_dir/"assignment/{capture_id}/all_singlets_stats.tsv"
+    params:
+        assignment_column="AtLeastHalfSinglet_Individual_Assignment"
+    conda:
+        "../envs/wrangle_demuxafy.yaml"
+    log:
+        logs/"assignment/{capture_id}/wrangle_stats.log"
+    script:
+        "../scripts/wrangle_stats.R"
 
 rule demuxafy_count_cells_AtLeastHalfSinglet:
     input:
-        clusters_annotated=rules.wrangle_demuxafy_output.output.sample_barcode_assignments
+        clusters_annotated=rules.wrangle_demuxafy_assignments.output.sample_barcode_assignments
     output:
         cell_counts_all=out_dir/"assignment/{capture_id}/plots/demuxafy_cell_count_all.png",
         cell_counts_singlets=out_dir/"assignment/{capture_id}/plots/demuxafy_cell_count_singlets.png",

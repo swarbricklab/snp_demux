@@ -66,7 +66,7 @@ rule merge_plp_freemuxlet:
                 capture_id="{capture_id}"
             )
     output:
-        plp=out_dir/"freemuxlet/{capture_id}/pileup.plp.gz"
+        plp=temp(out_dir/"freemuxlet/{capture_id}/pileup.plp.gz")
     log:
         logs/"merge_pileup/freemuxlet/{capture_id}/merge_plp.log"
     shell:
@@ -89,7 +89,7 @@ rule merge_umi_freemuxlet:
     input:
         umi=expand(out_dir/"freemuxlet/wrangle/{capture_id}/{chrom}.umi.gz", chrom=chromosomes, capture_id="{capture_id}")
     output:
-        umi=out_dir/"freemuxlet/{capture_id}/pileup.umi.gz"
+        umi=temp(out_dir/"freemuxlet/{capture_id}/pileup.umi.gz")
     log:
         logs/"merge_pileup/freemuxlet/{capture_id}/merge_umi.log"
     shell:
