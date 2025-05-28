@@ -83,19 +83,12 @@ df_assign <- df_assign %>%
       ends_with("_Individual_Assignment"),
       ~ recode(.x, !!!map_vec, .default = .x)
     )
-  ) %>%
-  dplyr::mutate(
-    barcode = paste0(capture,"_",Barcode)
-  ) %>%
-  dplyr::select(-Barcode) %>%
-  dplyr::select(
-    barcode, everything()
   )
 
 message("Creating assignment summary")
 df_summary <- df_assign %>%
   dplyr::select(
-    barcode,
+    barcode    = Barcode,
     assignment = !!sym(assignment_column),
     status     = !!sym(droplettype_column)
   ) %>%
