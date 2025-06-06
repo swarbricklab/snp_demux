@@ -39,6 +39,7 @@ rule demuxafy:
             --souporcell_correlation_limit {params.souporcell_correlation_limit} \
             --vireo $vireo_dir \
             --method "AtLeastHalfSinglet" \
+            --ref Vireo \
             --pct_agreement {params.pct_agreement} \
             > {log}
         """
