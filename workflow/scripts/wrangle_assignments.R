@@ -54,13 +54,13 @@ if(length(donors_without_SNP) > 0) {
   df_assign <- df_assign %>%
     # Preserve original columns via rename()
     dplyr::mutate(
-      original_assignment   = !!assignment_column,
-      original_droplettype  = !!droplettype_column
+      original_assignment   = !!sym(assignment_column),
+      original_droplettype  = !!sym(droplettype_column)
     ) 
     # Override for samples without SNP genotypes
     df_assign <- df_assign %>% dplyr::mutate(
       !!assignment_column := if_else(
-        (Souporcell_vireosnp_Individual_Assignment %in% donors_without_SNP) & (!!droplettype_column == "singlet"),
+        (Souporcell_vireosnp_Individual_Assignment %in% donors_without_SNP) & (!!sym(droplettype_column) == "singlet"),
         Souporcell_vireosnp_Individual_Assignment,
         !!sym(assignment_column)
       )
