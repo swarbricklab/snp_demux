@@ -1,0 +1,13 @@
+name: relabel_vireo
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - r-base
+  - r-readr
+  - r-dplyr
+  - r-stringr
+  - r-tibble
+  - r-tidyr
+  - r-pdftools
