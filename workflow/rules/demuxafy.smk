@@ -8,7 +8,7 @@ rule demuxafy:
         demuxlet=rules.demuxlet.output.best,
         freemuxlet=rules.freemuxlet.output.samples,
         souporcell=rules.souporcell.output.clusters,
-        vireo=rules.vireo.output.summary
+        vireo=rules.relabel_vireo.output.donor_ids
     output:
         # TODO: add wildcard based logic to determine the combine method (e.g., AtLeastHalfSinglet)
         combined_results=temp(out_dir/"assignment/{capture_id}/combined_results.tsv"),
@@ -39,6 +39,7 @@ rule demuxafy:
             --souporcell_correlation_limit {params.souporcell_correlation_limit} \
             --vireo $vireo_dir \
             --method "AtLeastHalfSinglet" \
+            --ref Vireo \
             --pct_agreement {params.pct_agreement} \
             > {log}
         """
@@ -78,7 +79,7 @@ rule add_vireosnp_to_combined_results:
 rule wrangle_demuxafy_assignments:
     input:
         sample_map=config["deps"]["samples"],
-        vcf=config["deps"]["vcf"],
+        #vcf=config["deps"]["vcf"],
         demuxafy_assignments=rules.add_vireosnp_to_combined_results.output.assignments_with_vireosnp
     output:
         sample_barcode_assignments=out_dir/"assignment/{capture_id}/sample_barcode_assignments.tsv",

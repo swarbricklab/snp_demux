@@ -101,11 +101,15 @@ rule freemuxlet:
         cel=rules.merge_cel_freemuxlet.output.cel,
         plp=rules.merge_plp_freemuxlet.output.plp,
         umi=rules.merge_umi_freemuxlet.output.umi,
+        known_genotype_vcf=rules.known_genotypes.output.vcf,
         barcodes=lookup(captures, "barcodes")
     output:
         samples=out_dir/"freemuxlet/{capture_id}/freemuxlet.clust1.samples.gz",
         vcf=out_dir/"freemuxlet/{capture_id}/freemuxlet.clust1.vcf.gz",
-        lmix=out_dir/"freemuxlet/{capture_id}/freemuxlet.lmix"
+        lmix=out_dir/"freemuxlet/{capture_id}/freemuxlet.lmix",
+        tsv=out_dir/"freemuxlet/{capture_id}/ref_clus_pearson_correlations.tsv",
+        png=out_dir/"freemuxlet/{capture_id}/ref_clus_pearson_correlations.png",
+        key=temp(out_dir/"freemuxlet/{capture_id}/Genotype_ID_key.txt")
     params:
         N=get_number_of_samples_in_capture_pool
     container:
@@ -125,7 +129,16 @@ rule freemuxlet:
             --group-list {input.barcodes} \
             --nsample {params.N} \
             > {log} 2>&1
+        
+        freemux_dir=$(dirname {output.vcf})
+        Assign_Indiv_by_Geno.R \
+            -r {input.known_genotype_vcf} \
+            -c {output.vcf} \
+            -o $freemux_dir \
+            >> {log} 2>&1
         """
+
+
 
 rule freemuxlet_summary:
     input:

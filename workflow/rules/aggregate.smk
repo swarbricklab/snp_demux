@@ -52,8 +52,11 @@ rule aggregate_vireo:
     """
     input:
         all_vireo_results=expand(
-                                out_dir/"vireo/{capture_id}/summary.tsv", 
-                                capture_id=captures.index.tolist()
+            [
+                out_dir/"vireo/{capture_id}/summary.tsv", 
+                out_dir/"vireo/{capture_id}/GT_donors.vireo.vcf.gz"
+            ], 
+            capture_id=captures.index.tolist()
         )
     output:
         checkpoint_file=out_dir/"vireo/all.done"

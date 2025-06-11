@@ -1,4 +1,3 @@
-
 rule cellsnp_lite:
     input:
         vcf=config['deps']['vcf'],
@@ -54,6 +53,9 @@ rule subset_vcf:
             2> {log}
         """
 
+# This rule runs the vireo algorithm to estimate the probability of each cell being a doublet or singlet,
+# and assigns donor IDs to cells based on their genotype data.
+
 rule vireo:
     input:
         base=rules.cellsnp_lite.output.base,
@@ -62,14 +64,17 @@ rule vireo:
         dp_mtx=rules.cellsnp_lite.output.dp_mtx,
         donor_vcf=rules.subset_vcf.output.donor_subset
     output:
-        donor_ids=out_dir/"vireo/{capture_id}/donor_ids.tsv",
-        fig=out_dir/"vireo/{capture_id}/fig_GT_distance_estimated.pdf",
-        prob_doublet=out_dir/"vireo/{capture_id}/prob_doublet.tsv.gz",
-        prob_singlet=out_dir/"vireo/{capture_id}/prob_singlet.tsv.gz",
-        summary=out_dir/"vireo/{capture_id}/summary.tsv"
+        donor_ids=temp(out_dir/"vireo/tmp/{capture_id}/donor_ids.tsv"),
+        fig_est=temp(out_dir/"vireo/tmp/{capture_id}/fig_GT_distance_estimated.pdf"),
+        fig_input=temp(out_dir/"vireo/tmp/{capture_id}/fig_GT_distance_input.pdf"), # only for unknown genotypes
+        prob_doublet=temp(out_dir/"vireo/tmp/{capture_id}/prob_doublet.tsv.gz"),
+        prob_singlet=temp(out_dir/"vireo/tmp/{capture_id}/prob_singlet.tsv.gz"),
+        prop_ambient=temp(out_dir/"vireo/tmp/{capture_id}/prop_ambient.tsv"),
+        summary=temp(out_dir/"vireo/tmp/{capture_id}/summary.tsv"),
+        vcf=temp(out_dir/"vireo/tmp/{capture_id}/GT_donors.vireo.vcf.gz") # only for unknown genotypes
     params:
         field="GT",
-        vireo_out_dir=out_dir/"vireo/{capture_id}/"
+        n=get_number_of_samples_in_capture_pool
     log:
         console=logs/"vireo/{capture_id}.console.log",
         vireo=logs/"vireo/{capture_id}_log.txt"
@@ -83,9 +88,68 @@ rule vireo:
         vireo_dir=$(dirname $donor_ids)
         cmd="vireo --cellData=$cell_data \
             --donorFile={input.donor_vcf} \
+            --nDonor={params.n} \
+            --nproc={resources.threads} \
+            --callAmbientRNAs \
             --outDir=$vireo_dir \
             --genoTag={params.field} \
             > {log.console} 2>&1"
         echo $cmd; eval $cmd
         mv $vireo_dir/_log.txt {log.vireo}
+        # Touch optional outputs if they don't exist
+        [ -f {output.fig_input} ] || touch {output.fig_input}
+        [ -f {output.vcf} ] || touch {output.vcf}
+        """
+
+# This rule relabels the outputs of the vireo rule using donor information and writes them to the final output locations.
+# It uses the relabel_vireo.R script, which takes all inputs and outputs from Snakemake variables.
+
+rule relabel_vireo:
+    input:
+        samples_csv=config["deps"]["samples"],
+        donor_ids=rules.vireo.output.donor_ids,
+        prob_doublet=rules.vireo.output.prob_doublet,
+        prob_singlet=rules.vireo.output.prob_singlet,
+        prop_ambient=rules.vireo.output.prop_ambient,
+        fig_est=rules.vireo.output.fig_est,
+        fig_input=rules.vireo.output.fig_input,
+        summary=rules.vireo.output.summary
+    output:
+        donor_ids=out_dir/"vireo/{capture_id}/donor_ids.tsv",
+        sample_map=temp(out_dir/"vireo/{capture_id}/sample_map.tsv"),
+        prob_doublet=out_dir/"vireo/{capture_id}/prob_doublet.tsv.gz",
+        prob_singlet=out_dir/"vireo/{capture_id}/prob_singlet.tsv.gz",
+        prop_ambient=out_dir/"vireo/{capture_id}/prop_ambient.tsv",
+        fig_est=out_dir/"vireo/{capture_id}/fig_GT_distance_estimated.png",
+        fig_input=out_dir/"vireo/{capture_id}/fig_GT_distance_input.png",
+        summary=out_dir/"vireo/{capture_id}/summary.tsv"
+    log:
+        logs/"vireo/relabel_{capture_id}.log"
+    conda:
+        "../envs/relabel_vireo.yaml"
+    script:
+        "../scripts/relabel_vireo.R"
+
+# This rule reheaders the VCF file produced by the vireo rule using the sample_map.tsv file from the relabel_vireo rule.
+# It uses bcftools reheader to update the sample names in the VCF.
+
+rule reheader_vireo_vcf:
+    input:
+        vcf=rules.vireo.output.vcf,
+        sample_map=rules.relabel_vireo.output.sample_map
+    output:
+        vcf=out_dir/"vireo/{capture_id}/GT_donors.vireo.vcf.gz"
+    log:
+        logs/"vireo/reheader_{capture_id}.log"
+    container:
+        config["containers"]["demuxafy"]
+    shell:
+        """
+        if [ -s {input.vcf} ]; then
+            echo "Reheadering VCF file {input.vcf} with sample map {input.sample_map}"
+            bcftools reheader -s {input.sample_map} {input.vcf} -o {output.vcf} > {log} 2>&1
+        else
+            echo "Input VCF file {input.vcf} is empty or does not exist. Skipping reheadering."
+            echo "Placeholder file" | gzip > {output.vcf}
+        fi
         """
