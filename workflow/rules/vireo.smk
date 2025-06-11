@@ -150,6 +150,6 @@ rule reheader_vireo_vcf:
             bcftools reheader -s {input.sample_map} {input.vcf} -o {output.vcf} > {log} 2>&1
         else
             echo "Input VCF file {input.vcf} is empty or does not exist. Skipping reheadering."
-            echo "Placeholder file" > {output.vcf}
+            echo "Placeholder file" | gzip > {output.vcf}
         fi
         """
