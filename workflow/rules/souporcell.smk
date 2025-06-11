@@ -2,7 +2,8 @@ rule souporcell:
     input:
         bam=lookup(captures,"bam"),
         barcodes=lookup(captures,"barcodes"),
-        genome_fasta=config["ref"]["souporcell"]["genome_fasta"]
+        genome_fasta=config["ref"]["souporcell"]["genome_fasta"],
+        known_genotype_vcf=rules.known_genotypes.output.vcf
     output:
         fastqs=temp(out_dir/"souporcell/{capture_id}/fastqs.done"),
         clusters=out_dir/"souporcell/{capture_id}/clusters.tsv",
@@ -36,16 +37,25 @@ rule souporcell:
         logs/"souporcell/{capture_id}/output.souporcell.log"
     shell:
         """
-        echo "Starting ..."
-        echo "TMPDIR: $TMPDIR"
-        if \
-            souporcell_dir="$(dirname {output.clusters})"
-            souporcell_pipeline.py -i {input.bam} -b {input.barcodes} \
-            -f {input.genome_fasta} -o $souporcell_dir \
-            -t {resources.threads} -k {params.sample_number} \
-            >> {log} 2>&1; then \
-            echo "Souporcell complete"
+        souporcell_dir="$(dirname {output.clusters})"
+        number_of_known_genotypes=$(bcftools query -l {input.known_genotype_vcf} | wc -l)
+        sample_names=$(bcftools query -l {input.known_genotype_vcf} | tr '\n' ' ')
+        if [ "$number_of_known_genotypes" == {params.sample_number} ]; then
+            echo "Running souporcell with known genotypes" > {log}
+            cmd="souporcell_pipeline.py -i {input.bam} -b {input.barcodes} \
+                -f {input.genome_fasta} -o $souporcell_dir \
+                -t {resources.threads} -k {params.sample_number} \
+                --known_genotypes {input.known_genotype_vcf} \
+                --known_genotypes_sample_names $sample_names"
+            echo $cmd >> {log}
+            eval $cmd >> {log} 2>&1
+            touch {output.bcf_err} {output.vcf} {output.tbi}
         else
-            cp $TMPDIR/*.toml $souporcell_dir
+            echo "Running souporcell without known genotypes"
+            cmd="souporcell_pipeline.py -i {input.bam} -b {input.barcodes} \
+                -f {input.genome_fasta} -o $souporcell_dir \
+                -t {resources.threads} -k {params.sample_number}"
+            echo $cmd >> {log}
+            eval $cmd >> {log} 2>&1
         fi
         """
