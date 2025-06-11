@@ -70,7 +70,7 @@ rule vireo:
         prob_doublet=temp(out_dir/"vireo/tmp/{capture_id}/prob_doublet.tsv.gz"),
         prob_singlet=temp(out_dir/"vireo/tmp/{capture_id}/prob_singlet.tsv.gz"),
         prop_ambient=temp(out_dir/"vireo/tmp/{capture_id}/prop_ambient.tsv"),
-        summary=out_dir/"vireo/tmp/{capture_id}/summary.tsv",
+        summary=temp(out_dir/"vireo/tmp/{capture_id}/summary.tsv"),
         vcf=temp(out_dir/"vireo/tmp/{capture_id}/GT_donors.vireo.vcf.gz") # only for unknown genotypes
     params:
         field="GT",
