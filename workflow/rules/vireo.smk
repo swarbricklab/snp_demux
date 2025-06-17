@@ -107,7 +107,7 @@ rule vireo:
 
 rule relabel_vireo:
     input:
-        samples_csv="config/snp_demux/samples.csv",
+        samples_csv=config["deps"]["samples"],
         donor_ids=rules.vireo.output.donor_ids,
         prob_doublet=rules.vireo.output.prob_doublet,
         prob_singlet=rules.vireo.output.prob_singlet,
