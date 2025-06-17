@@ -69,8 +69,9 @@ rule vireo:
         fig_input=temp(out_dir/"vireo/tmp/{capture_id}/fig_GT_distance_input.pdf"), # only for unknown genotypes
         prob_doublet=temp(out_dir/"vireo/tmp/{capture_id}/prob_doublet.tsv.gz"),
         prob_singlet=temp(out_dir/"vireo/tmp/{capture_id}/prob_singlet.tsv.gz"),
-        summary=out_dir/"vireo/tmp/{capture_id}/summary.tsv",
-        vcf=temp(out_dir/"vireo/{capture_id}/unknown.vcf"),
+        prop_ambient=temp(out_dir/"vireo/tmp/{capture_id}/prop_ambient.tsv"),
+        summary=temp(out_dir/"vireo/tmp/{capture_id}/summary.tsv"),
+        vcf=temp(out_dir/"vireo/tmp/{capture_id}/GT_donors.vireo.vcf.gz") # only for unknown genotypes
     params:
         field="GT",
         n=get_number_of_samples_in_capture_pool
