@@ -135,7 +135,7 @@ rule reheader_vireo_vcf:
         vcf=rules.vireo.output.vcf,
         sample_map=rules.relabel_vireo.output.sample_map
     output:
-        vcf=out_dir/"vireo/{capture_id}/donor_subset.reheadered.vcf"
+        vcf=out_dir/"vireo/{capture_id}/GT_donors.vireo.vcf.gz"
     log:
         logs/"vireo/reheader_{capture_id}.log"
     container:
