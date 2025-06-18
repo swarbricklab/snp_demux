@@ -1,0 +1,11 @@
+name: ambient
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - r-base
+  - r-dplyr
+  - r-tidyr
+  - r-readr
+  - r-ggplot2
