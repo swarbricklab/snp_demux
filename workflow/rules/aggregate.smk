@@ -54,7 +54,9 @@ rule aggregate_vireo:
         all_vireo_results=expand(
             [
                 out_dir/"vireo/{capture_id}/summary.tsv", 
-                out_dir/"vireo/{capture_id}/GT_donors.vireo.vcf.gz"
+                out_dir/"vireo/{capture_id}/GT_donors.vireo.vcf.gz",
+                out_dir/"vireo/{capture_id}/ambient_summary.csv",
+                out_dir/"vireo/{capture_id}/ambient_stats.csv",
             ], 
             capture_id=captures.index.tolist()
         )

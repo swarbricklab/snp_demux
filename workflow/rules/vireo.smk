@@ -96,9 +96,11 @@ rule vireo:
             > {log.console} 2>&1"
         echo $cmd; eval $cmd
         mv $vireo_dir/_log.txt {log.vireo}
+
         # Touch optional outputs if they don't exist
         [ -f {output.fig_input} ] || touch {output.fig_input}
         [ -f {output.vcf} ] || touch {output.vcf}
+        [ -f {output.fig_est} ] || touch {output.fig_est}
         """
 
 # This rule relabels the outputs of the vireo rule using donor information and writes them to the final output locations.
@@ -110,19 +112,15 @@ rule relabel_vireo:
         donor_ids=rules.vireo.output.donor_ids,
         prob_doublet=rules.vireo.output.prob_doublet,
         prob_singlet=rules.vireo.output.prob_singlet,
-        prop_ambient=rules.vireo.output.prop_ambient,
         fig_est=rules.vireo.output.fig_est,
-        fig_input=rules.vireo.output.fig_input,
-        summary=rules.vireo.output.summary
+        fig_input=rules.vireo.output.fig_input
     output:
         donor_ids=out_dir/"vireo/{capture_id}/donor_ids.tsv",
         sample_map=temp(out_dir/"vireo/{capture_id}/sample_map.tsv"),
         prob_doublet=out_dir/"vireo/{capture_id}/prob_doublet.tsv.gz",
         prob_singlet=out_dir/"vireo/{capture_id}/prob_singlet.tsv.gz",
         prop_ambient=out_dir/"vireo/{capture_id}/prop_ambient.tsv",
-        fig_est=out_dir/"vireo/{capture_id}/fig_GT_distance_estimated.png",
-        fig_input=out_dir/"vireo/{capture_id}/fig_GT_distance_input.png",
-        summary=out_dir/"vireo/{capture_id}/summary.tsv"
+        fig_png=out_dir/"vireo/{capture_id}/fig_GT_distance_estimated.png"
     log:
         logs/"vireo/relabel_{capture_id}.log"
     conda:
@@ -145,11 +143,21 @@ rule reheader_vireo_vcf:
         config["containers"]["demuxafy"]
     shell:
         """
-        if [ -s {input.vcf} ]; then
-            echo "Reheadering VCF file {input.vcf} with sample map {input.sample_map}"
-            bcftools reheader -s {input.sample_map} {input.vcf} -o {output.vcf} > {log} 2>&1
-        else
-            echo "Input VCF file {input.vcf} is empty or does not exist. Skipping reheadering."
-            echo "Placeholder file" | gzip > {output.vcf}
-        fi
+        bcftools reheader -s {input.sample_map} {input.vcf} -o {output.vcf} > {log} 2>&1
         """
+
+# Summarise ambient RNA per barcode using vireo outputs
+rule summarise_ambient:
+    input:
+        prop_ambient=rules.relabel_vireo.output.prop_ambient,
+        donor_ids=rules.relabel_vireo.output.donor_ids
+    output:
+        summary=out_dir/"vireo/{capture_id}/ambient_summary.csv",
+        stats=out_dir/"vireo/{capture_id}/ambient_stats.csv",
+        plot=out_dir/"vireo/{capture_id}/ambient_plot.png"
+    log:
+        logs/"vireo/summarise_ambient_{capture_id}.log"
+    conda:
+        "../envs/ambient.yaml"
+    script:
+        "../scripts/summarise_ambient.R"
