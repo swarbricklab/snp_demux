@@ -15,10 +15,10 @@ conda-frontend: mamba
 set-resources:
   dsc_pileup_demuxlet_by_chromosome:
     threads: 1
-    mem: "32GB"
+    mem: "64GB"
   dsc_pileup_freemuxlet_by_chromosome:
     threads: 1
-    mem: "32GB"
+    mem: "64GB"
   cellsnp-lite:
     threads: 32
     mem: "32GB"

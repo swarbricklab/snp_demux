@@ -107,8 +107,8 @@ rule freemuxlet:
         samples=out_dir/"freemuxlet/{capture_id}/freemuxlet.clust1.samples.gz",
         vcf=out_dir/"freemuxlet/{capture_id}/freemuxlet.clust1.vcf.gz",
         lmix=out_dir/"freemuxlet/{capture_id}/freemuxlet.lmix",
-        tsv=out_dir/"freemuxlet/{capture_id}/ref_clus_pearson_correlations.tsv",
-        png=out_dir/"freemuxlet/{capture_id}/ref_clus_pearson_correlations.png",
+        tsv=out_dir/"freemuxlet/{capture_id}/ref_clust_pearson_correlations.tsv",
+        png=out_dir/"freemuxlet/{capture_id}/ref_clust_pearson_correlation.png",
         key=temp(out_dir/"freemuxlet/{capture_id}/Genotype_ID_key.txt")
     params:
         N=get_number_of_samples_in_capture_pool
