@@ -29,8 +29,8 @@ sample_map <- snakemake@output[["sample_map"]]
 prob_doublet_out <- snakemake@output[["prob_doublet"]]
 prob_singlet_out <- snakemake@output[["prob_singlet"]]
 ambient_out <- snakemake@output[["prop_ambient"]]
-est_dist_png <- snakemake@output[["fig_est"]]
-input_dist_png <- snakemake@output[["fig_input"]]
+input_dist_png <- snakemake@output[["input_dist_png"]]
+est_dist_png <- snakemake@output[["fig_est_png"]]
 summary_out <- snakemake@output[["summary"]]
 
 # Redirect messages and warnings to the Snakemake log file
@@ -85,8 +85,8 @@ if (!any(str_starts(vireo_donors, "donor"))) {
     file.copy(prob_doub_tsv, prob_doublet_out)
     file.copy(prob_sing_tsv, prob_singlet_out)
     file.copy(ambient_tsv, ambient_out)
-    file.copy(est_dist_pdf, est_dist_png)
     file.create(input_dist_png)
+    file.create(est_dist_png)
     file.copy(summary_file, summary_out)
     # Exit the script early
     quit("no", status = 0)
