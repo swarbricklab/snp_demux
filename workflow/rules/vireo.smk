@@ -36,7 +36,7 @@ rule subset_vcf:
         idx=config['deps']['vcf']+'.csi',
         base=rules.cellsnp_lite.output.base
     output:
-        donor_subset=temp(out_dir/"vireo/{capture_id}/donor_subset.vcf")
+        donor_subset=temp(out_dir/"vireo/tmp/{capture_id}/donor_subset.vcf")
     params:
         donor_ids=get_donors_in_capture
     log:
@@ -112,15 +112,19 @@ rule relabel_vireo:
         donor_ids=rules.vireo.output.donor_ids,
         prob_doublet=rules.vireo.output.prob_doublet,
         prob_singlet=rules.vireo.output.prob_singlet,
+        prop_ambient=rules.vireo.output.prop_ambient,
         fig_est=rules.vireo.output.fig_est,
-        fig_input=rules.vireo.output.fig_input
+        fig_input=rules.vireo.output.fig_input,
+        summary=rules.vireo.output.summary
     output:
         donor_ids=out_dir/"vireo/{capture_id}/donor_ids.tsv",
         sample_map=temp(out_dir/"vireo/{capture_id}/sample_map.tsv"),
         prob_doublet=out_dir/"vireo/{capture_id}/prob_doublet.tsv.gz",
         prob_singlet=out_dir/"vireo/{capture_id}/prob_singlet.tsv.gz",
         prop_ambient=out_dir/"vireo/{capture_id}/prop_ambient.tsv",
-        fig_png=out_dir/"vireo/{capture_id}/fig_GT_distance_estimated.png"
+        fig_est_png=out_dir/"vireo/{capture_id}/fig_GT_distance_estimated.png",
+        input_dist_png=out_dir/"vireo/{capture_id}/fig_GT_distance_input.png",
+        summary=out_dir/"vireo/{capture_id}/summary.tsv"
     log:
         logs/"vireo/relabel_{capture_id}.log"
     conda:
@@ -143,7 +147,11 @@ rule reheader_vireo_vcf:
         config["containers"]["demuxafy"]
     shell:
         """
-        bcftools reheader -s {input.sample_map} {input.vcf} -o {output.vcf} > {log} 2>&1
+        if [ -s {input.vcf} ]; then
+            bcftools reheader -s {input.sample_map} {input.vcf} -o {output.vcf} > {log} 2>&1
+        else
+            echo "No donor vcf file produced by vireo" > {output.vcf}
+        fi
         """
 
 # Summarise ambient RNA per barcode using vireo outputs
