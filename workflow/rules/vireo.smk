@@ -36,7 +36,7 @@ rule subset_vcf:
         idx=config['deps']['vcf']+'.csi',
         base=rules.cellsnp_lite.output.base
     output:
-        donor_subset=temp(out_dir/"vireo/{capture_id}/donor_subset.vcf")
+        donor_subset=temp(out_dir/"vireo/tmp/{capture_id}/donor_subset.vcf")
     params:
         donor_ids=get_donors_in_capture
     log:
@@ -147,7 +147,11 @@ rule reheader_vireo_vcf:
         config["containers"]["demuxafy"]
     shell:
         """
-        bcftools reheader -s {input.sample_map} {input.vcf} -o {output.vcf} > {log} 2>&1
+        if [ -s {input.vcf} ]; then
+            bcftools reheader -s {input.sample_map} {input.vcf} -o {output.vcf} > {log} 2>&1
+        else
+            echo "No donor vcf file produced by vireo" > {output.vcf}
+        fi
         """
 
 # Summarise ambient RNA per barcode using vireo outputs
