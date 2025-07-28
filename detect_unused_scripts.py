@@ -6,6 +6,7 @@ This script scans all Snakemake workflow files to find script references
 and reports any scripts in workflow/scripts that are not being used.
 """
 
+import argparse
 import os
 import re
 import sys
@@ -72,14 +73,15 @@ def scan_file_for_script_references(file_path: Path) -> Set[str]:
     return script_refs
 
 
-def scan_workflow_files(workflow_dir: Path) -> Set[str]:
+def scan_workflow_files(workflow_dir: Path) -> tuple[Set[str], dict[str, List[str]]]:
     """Scan all workflow files for script references."""
     referenced_scripts = set()
+    script_to_files = {}  # Maps script name to files that reference it
     
     # File patterns to scan
     patterns = [
         "**/*.smk",
-        "**/Snakefile",
+        "**/Snakefile", 
         "**/*.Rmd",
         "**/*.yaml",
         "**/*.yml"
@@ -91,13 +93,22 @@ def scan_workflow_files(workflow_dir: Path) -> Set[str]:
                 refs = scan_file_for_script_references(file_path)
                 if refs:
                     print(f"Found script references in {file_path}: {refs}")
-                referenced_scripts.update(refs)
+                    referenced_scripts.update(refs)
+                    # Track which files reference each script
+                    for script in refs:
+                        if script not in script_to_files:
+                            script_to_files[script] = []
+                        script_to_files[script].append(str(file_path.relative_to(workflow_dir.parent)))
     
-    return referenced_scripts
+    return referenced_scripts, script_to_files
 
 
 def main():
     """Main function to detect unused scripts."""
+    parser = argparse.ArgumentParser(description="Detect unused scripts in workflow/scripts directory")
+    parser.add_argument("-v", "--verbose", action="store_true", help="Show verbose output including all script names")
+    args = parser.parse_args()
+    
     # Get the repository root (assuming script is run from repo root)
     repo_root = Path.cwd()
     workflow_dir = repo_root / "workflow"
@@ -114,11 +125,13 @@ def main():
     print("Scanning for scripts in workflow/scripts...")
     all_scripts = find_all_scripts(scripts_dir)
     print(f"Found {len(all_scripts)} scripts in workflow/scripts/")
-    for script in sorted(all_scripts):
-        print(f"  - {script}")
+    
+    if args.verbose:
+        for script in sorted(all_scripts):
+            print(f"  - {script}")
     
     print("\nScanning workflow files for script references...")
-    referenced_scripts = scan_workflow_files(workflow_dir)
+    referenced_scripts, script_to_files = scan_workflow_files(workflow_dir)
     print(f"Found {len(referenced_scripts)} script references in workflow files")
     
     # Find unused scripts
@@ -146,10 +159,12 @@ def main():
     print(f"  Unused scripts: {len(unused_scripts)}")
     
     # Show referenced scripts for verification
-    if referenced_scripts:
-        print(f"\nReferenced scripts:")
+    if referenced_scripts and args.verbose:
+        print(f"\nReferenced scripts (with locations):")
         for script in sorted(referenced_scripts):
-            print(f"  - {script}")
+            files = script_to_files.get(script, [])
+            files_str = ", ".join(files)
+            print(f"  - {script} (used in: {files_str})")
     
     return len(unused_scripts)
 

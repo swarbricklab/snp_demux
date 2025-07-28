@@ -10,6 +10,14 @@ Run the script from the repository root:
 python detect_unused_scripts.py
 ```
 
+For verbose output including all script names and file locations:
+
+```bash
+python detect_unused_scripts.py --verbose
+# or
+python detect_unused_scripts.py -v
+```
+
 ## What it does
 
 The script:
