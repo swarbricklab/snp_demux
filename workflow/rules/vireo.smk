@@ -24,8 +24,8 @@ rule cellsnp_lite:
             --barcodeFile {input.barcodes} \
             --outDir $outdir \
             --nproc {resources.threads} \
-            --minMAF 0.1 \
-            --minCOUNT 20 \
+            --minMAF {params.minMAF} \
+            --minCOUNT {params.minCOUNT} \
             --gzip \
             > {log} 2>&1
         """
