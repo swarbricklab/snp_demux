@@ -5,7 +5,7 @@ verbose: False
 keep-going: True
 rerun-incomplete: True
 latency-wait: 30
-retries: 0
+retries: 2
 
 # Conda settings
 use-conda: True
