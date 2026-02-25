@@ -37,7 +37,7 @@ rule known_genotypes:
     input:
         vcf=config['deps']['vcf']
     output:
-        vcf=temp(out_dir/"souporcell/annotation/{capture_id}/known_genotypes.vcf")
+        vcf=out_dir/"souporcell/annotation/{capture_id}/known_genotypes.vcf"
     params:
         donor_ids=get_donors_in_capture
     log:
@@ -57,7 +57,7 @@ rule extract_genotyped_donors:
     input:
         vcf=rules.known_genotypes.output.vcf
     output:
-        genotyped_donors=temp(out_dir/"demuxlet/{capture_id}/genotyped_donors.txt")
+        genotyped_donors=out_dir/"demuxlet/{capture_id}/genotyped_donors.txt"
     log:
         logs/"souporcell/annotation/extract_genotyped_donors_{capture_id}.log"
     container:
