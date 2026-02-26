@@ -85,8 +85,17 @@ if (!any(str_starts(vireo_donors, "donor"))) {
     file.copy(prob_doub_tsv, prob_doublet_out)
     file.copy(prob_sing_tsv, prob_singlet_out)
     file.copy(ambient_tsv, ambient_out)
-    file.create(input_dist_png)
-    file.create(est_dist_png)
+    # Convert PDFs to PNGs (handle empty placeholders)
+    for (pair in list(
+        list(src = est_dist_pdf, dst = est_dist_png),
+        list(src = input_dist_pdf, dst = input_dist_png)
+    )) {
+        if (file.size(pair$src) == 0) {
+            file.create(pair$dst)
+        } else {
+            pdf_convert(pair$src, format = "png", pages = 1, dpi = 300, filenames = pair$dst)
+        }
+    }
     file.copy(summary_file, summary_out)
     # Exit the script early
     quit("no", status = 0)
@@ -241,6 +250,12 @@ images <- setNames(
 )
 for (source_image in names(images)) {
     target_image <- images[[source_image]]
+    # Skip empty placeholder PDFs (vireo touches these when not produced)
+    if (file.size(source_image) == 0) {
+        message("Skipping empty PDF: ", source_image)
+        file.create(target_image)
+        next
+    }
     message("Converting ", source_image, " to ", target_image)
     pdf_convert(
         pdf      = source_image,
