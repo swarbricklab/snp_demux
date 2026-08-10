@@ -24,8 +24,12 @@ log   <- file(snakemake@log[[1]], open="wt")
 sink(log); sink(log, type="message")
 
 # Load inputs
-df_map     <- read_csv(file_sample_map)
-df_assign  <- read_tsv(file_demuxafy_assignments)
+# Every column of the demuxafy table is an ID or a categorical label, so read
+# them all as character. Left to guess, readr types a *_Individual_Assignment
+# column as double whenever that method happened to resolve every droplet to a
+# numeric donor ID, which breaks the name-based lookup below.
+df_map     <- read_csv(file_sample_map, col_types = cols(.default = col_character()))
+df_assign  <- read_tsv(file_demuxafy_assignments, col_types = cols(.default = col_character()))
 
 # Build donor→sample lookup
 map_vec <- df_map %>%
@@ -40,6 +44,9 @@ print(map_vec)
 # vector with an absent name yields NA, so recoding blindly turned every
 # sentinel into NA, making "doublet" indistinguishable from a failed lookup.
 recode_donors <- function(x) {
+  # Guard against a numerically-typed column: indexing a named vector with a
+  # double is positional, not by name, and would silently yield NA.
+  x       <- as.character(x)
   mapped  <- unname(map_vec[x])
   unknown <- !is.na(x) & is.na(mapped) & !(x %in% demuxafy_sentinels)
   if (any(unknown)) {
