@@ -29,5 +29,30 @@ find data/snp/demux/vireo -type f -name fig_GT_distance_estimated.png -empty -de
 # Tar logs
 # This workflow can generate a lot of small log files
 # So we tar them up to save space and reduce inode usage
-tar -czf logs/snp/demux.tar.gz logs/snp/demux
-rm -rf logs/snp/demux
+#
+# Append rather than recreate. `tar -czf` replaced the archive, which suits a
+# full run but discards every previously-run capture on an incremental one.
+# It is also unsafe: when the archive is a DVC out it is a symlink into a
+# shared, content-addressed cache, and `tar -czf` truncates its output before
+# reading its input -- so even an invocation with nothing to archive corrupted
+# that object for every workspace linking to it.
+#
+# Appending merges instead: on extraction, a later entry for a path wins.
+ARCHIVE=logs/snp/demux.tar.gz
+
+if [ -d logs/snp/demux ]; then
+    STAGE=$(mktemp -d "${PBS_JOBFS:-${TMPDIR:-/tmp}}/demuxlogs.XXXXXX")
+    if [ -e "$ARCHIVE" ]; then
+        cp -L "$ARCHIVE" "$STAGE/demux.tar.gz"   # -L: read through the symlink
+        gunzip "$STAGE/demux.tar.gz"
+    else
+        tar -cf "$STAGE/demux.tar" -T /dev/null
+    fi
+    tar -rf "$STAGE/demux.tar" logs/snp/demux
+    gzip "$STAGE/demux.tar"
+
+    rm -f "$ARCHIVE"                             # unlink; never write through it
+    mv "$STAGE/demux.tar.gz" "$ARCHIVE"
+    rmdir "$STAGE"
+    rm -rf logs/snp/demux
+fi
