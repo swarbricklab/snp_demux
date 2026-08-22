@@ -1,3 +1,23 @@
 # Add patterns of files dvc should ignore, which could improve
 # the performance. Learn more at
 # https://dvc.org/doc/user-guide/dvcignore
+
+# Python bytecode caches.
+#
+# Datasets that embed this workflow as a submodule typically declare
+# `modules/snp_demux/workflow` as a DVC dependency. If a workflow script ever
+# imports a sibling module, Python writes .pyc files into
+# workflow/scripts/__pycache__/, and bytecode is not reproducible — its size and
+# contents depend on the interpreter version and on source mtimes — so the
+# dependency can never hash equal twice. The stage then reports "changed deps"
+# on every `dvc repro`, which for an expensive stage means either re-running it
+# or freezing it to work around the drift.
+#
+# Pre-emptive here: workflow/scripts/*.py are currently run as scripts rather
+# than imported, so no bytecode is written yet. The sibling modules
+# chromium-preprocessing and mkobj have already hit this.
+#
+# Ignoring these loses nothing: .pyc files are derived from .py files that are
+# themselves tracked.
+__pycache__/
+*.py[cod]
