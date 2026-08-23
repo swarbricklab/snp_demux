@@ -1,0 +1,130 @@
+---
+title: "SNP demultiplexing — summary"
+output:
+  html_document:
+    theme: flatly
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE,
+                      fig.width = 10, fig.retina = 2)
+library(dplyr); library(tidyr); library(readr); library(ggplot2)
+library(scales); library(forcats); library(DT)
+
+metrics <- lapply(snakemake@input[["metrics"]], read_tsv, show_col_types = FALSE) %>%
+  bind_rows() %>%
+  arrange(pool_id, capture_id)
+
+all_cells <- read_tsv(snakemake@input[["all_cells"]], show_col_types = FALSE)
+
+# Capture pages sit in captures/ next to this index.
+page <- function(capture) sprintf('<a href="captures/%s.html">%s</a>', capture, capture)
+```
+
+`r nrow(metrics)` captures across `r length(unique(metrics$pool_id))` pools,
+`r comma(sum(metrics$n_barcodes))` barcodes.
+
+## Overview
+
+```{r overview, fig.height=4.5}
+metrics %>%
+  mutate(capture_id = fct_reorder(capture_id, frac_singlet)) %>%
+  ggplot(aes(x = frac_singlet, y = capture_id, fill = pool_id)) +
+  geom_col() +
+  scale_x_continuous(labels = percent) +
+  guides(fill = "none") +
+  labs(x = "Singlet rate", y = NULL,
+       subtitle = "Coloured by pool; hover the tables below for detail") +
+  theme_classic() +
+  theme(axis.text.y = element_text(size = 5))
+```
+
+```{r ambient-overview, fig.height=3.4}
+metrics %>%
+  select(capture_id, souporcell = ambient_souporcell, vireo = ambient_vireo_median) %>%
+  pivot_longer(-capture_id, names_to = "estimator", values_to = "ambient") %>%
+  ggplot(aes(x = estimator, y = ambient)) +
+  geom_boxplot(outlier.size = 0.6) +
+  scale_y_continuous(labels = percent) +
+  labs(x = NULL, y = "Ambient RNA", subtitle = "Across captures, by estimator") +
+  theme_classic()
+```
+
+```{r flagged, results='asis'}
+short <- metrics %>% filter(n_recovered < n_declared)
+if (nrow(short)) {
+  cat("\n### Captures missing declared samples\n\n")
+  short %>%
+    transmute(capture_id, pool_id, declared = n_declared, recovered = n_recovered,
+              missing = missing_samples) %>%
+    knitr::kable() %>% print()
+} else {
+  cat("\nAll declared samples were recovered in every capture.\n")
+}
+```
+
+## By capture {.tabset}
+
+### Table
+
+```{r by-capture}
+metrics %>%
+  transmute(
+    capture = page(capture_id),
+    pool = pool_id,
+    barcodes = n_barcodes,
+    singlet = n_singlet,
+    doublet = n_doublet,
+    unassigned = n_unassigned,
+    `singlet %` = round(100 * frac_singlet, 1),
+    declared = n_declared,
+    recovered = n_recovered,
+    `ambient % (soup)` = round(100 * ambient_souporcell, 2),
+    `mean methods agreeing` = round(mean_methods_agreeing, 2)
+  ) %>%
+  datatable(escape = FALSE, rownames = FALSE, filter = "top",
+            extensions = "Buttons",
+            options = list(pageLength = 25, dom = "Bfrtip",
+                           buttons = c("copy", "csv"),
+                           scrollX = TRUE))
+```
+
+## By sample {.tabset}
+
+### Table
+
+One row per sample per capture. Search a sample id to find every capture it
+appears in.
+
+```{r by-sample}
+all_cells %>%
+  left_join(metrics %>% select(capture_id, pool_id), by = "capture_id") %>%
+  transmute(
+    sample = as.character(sample_id),
+    capture = page(capture_id),
+    pool = pool_id,
+    cells = number_of_cells,
+    `% of capture` = fraction_of_all_cells_captured
+  ) %>%
+  arrange(sample, capture) %>%
+  datatable(escape = FALSE, rownames = FALSE, filter = "top",
+            extensions = "Buttons",
+            options = list(pageLength = 25, dom = "Bfrtip",
+                           buttons = c("copy", "csv"),
+                           scrollX = TRUE))
+```
+
+### Samples spanning multiple captures
+
+```{r multi-capture}
+all_cells %>%
+  group_by(sample_id) %>%
+  summarise(captures = n_distinct(capture_id),
+            cells = sum(number_of_cells), .groups = "drop") %>%
+  filter(captures > 1) %>%
+  arrange(desc(captures), desc(cells)) %>%
+  datatable(rownames = FALSE, filter = "top",
+            options = list(pageLength = 15, scrollX = TRUE))
+```
