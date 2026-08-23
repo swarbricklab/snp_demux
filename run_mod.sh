@@ -45,6 +45,11 @@ if [ -d logs/snp/demux ]; then
     if [ -e "$ARCHIVE" ]; then
         cp -L "$ARCHIVE" "$STAGE/demux.tar.gz"   # -L: read through the symlink
         gunzip "$STAGE/demux.tar.gz"
+        # DVC cache objects are read-only (444) and cp/gunzip carry that mode
+        # through to the staged copy. `tar -r` opens the archive for writing to
+        # append, so without this it fails with "Cannot read: Bad file
+        # descriptor".
+        chmod u+w "$STAGE/demux.tar"
     else
         tar -cf "$STAGE/demux.tar" -T /dev/null
     fi
