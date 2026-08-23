@@ -4,6 +4,10 @@ import pandas as pd
 # Path roots as global variables
 out_dir=Path(config['outs']['root'])
 logs=Path(config['outs']['logs'])
+# Where the HTML reports are written. Configurable so a dataset can place them
+# alongside its other published reports; defaults to keeping them under the
+# module's own output root.
+report_dir=Path(config['outs'].get('reports', str(out_dir/"report")))
 
 include: "rules/common.smk"
 include: "rules/split.smk"
@@ -15,7 +19,7 @@ include: "rules/souporcell_genotyping.smk"
 include: "rules/demuxafy.smk"
 include: "rules/prepare_data_for_report.smk"
 include: "rules/aggregate.smk"
-# include: "rules/summarise.smk"
+include: "rules/report.smk"
 
 
 rule all:
@@ -28,3 +32,4 @@ rule all:
         out_dir/"assignment/report/all_singlets_stats_full.tsv",
         out_dir/"assignment/report/all_cells_stats_full.tsv",
         out_dir/"assignment/report/combined_results.tsv",
+        report_dir/"index.html",

@@ -1,0 +1,250 @@
+---
+title: "`r snakemake@wildcards[['capture_id']]` — SNP demultiplexing"
+output:
+  html_document:
+    theme: flatly
+    toc: true
+    toc_float: true
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE,
+                      fig.width = 9, fig.retina = 2)
+library(dplyr); library(tidyr); library(readr); library(ggplot2)
+library(scales); library(forcats)
+
+capture   <- snakemake@wildcards[["capture_id"]]
+pool      <- snakemake@params[["pool_id"]]
+declared  <- strsplit(snakemake@params[["declared_samples"]], ",")[[1]]
+declared  <- declared[nzchar(declared)]
+
+assign_tbl <- read_tsv(snakemake@input[["assignments"]], show_col_types = FALSE)
+cells      <- read_tsv(snakemake@input[["cell_assignment"]], show_col_types = FALSE)
+all_cells  <- read_tsv(snakemake@input[["all_cells"]], show_col_types = FALSE)
+all_singlets <- read_tsv(snakemake@input[["all_singlets"]], show_col_types = FALSE)
+amb_stats  <- read_csv(snakemake@input[["ambient_stats"]], show_col_types = FALSE)
+amb_sum    <- read_csv(snakemake@input[["ambient_summary"]], show_col_types = FALSE)
+
+# souporcell writes a bare sentence, e.g. "ambient RNA estimated as 2.011...%"
+soup_amb <- suppressWarnings(
+  as.numeric(sub(".*?([0-9.]+)%.*", "\\1",
+                 paste(readLines(snakemake@input[["souporcell_ambient"]]), collapse = " ")))
+)
+
+# The five callers, each contributing a DropletType and an Individual_Assignment
+# column, plus the demuxafy consensus.
+methods   <- c("Demuxlet", "Freemuxlet", "Souporcell", "Vireo", "Souporcell_vireosnp")
+consensus <- "AtLeastHalfSinglet"
+
+status_counts <- cells %>% count(status, name = "n")
+n_cells   <- nrow(cells)
+n_singlet <- sum(cells$status == "singlet", na.rm = TRUE)
+n_doublet <- sum(cells$status == "doublet", na.rm = TRUE)
+n_unassig <- n_cells - n_singlet - n_doublet
+recovered <- sort(unique(cells$assignment[cells$status == "singlet"]))
+recovered <- recovered[!is.na(recovered)]
+```
+
+## Summary
+
+```{r summary}
+tibble(
+  Field = c("Capture", "Pool", "Barcodes", "Singlets", "Doublets",
+            "Unassigned", "Samples declared", "Samples recovered",
+            "Ambient RNA (souporcell)"),
+  Value = c(capture, pool, comma(n_cells),
+            sprintf("%s (%s)", comma(n_singlet), percent(n_singlet / n_cells, 0.1)),
+            sprintf("%s (%s)", comma(n_doublet), percent(n_doublet / n_cells, 0.1)),
+            sprintf("%s (%s)", comma(n_unassig), percent(n_unassig / n_cells, 0.1)),
+            length(declared), length(intersect(declared, recovered)),
+            if (is.na(soup_amb)) "n/a" else percent(soup_amb / 100, 0.01))
+) %>% knitr::kable()
+```
+
+```{r missing-donors, results='asis'}
+missing <- setdiff(declared, recovered)
+if (length(missing)) {
+  cat("\n> **", length(missing), " declared sample(s) not recovered as singlets: ",
+      paste(missing, collapse = ", "), "**\n", sep = "")
+}
+```
+
+## Cell counts by sample
+
+```{r per-sample, fig.height=3.2}
+all_cells %>%
+  mutate(sample_id = fct_reorder(as.character(sample_id), number_of_cells)) %>%
+  ggplot(aes(x = number_of_cells, y = sample_id)) +
+  geom_col() +
+  scale_x_continuous(labels = comma) +
+  labs(x = "Cells", y = NULL) +
+  theme_classic()
+```
+
+```{r per-sample-table}
+# all_singlets adds the share-of-singlets denominator, which is the more useful
+# figure when a capture has a high doublet rate.
+all_cells %>%
+  select(-any_of("capture_id")) %>%
+  left_join(
+    all_singlets %>% select(sample_id, fraction_of_all_singlets_captured),
+    by = "sample_id"
+  ) %>%
+  knitr::kable()
+```
+
+## Ambient RNA
+
+`souporcell` reports a single figure for the capture; `vireo` estimates a
+fraction per barcode, binned below.
+
+```{r ambient, fig.height=3.2}
+ggplot(amb_stats, aes(x = bin, y = frac)) +
+  geom_col() +
+  scale_y_continuous(labels = percent) +
+  labs(x = "Ambient RNA fraction", y = "Barcodes",
+       subtitle = sprintf("median per-barcode estimate: %s",
+                          percent(median(amb_sum$ambient_other, na.rm = TRUE), 0.01))) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+```
+
+## Agreement between methods
+
+```{r consensus-prep}
+# Long form: one row per (barcode, method) carrying that method's call. A call
+# is the sample id for a singlet, or the droplet type otherwise, so that
+# "doublet" and "unassigned" are comparable across methods alongside identity.
+long <- lapply(methods, function(m) {
+  tibble(
+    Barcode = assign_tbl$Barcode,
+    method  = m,
+    dtype   = assign_tbl[[paste0(m, "_DropletType")]],
+    ind     = assign_tbl[[paste0(m, "_Individual_Assignment")]]
+  )
+}) %>% bind_rows() %>%
+  mutate(call = if_else(dtype == "singlet" & !is.na(ind) & !ind %in% c("doublet", "unassigned"),
+                        ind, dtype))
+
+cons <- tibble(
+  Barcode = assign_tbl$Barcode,
+  dtype   = assign_tbl[[paste0(consensus, "_DropletType")]],
+  ind     = assign_tbl[[paste0(consensus, "_Individual_Assignment")]]
+) %>%
+  mutate(call = if_else(dtype == "singlet" & !is.na(ind) & !ind %in% c("doublet", "unassigned"),
+                        ind, dtype))
+```
+
+### Calls by method
+
+Rows are the callers, the bottom row the demuxafy consensus. A sample missed by
+one method shows as a gap in an otherwise populated column.
+
+```{r method-matrix, fig.height=3.4}
+mat <- bind_rows(long %>% select(Barcode, method, call),
+                 cons %>% transmute(Barcode, method = consensus, call)) %>%
+  count(method, call, name = "n") %>%
+  mutate(method = factor(method, levels = rev(c(methods, consensus))))
+
+ggplot(mat, aes(x = call, y = method, fill = n)) +
+  geom_tile(colour = "white") +
+  geom_text(aes(label = comma(n)), size = 2.6) +
+  scale_fill_gradient(low = "#eef3f8", high = "#2c6fa8", labels = comma) +
+  labs(x = NULL, y = NULL, fill = "Cells") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        panel.grid = element_blank())
+```
+
+### How many methods back the consensus
+
+```{r agreement, fig.height=3}
+agree <- long %>%
+  left_join(cons %>% select(Barcode, cons_call = call), by = "Barcode") %>%
+  group_by(Barcode) %>%
+  summarise(n_agree = sum(call == cons_call, na.rm = TRUE),
+            cons_call = first(cons_call), .groups = "drop") %>%
+  mutate(cons_type = case_when(cons_call == "doublet" ~ "doublet",
+                               cons_call == "unassigned" ~ "unassigned",
+                               TRUE ~ "singlet"))
+
+ggplot(agree, aes(x = factor(n_agree, levels = 0:length(methods)), fill = cons_type)) +
+  geom_bar() +
+  scale_y_continuous(labels = comma) +
+  scale_fill_manual(values = c(singlet = "#2c6fa8", doublet = "#c0504d",
+                               unassigned = "#9e9e9e")) +
+  labs(x = sprintf("Methods agreeing with the consensus (of %d)", length(methods)),
+       y = "Barcodes", fill = "Consensus") +
+  theme_classic()
+```
+
+### Pairwise concordance
+
+Percent identical individual assignment, over barcodes both methods call a
+singlet. Diagnostic: one method drifting from the rest shows as a cold row.
+
+```{r concordance, fig.height=3.6, fig.width=6}
+wide <- long %>% select(Barcode, method, call) %>%
+  pivot_wider(names_from = method, values_from = call)
+sing <- long %>% select(Barcode, method, dtype) %>%
+  pivot_wider(names_from = method, values_from = dtype)
+
+pairs <- expand.grid(a = methods, b = methods, stringsAsFactors = FALSE) %>%
+  rowwise() %>%
+  mutate(pct = {
+    keep <- sing[[a]] == "singlet" & sing[[b]] == "singlet"
+    keep[is.na(keep)] <- FALSE
+    if (!any(keep)) NA_real_ else mean(wide[[a]][keep] == wide[[b]][keep], na.rm = TRUE)
+  }) %>% ungroup()
+
+ggplot(pairs, aes(x = a, y = b, fill = pct)) +
+  geom_tile(colour = "white") +
+  geom_text(aes(label = ifelse(is.na(pct), "-", percent(pct, 0.1))), size = 2.6) +
+  scale_fill_gradient(low = "#f7e6e4", high = "#2c6fa8", labels = percent,
+                      limits = c(0, 1), na.value = "grey90") +
+  labs(x = NULL, y = NULL, fill = "Concordance") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        panel.grid = element_blank())
+```
+
+## Method diagnostics
+
+Figures produced by the individual callers.
+
+```{r diagnostics, results='asis'}
+# html_document is self-contained by default, so include_graphics() embeds
+# these rather than linking out of the report.
+figs <- list(
+  list(path = snakemake@input[["vireosnp_heatmap"]],
+       title = "souporcell / vireosnp: cluster-to-genotype match"),
+  list(path = snakemake@input[["gt_distance"]],
+       title = "vireo: genotype distance"),
+  list(path = snakemake@input[["freemuxlet_corr"]],
+       title = "freemuxlet: reference cluster correlation")
+)
+for (f in figs) {
+  cat("\n###", f$title, "\n\n")
+  cat(sprintf('![](%s)\n', normalizePath(f$path)))
+}
+```
+
+```{r write-metrics, include=FALSE}
+mean_agree <- mean(agree$n_agree, na.rm = TRUE)
+tibble(
+  capture_id        = capture,
+  pool_id           = pool,
+  n_barcodes        = n_cells,
+  n_singlet         = n_singlet,
+  n_doublet         = n_doublet,
+  n_unassigned      = n_unassig,
+  frac_singlet      = n_singlet / n_cells,
+  n_declared        = length(declared),
+  n_recovered       = length(intersect(declared, recovered)),
+  missing_samples   = paste(setdiff(declared, recovered), collapse = ";"),
+  ambient_souporcell = soup_amb / 100,
+  ambient_vireo_median = median(amb_sum$ambient_other, na.rm = TRUE),
+  mean_methods_agreeing = mean_agree
+) %>% write_tsv(snakemake@output[["metrics"]])
+```
