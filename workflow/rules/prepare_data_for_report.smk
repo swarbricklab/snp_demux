@@ -18,6 +18,10 @@ rule combine_cell_assignments:
     output:
         # TODO: should this be defined as an input to the report rule/script?
         combined=out_dir/"assignment/report/combined_results.tsv"
+    params:
+        # Positionally paired with input.data_files -- expand() below iterates
+        # this same list, in this order.
+        capture_ids=captures.index.tolist()
     log:
         logs/"assignment/report/output.combine_cell_assignments.log"
     conda:
