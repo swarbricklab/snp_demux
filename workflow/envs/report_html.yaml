@@ -1,0 +1,23 @@
+# Environment for the HTML demux reports (report_capture / report_index).
+#
+# Separate from report.yaml so that adding a reporting dependency does not
+# change the env hash of add_vireosnp_to_combined_results and re-trigger it
+# across every capture.
+name: report_html
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - r-base>=4.2
+  - r-rmarkdown
+  - r-knitr
+  - r-dplyr
+  - r-tidyr
+  - r-readr
+  - r-ggplot2
+  - r-scales
+  - r-forcats
+  - r-dt
+  - r-htmltools
+  - r-jsonlite
+  - pandoc
