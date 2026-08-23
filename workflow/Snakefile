@@ -20,7 +20,6 @@ include: "rules/demuxafy.smk"
 include: "rules/prepare_data_for_report.smk"
 include: "rules/aggregate.smk"
 include: "rules/report.smk"
-# include: "rules/summarise.smk"
 
 
 rule all:
