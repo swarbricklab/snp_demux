@@ -77,7 +77,14 @@ stats <- tibble(
 glimpse(stats)
 
 # Make bar plot of the stats
-ggplot(stats, aes(x = bin, y = frac)) +
+#
+# Assign the plot rather than leaving it as a bare top-level expression.
+# Rscript auto-prints top-level expressions, and printing a ggplot requires a
+# graphics device; with none open, R falls back to its default pdf() and writes
+# an Rplots.pdf into the working directory -- the dataset workspace root, since
+# that is where Snakemake runs jobs. This rule is per-capture, so every capture
+# in the run rewrote the same stray file.
+p <- ggplot(stats, aes(x = bin, y = frac)) +
   geom_col() +
   labs(
     x = "Ambient RNA fraction",
@@ -88,6 +95,7 @@ ggplot(stats, aes(x = bin, y = frac)) +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
 ggsave(
     filename = plot_file,
+    plot = p,
     width = 8, height = 6, dpi = 300
 )
 
