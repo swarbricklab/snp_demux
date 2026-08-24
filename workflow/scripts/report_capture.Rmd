@@ -16,14 +16,22 @@ library(scales); library(forcats)
 
 capture   <- snakemake@wildcards[["capture_id"]]
 pool      <- snakemake@params[["pool_id"]]
+# pool_id is optional in captures.csv
+pool_disp <- if (is.null(pool) || is.na(pool) || !nzchar(pool)) "\u2014" else pool
 
 # Summary figures come from the metrics roll-up rather than being recomputed
 # here, so this page and the index cannot disagree.
 mx <- read_tsv(snakemake@input[["metrics"]], show_col_types = FALSE)
 
 assign_tbl <- read_tsv(snakemake@input[["assignments"]], show_col_types = FALSE)
-all_cells  <- read_tsv(snakemake@input[["all_cells"]], show_col_types = FALSE)
-all_singlets <- read_tsv(snakemake@input[["all_singlets"]], show_col_types = FALSE)
+# sample_id must be read as character, not left to type inference. Since #22
+# restored the droplet-type literals, all_cells_stats.tsv carries "doublet" and
+# "unassigned" rows and infers character, while all_singlets_stats.tsv holds
+# only sample ids -- numeric for many captures -- and infers double. The two
+# then refuse to join.
+ID <- cols(sample_id = col_character())
+all_cells    <- read_tsv(snakemake@input[["all_cells"]], col_types = ID)
+all_singlets <- read_tsv(snakemake@input[["all_singlets"]], col_types = ID)
 amb_stats  <- read_csv(snakemake@input[["ambient_stats"]], show_col_types = FALSE)
 
 # The five callers, each contributing a DropletType and an Individual_Assignment
@@ -51,7 +59,7 @@ tibble(
   Field = c("Capture", "Pool", "Barcodes", "Singlets", "Doublets",
             "Unassigned", "Samples declared", "Samples recovered",
             "Ambient RNA (souporcell)"),
-  Value = c(capture, pool, comma(n_cells),
+  Value = c(capture, pool_disp, comma(n_cells),
             sprintf("%s (%s)", comma(n_singlet), percent(n_singlet / n_cells, 0.1)),
             sprintf("%s (%s)", comma(n_doublet), percent(n_doublet / n_cells, 0.1)),
             sprintf("%s (%s)", comma(n_unassig), percent(n_unassig / n_cells, 0.1)),

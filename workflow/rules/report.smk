@@ -17,9 +17,19 @@ def get_samples_in_capture(wildcards):
 
 def get_pool_for_capture(wildcards):
     """
-    Return the pool_id wildcards.capture_id belongs to.
+    Return the pool_id wildcards.capture_id belongs to, or "" if unrecorded.
+
+    pool_id is optional and used only for display and grouping in the reports;
+    no other rule reads it. A blank cell in captures.csv reaches us as a pandas
+    NaN, which Snakemake serialises into the generated R script as a bare `nan`
+    -- an undefined symbol in R, so the job dies with "object 'nan' not found"
+    before the script runs. Coerce to a string so a missing optional field
+    cannot fail a rule.
     """
-    return captures.loc[wildcards.capture_id, "pool_id"]
+    pool = captures.loc[wildcards.capture_id, "pool_id"]
+    if pool is None or (isinstance(pool, float) and pd.isna(pool)):
+        return ""
+    return str(pool)
 
 
 rule report_capture_metrics:
