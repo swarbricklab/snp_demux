@@ -95,6 +95,12 @@ rule report_index:
             rules.report_capture_metrics.output.metrics,
             capture_id=captures.index.tolist()
         ),
+        # The index links to every capture page, so depend on them: otherwise
+        # only the index is reachable from `rule all` and the links 404.
+        pages=expand(
+            report_dir/"captures/{capture_id}.html",
+            capture_id=captures.index.tolist()
+        ),
         all_cells=out_dir/"assignment/report/all_cells_stats_full.tsv"
     output:
         report_dir/"index.html"
