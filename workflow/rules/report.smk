@@ -22,29 +22,50 @@ def get_pool_for_capture(wildcards):
     return captures.loc[wildcards.capture_id, "pool_id"]
 
 
+rule report_capture_metrics:
+    """
+    Per-capture roll-up, read by both the capture page and the index.
+
+    Separate from report_capture because Snakemake allows an .Rmd script only a
+    single output file. Keeping it separate also means the page and the index
+    quote the same numbers instead of each deriving their own.
+    """
+    input:
+        assignments=out_dir/"assignment/{capture_id}/sample_barcode_assignments.tsv",
+        cell_assignment=out_dir/"assignment/{capture_id}/cell_assignment.tsv",
+        ambient_summary=out_dir/"vireo/{capture_id}/ambient_summary.csv",
+        souporcell_ambient=out_dir/"souporcell/{capture_id}/ambient_rna.txt"
+    output:
+        metrics=report_dir/"metrics/{capture_id}.tsv"
+    params:
+        declared_samples=get_samples_in_capture,
+        pool_id=get_pool_for_capture
+    conda:
+        "../envs/report_html.yaml"
+    log:
+        logs/"report/{capture_id}.metrics.log"
+    script:
+        "../scripts/report_capture_metrics.R"
+
+
 rule report_capture:
     """
     Per-capture demux summary: cell counts, sample assignments, ambient RNA and
     agreement between the demultiplexing methods.
     """
     input:
+        metrics=rules.report_capture_metrics.output.metrics,
         assignments=out_dir/"assignment/{capture_id}/sample_barcode_assignments.tsv",
-        cell_assignment=out_dir/"assignment/{capture_id}/cell_assignment.tsv",
         all_cells=out_dir/"assignment/{capture_id}/all_cells_stats.tsv",
         all_singlets=out_dir/"assignment/{capture_id}/all_singlets_stats.tsv",
         ambient_stats=out_dir/"vireo/{capture_id}/ambient_stats.csv",
-        ambient_summary=out_dir/"vireo/{capture_id}/ambient_summary.csv",
-        souporcell_ambient=out_dir/"souporcell/{capture_id}/ambient_rna.txt",
         gt_distance=out_dir/"vireo/{capture_id}/fig_GT_distance_estimated.png",
         freemuxlet_corr=out_dir/"freemuxlet/{capture_id}/ref_clust_pearson_correlation.png",
         vireosnp_heatmap=out_dir/"souporcell/annotation/vireosnp/{capture_id}/matched_GPb_diff_scores_cluster_genotype.heatmap.png"
     output:
-        html=report_dir/"captures/{capture_id}.html",
-        # Small per-capture roll-up the index aggregates, so the index does not
-        # have to re-read every capture's barcode-level table.
-        metrics=report_dir/"metrics/{capture_id}.tsv"
+        # Single output: Snakemake permits an .Rmd script only one.
+        report_dir/"captures/{capture_id}.html"
     params:
-        declared_samples=get_samples_in_capture,
         pool_id=get_pool_for_capture
     conda:
         "../envs/report_html.yaml"
@@ -61,12 +82,12 @@ rule report_index:
     """
     input:
         metrics=expand(
-            report_dir/"metrics/{capture_id}.tsv",
+            rules.report_capture_metrics.output.metrics,
             capture_id=captures.index.tolist()
         ),
         all_cells=out_dir/"assignment/report/all_cells_stats_full.tsv"
     output:
-        html=report_dir/"index.html"
+        report_dir/"index.html"
     conda:
         "../envs/report_html.yaml"
     log:

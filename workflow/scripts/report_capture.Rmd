@@ -1,5 +1,5 @@
 ---
-title: "`r snakemake@wildcards[['capture_id']]` — SNP demultiplexing"
+title: "SNP demultiplexing"
 output:
   html_document:
     theme: flatly
@@ -16,35 +16,33 @@ library(scales); library(forcats)
 
 capture   <- snakemake@wildcards[["capture_id"]]
 pool      <- snakemake@params[["pool_id"]]
-declared  <- strsplit(snakemake@params[["declared_samples"]], ",")[[1]]
-declared  <- declared[nzchar(declared)]
+
+# Summary figures come from the metrics roll-up rather than being recomputed
+# here, so this page and the index cannot disagree.
+mx <- read_tsv(snakemake@input[["metrics"]], show_col_types = FALSE)
 
 assign_tbl <- read_tsv(snakemake@input[["assignments"]], show_col_types = FALSE)
-cells      <- read_tsv(snakemake@input[["cell_assignment"]], show_col_types = FALSE)
 all_cells  <- read_tsv(snakemake@input[["all_cells"]], show_col_types = FALSE)
 all_singlets <- read_tsv(snakemake@input[["all_singlets"]], show_col_types = FALSE)
 amb_stats  <- read_csv(snakemake@input[["ambient_stats"]], show_col_types = FALSE)
-amb_sum    <- read_csv(snakemake@input[["ambient_summary"]], show_col_types = FALSE)
-
-# souporcell writes a bare sentence, e.g. "ambient RNA estimated as 2.011...%"
-soup_amb <- suppressWarnings(
-  as.numeric(sub(".*?([0-9.]+)%.*", "\\1",
-                 paste(readLines(snakemake@input[["souporcell_ambient"]]), collapse = " ")))
-)
 
 # The five callers, each contributing a DropletType and an Individual_Assignment
 # column, plus the demuxafy consensus.
 methods   <- c("Demuxlet", "Freemuxlet", "Souporcell", "Vireo", "Souporcell_vireosnp")
 consensus <- "AtLeastHalfSinglet"
 
-status_counts <- cells %>% count(status, name = "n")
-n_cells   <- nrow(cells)
-n_singlet <- sum(cells$status == "singlet", na.rm = TRUE)
-n_doublet <- sum(cells$status == "doublet", na.rm = TRUE)
-n_unassig <- n_cells - n_singlet - n_doublet
-recovered <- sort(unique(cells$assignment[cells$status == "singlet"]))
-recovered <- recovered[!is.na(recovered)]
+n_cells   <- mx$n_barcodes
+n_singlet <- mx$n_singlet
+n_doublet <- mx$n_doublet
+n_unassig <- mx$n_unassigned
+missing   <- if (is.na(mx$missing_samples) || !nzchar(mx$missing_samples)) {
+  character(0)
+} else {
+  strsplit(mx$missing_samples, ";")[[1]]
+}
 ```
+
+# `r capture`
 
 ## Summary
 
@@ -57,13 +55,13 @@ tibble(
             sprintf("%s (%s)", comma(n_singlet), percent(n_singlet / n_cells, 0.1)),
             sprintf("%s (%s)", comma(n_doublet), percent(n_doublet / n_cells, 0.1)),
             sprintf("%s (%s)", comma(n_unassig), percent(n_unassig / n_cells, 0.1)),
-            length(declared), length(intersect(declared, recovered)),
-            if (is.na(soup_amb)) "n/a" else percent(soup_amb / 100, 0.01))
+            mx$n_declared, mx$n_recovered,
+            if (is.na(mx$ambient_souporcell)) "n/a"
+            else percent(mx$ambient_souporcell, 0.01))
 ) %>% knitr::kable()
 ```
 
 ```{r missing-donors, results='asis'}
-missing <- setdiff(declared, recovered)
 if (length(missing)) {
   cat("\n> **", length(missing), " declared sample(s) not recovered as singlets: ",
       paste(missing, collapse = ", "), "**\n", sep = "")
@@ -105,7 +103,7 @@ ggplot(amb_stats, aes(x = bin, y = frac)) +
   scale_y_continuous(labels = percent) +
   labs(x = "Ambient RNA fraction", y = "Barcodes",
        subtitle = sprintf("median per-barcode estimate: %s",
-                          percent(median(amb_sum$ambient_other, na.rm = TRUE), 0.01))) +
+                          percent(mx$ambient_vireo_median, 0.01))) +
   theme_classic() +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
 ```
@@ -228,23 +226,4 @@ for (f in figs) {
   cat("\n###", f$title, "\n\n")
   cat(sprintf('![](%s)\n', normalizePath(f$path)))
 }
-```
-
-```{r write-metrics, include=FALSE}
-mean_agree <- mean(agree$n_agree, na.rm = TRUE)
-tibble(
-  capture_id        = capture,
-  pool_id           = pool,
-  n_barcodes        = n_cells,
-  n_singlet         = n_singlet,
-  n_doublet         = n_doublet,
-  n_unassigned      = n_unassig,
-  frac_singlet      = n_singlet / n_cells,
-  n_declared        = length(declared),
-  n_recovered       = length(intersect(declared, recovered)),
-  missing_samples   = paste(setdiff(declared, recovered), collapse = ";"),
-  ambient_souporcell = soup_amb / 100,
-  ambient_vireo_median = median(amb_sum$ambient_other, na.rm = TRUE),
-  mean_methods_agreeing = mean_agree
-) %>% write_tsv(snakemake@output[["metrics"]])
 ```
