@@ -20,8 +20,15 @@ pool      <- snakemake@params[["pool_id"]]
 pool_disp <- if (is.null(pool) || is.na(pool) || !nzchar(pool)) "\u2014" else pool
 
 # Summary figures come from the metrics roll-up rather than being recomputed
-# here, so this page and the index cannot disagree.
-mx <- read_tsv(snakemake@input[["metrics"]], show_col_types = FALSE)
+# here, so this page and the index cannot disagree. Pin the text columns for the
+# same reason report_index.Rmd does: this is a single-row file, so a capture
+# missing one numerically-named sample gets missing_samples inferred as double,
+# and strsplit() below rejects a non-character argument.
+mx <- read_tsv(snakemake@input[["metrics"]],
+               col_types = cols(.default = col_guess(),
+                                capture_id      = col_character(),
+                                pool_id         = col_character(),
+                                missing_samples = col_character()))
 
 assign_tbl <- read_tsv(snakemake@input[["assignments"]], show_col_types = FALSE)
 # sample_id must be read as character, not left to type inference. Since #22
