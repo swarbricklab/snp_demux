@@ -3,7 +3,23 @@
 This workflow demultiplexes "pooled captures".
 A "pooled capture" is when multiple tissues samples are dissociated into single cells together in the same test tube, and then captured together using the 10X Chromium platform to generate scRNA-seq libraries.
 
-TODO: insert figure
+```mermaid
+flowchart LR
+    SA["Sample A"] --> POOL
+    SB["Sample B"] --> POOL
+    SC["Sample C"] --> POOL
+
+    POOL["Dissociate and pool<br/>into one tube"] --> CAP["10x Chromium<br/>capture"]
+    CAP --> LIB["scRNA-seq library<br/><i>barcode of origin unknown</i>"]
+
+    GT["Donor SNP profiles<br/>(VCF)"] --> DEMUX
+    LIB --> DEMUX{{"SNP demultiplexing"}}
+
+    DEMUX --> OA["Sample A"]
+    DEMUX --> OB["Sample B"]
+    DEMUX --> OC["Sample C"]
+    DEMUX --> OD["Heterotypic<br/>doublets"]
+```
 
 When these libraries are sequenced, it is not obvious which cell barcode came from which sample.
 But by utilizing SNP profiles for each sample in the pool, we can attempt to demultiplex the capture by assigning each barcode to an individual sample.
@@ -48,7 +64,27 @@ The workflow summarises this per capture into a distribution over bins, which is
 
 At a high level of abstraction, the overall processing flow is as follows:
 
-TODO: insert figure
+```mermaid
+flowchart TB
+    IN["Barcodes, BAM and donor genotypes"]
+
+    IN --> DL["demuxlet<br/><i>genotype-aware</i>"]
+    IN --> VI["vireo<br/><i>genotype-aware</i>"]
+    IN --> FM["freemuxlet<br/><i>genotype-free</i>"]
+    IN --> SO["souporcell<br/><i>genotype-free</i>"]
+
+    DL --> DX
+    VI --> DX
+    FM --> DX
+    SO --> DX
+
+    DX["<b>Demuxafy</b><br/>matches the genotype-free clusters to donors<br/>by correlation, then calls the<br/>AtLeastHalfSinglet consensus"]
+
+    SO --> VS["<b>vireoSNP</b><br/>names souporcell's clusters<br/>independently"]
+
+    DX --> OUT["One assignment per barcode from each<br/>method, plus the consensus"]
+    VS -. "appended after<br/>the consensus" .-> OUT
+```
 
 ## Requirements
 
@@ -141,9 +177,47 @@ The number of rows for a capture sets the number of clusters souporcell, freemux
 ## Running
 
 This module is defined as a [Snakemake](https://snakemake.readthedocs.io/en/v7.32.3/) workflow.
-The rule graph is as follows:
+The pipeline is roughly as follows.
+This is a simplification: each box stands for a group of rules, and the
+per-chromosome fan-out and merge steps are collapsed.
 
-TODO: insert rule graph
+```mermaid
+flowchart TB
+    BAM["possorted_genome_bam.bam"]
+    BC["barcodes.tsv.gz"]
+    VCF["donor genotypes<br/>(VCF)"]
+
+    BAM --> SPLIT
+    VCF --> SPLIT
+    SPLIT["split by chromosome"] --> PILEUP["dsc_pileup per chromosome,<br/>then merged"]
+    PILEUP --> DL["demuxlet"]
+    PILEUP --> FM["freemuxlet"]
+
+    BAM --> CS
+    BC --> CS
+    VCF --> CS
+    CS["cellsnp_lite"] --> VI["vireo"]
+    VI --> AMB["ambient RNA<br/>summary"]
+
+    BAM --> SO
+    BC --> SO
+    VCF --> SO
+    SO["souporcell"] --> VS["vireoSNP<br/>cluster annotation"]
+
+    DL --> DX
+    FM --> DX
+    VI --> DX
+    SO --> DX
+    DX["Demuxafy consensus"] --> ASSIGN
+    VS --> ASSIGN
+
+    ASSIGN["<b>sample_barcode_assignments.tsv</b><br/>per capture"] --> STATS["cell counts<br/>per sample"]
+    ASSIGN --> COMB["combined_results.tsv<br/>all captures"]
+
+    STATS --> REP["HTML reports"]
+    AMB --> REP
+    COMB --> REP
+```
 
 Run it from the root of the dataset repository:
 
