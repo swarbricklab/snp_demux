@@ -15,15 +15,24 @@ library(scales); library(forcats); library(DT)
 
 metrics <- lapply(snakemake@input[["metrics"]], read_tsv, show_col_types = FALSE) %>%
   bind_rows() %>%
+  # pool_id is optional in captures.csv; keep the blank distinguishable from a
+  # real pool rather than letting it form a phantom group.
+  mutate(pool_id = if_else(is.na(pool_id) | !nzchar(pool_id),
+                           "(unspecified)", pool_id)) %>%
   arrange(pool_id, capture_id)
 
-all_cells <- read_tsv(snakemake@input[["all_cells"]], show_col_types = FALSE)
+n_pools <- metrics %>% filter(pool_id != "(unspecified)") %>% pull(pool_id) %>% n_distinct()
+
+# See report_capture.Rmd: sample_id is character for some captures and numeric
+# for others, so pin it rather than letting readr infer per file.
+all_cells <- read_tsv(snakemake@input[["all_cells"]],
+                      col_types = cols(sample_id = col_character()))
 
 # Capture pages sit in captures/ next to this index.
 page <- function(capture) sprintf('<a href="captures/%s.html">%s</a>', capture, capture)
 ```
 
-`r nrow(metrics)` captures across `r length(unique(metrics$pool_id))` pools,
+`r nrow(metrics)` captures across `r n_pools` pools,
 `r comma(sum(metrics$n_barcodes))` barcodes.
 
 ## Overview
