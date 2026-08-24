@@ -13,7 +13,17 @@ knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE,
 library(dplyr); library(tidyr); library(readr); library(ggplot2)
 library(scales); library(forcats); library(DT)
 
-metrics <- lapply(snakemake@input[["metrics"]], read_tsv, show_col_types = FALSE) %>%
+# Pin the text columns. Inference is per file, and these are single-row files:
+# missing_samples is blank for most captures, a sample id for a few, and for a
+# capture missing one numerically-named sample it is bare digits -- which reads
+# as double and then refuses to bind_rows() with the character ones.
+metrics <- lapply(
+    snakemake@input[["metrics"]], read_tsv,
+    col_types = cols(.default = col_guess(),
+                     capture_id      = col_character(),
+                     pool_id         = col_character(),
+                     missing_samples = col_character())
+  ) %>%
   bind_rows() %>%
   # pool_id is optional in captures.csv; keep the blank distinguishable from a
   # real pool rather than letting it form a phantom group.
