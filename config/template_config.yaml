@@ -7,6 +7,9 @@ deps:
 outs:
   root: data/snp/demux/
   logs: logs/snp/demux
+  # Optional. Where the HTML reports are written.
+  # Defaults to <root>/report if omitted.
+  reports: reports/snp_demux
 
 params:
   cellsnp_lite:
