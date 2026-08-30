@@ -3,6 +3,11 @@ deps:
   samples: config/snp_demux/samples.csv
   captures: config/snp_demux/captures.csv
   vcf: data/snp/imputation/imputed_filtered.hg38.vcf.gz
+  # Root of the sc_pileup outputs consumed by this stage. Must have been piled
+  # against the SAME `vcf` panel. Layout: <pileup_root>/<engine>/<platform>/<capture>/
+  pileup_root: data/snp/pileup
+  # Platform used when a capture row has no `platform` column (sc_pileup keys by it).
+  default_platform: short
 
 outs:
   root: data/snp/demux/
