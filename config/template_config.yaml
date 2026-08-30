@@ -27,6 +27,12 @@ params:
     freemuxlet_correlation_limit: 0.7 # default
     souporcell_correlation_limit: 0.7 # default
     pct_agreement: 0.7 # default
+  # souporcell clustering (remap+vartrix now done upstream by sc_pileup).
+  souporcell:
+    restarts: 100   # souporcell default
+    min_ref: 10     # souporcell default
+    min_alt: 10     # souporcell default
+    ploidy: 2       # souporcell default
 
 ref:
   souporcell:
