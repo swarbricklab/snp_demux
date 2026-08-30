@@ -1,37 +1,6 @@
-chromosomes=['chr1', 'chr2', 'chr3','chr4', 'chr5', 'chr6','chr7', 'chr8', 'chr9','chr10', 'chr11', 'chr12',
-'chr13', 'chr14', 'chr15','chr16', 'chr17', 'chr18','chr19', 'chr20', 'chr21', 'chr22']
-
-rule split_bam_by_chromosome:
-    input:
-        bam=lookup(captures, "bam")
-    output:
-        bam=temp(out_dir/"split/{capture_id}/bams/{chrom}.bam"),
-        index=temp(out_dir/"split/{capture_id}/bams/{chrom}.bam.bai")
-    log:
-        logs/"split_bam/{capture_id}/{chrom}.log"
-    container:
-        config["containers"]["demuxafy"]
-    shell:
-        """
-        samtools view -b {input.bam} {wildcards.chrom} > {output.bam} 2> {log}
-        samtools index {output.bam} 2>> {log}
-        """
-
-rule split_vcf_by_chromosome:
-    input:
-        vcf=config['deps']['vcf']
-    output:
-        vcf=temp(out_dir/"split/{capture_id}/vcfs/{chrom}.vcf.gz"),
-        index=temp(out_dir/"split/{capture_id}/vcfs/{chrom}.vcf.gz.csi")
-    log:
-        logs/"split_vcf/{capture_id}/{chrom}.log"
-    container:
-        config["containers"]["demuxafy"]
-    shell:
-        """
-        bcftools view -r {wildcards.chrom} {input.vcf} -Oz -o {output.vcf} 2> {log}
-        bcftools index {output.vcf} 2>> {log}
-        """
+# The per-chromosome BAM/VCF split rules were only needed to feed popscle
+# dsc-pileup; that pileup now comes from sc_pileup, so they are gone. This file
+# retains the donor-aware genotype helpers used by souporcell/demuxlet.
 
 rule known_genotypes:
     input:
