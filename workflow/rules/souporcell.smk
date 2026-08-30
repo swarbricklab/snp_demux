@@ -1,61 +1,81 @@
-rule souporcell:
+# souporcell remap + vartrix (-> ref.mtx/alt.mtx/barcodes.tsv/variants.vcf) is
+# produced upstream by sc_pileup (engine `souporcell`); this stage resumes at
+# clustering. Pinned to cumulusprod/souporcell:2.5 to match the version snp_demux
+# clustered with (keep the split behaviour-preserving; upgrade separately).
+#
+# --known_genotypes MUST be sc_pileup's variants.vcf (the covered subset the
+# matrices were built on) so its rows align with alt.mtx/ref.mtx;
+# --known_genotypes_sample_names restricts to the pool's donors.
+
+SOUPORCELL_CONTAINER = "docker://cumulusprod/souporcell:2.5"
+
+
+rule souporcell_cluster:
     input:
-        bam=lookup(captures,"bam"),
-        barcodes=lookup(captures,"barcodes"),
-        genome_fasta=config["ref"]["souporcell"]["genome_fasta"],
-        known_genotype_vcf=rules.known_genotypes.output.vcf
+        alt=pileup_path("souporcell", "alt.mtx"),
+        ref=pileup_path("souporcell", "ref.mtx"),
+        barcodes=pileup_path("souporcell", "barcodes.tsv"),
+        variants=pileup_path("souporcell", "variants.vcf"),
     output:
-        fastqs=temp(out_dir/"souporcell/{capture_id}/fastqs.done"),
-        clusters=out_dir/"souporcell/{capture_id}/clusters.tsv",
-        cluster_genotypes=out_dir/"souporcell/{capture_id}/cluster_genotypes.vcf",
-        ambient_rna=out_dir/"souporcell/{capture_id}/ambient_rna.txt",
-        bam=temp(out_dir/"souporcell/{capture_id}/souporcell_minimap_tagged_sorted.bam"),
-        bai=temp(out_dir/"souporcell/{capture_id}/souporcell_minimap_tagged_sorted.bam.bai"),
-        alt=out_dir/"souporcell/{capture_id}/alt.mtx",
-        ref=out_dir/"souporcell/{capture_id}/ref.mtx",
-        bc=temp(out_dir/"souporcell/{capture_id}/barcodes.tsv"),
-        bcf_err=temp(out_dir/"souporcell/{capture_id}/bcftools.err"),
-        cl_done=temp(out_dir/"souporcell/{capture_id}/clustering.done"),
-        cl_tmp=temp(out_dir/"souporcell/{capture_id}/clusters_tmp.tsv"),
-        cl_err=temp(out_dir/"souporcell/{capture_id}/clusters.err"),
-        consensus=temp(out_dir/"souporcell/{capture_id}/consensus.done"),
-        doub_err=temp(out_dir/"souporcell/{capture_id}/doublets.err"),
-        map_err=temp(out_dir/"souporcell/{capture_id}/minimap.err"),
-        remap=temp(out_dir/"souporcell/{capture_id}/remapping.done"),
-        retag=temp(out_dir/"souporcell/{capture_id}/retagging.done"),
-        retag_err=temp(out_dir/"souporcell/{capture_id}/retag.err"),
-        troublet=temp(out_dir/"souporcell/{capture_id}/troublet.done"),
-        variants=temp(out_dir/"souporcell/{capture_id}/variants.done"),
-        vartrix=temp(out_dir/"souporcell/{capture_id}/vartrix.done"),
-        vcf=temp(out_dir/"souporcell/{capture_id}/souporcell_merged_sorted_vcf.vcf.gz"),
-        tbi=temp(out_dir/"souporcell/{capture_id}/souporcell_merged_sorted_vcf.vcf.gz.tbi")
+        clusters_tmp=temp(out_dir/"souporcell/{capture_id}/clusters_tmp.tsv"),
     params:
-        sample_number=get_number_of_samples_in_capture_pool # number of samples expected in sc pool -> number of SNP clusters to generate. 
+        k=get_number_of_samples_in_capture_pool,
+        donors=get_donors_in_capture,
+        restarts=config['params']['souporcell']['restarts'],
+        min_ref=config['params']['souporcell']['min_ref'],
+        min_alt=config['params']['souporcell']['min_alt'],
     container:
-        "docker://cumulusprod/souporcell:2.5"
+        SOUPORCELL_CONTAINER
     log:
-        logs/"souporcell/{capture_id}/output.souporcell.log"
+        logs/"souporcell/{capture_id}/cluster.log"
     shell:
         """
-        souporcell_dir="$(dirname {output.clusters})"
-        number_of_known_genotypes=$(bcftools query -l {input.known_genotype_vcf} | wc -l)
-        sample_names=$(bcftools query -l {input.known_genotype_vcf} | tr '\n' ' ')
-        if [ "$number_of_known_genotypes" == {params.sample_number} ]; then
-            echo "Running souporcell with known genotypes" > {log}
-            cmd="souporcell_pipeline.py -i {input.bam} -b {input.barcodes} \
-                -f {input.genome_fasta} -o $souporcell_dir \
-                -t {resources.threads} -k {params.sample_number} \
-                --known_genotypes {input.known_genotype_vcf} \
-                --known_genotypes_sample_names $sample_names"
-            echo $cmd >> {log}
-            eval $cmd >> {log} 2>&1
-            touch {output.bcf_err} {output.vcf} {output.tbi}
-        else
-            echo "Running souporcell without known genotypes"
-            cmd="souporcell_pipeline.py -i {input.bam} -b {input.barcodes} \
-                -f {input.genome_fasta} -o $souporcell_dir \
-                -t {resources.threads} -k {params.sample_number}"
-            echo $cmd >> {log}
-            eval $cmd >> {log} 2>&1
-        fi
+        names=$(echo {params.donors} | tr ',' ' ')
+        souporcell -k {params.k} -a {input.alt} -r {input.ref} -b {input.barcodes} \
+            --restarts {params.restarts} --min_ref {params.min_ref} --min_alt {params.min_alt} \
+            --known_genotypes {input.variants} --known_genotypes_sample_names $names \
+            > {output.clusters_tmp} 2> {log}
+        """
+
+
+rule souporcell_troublet:
+    input:
+        alt=pileup_path("souporcell", "alt.mtx"),
+        ref=pileup_path("souporcell", "ref.mtx"),
+        clusters_tmp=rules.souporcell_cluster.output.clusters_tmp,
+    output:
+        clusters=out_dir/"souporcell/{capture_id}/clusters.tsv",
+    container:
+        SOUPORCELL_CONTAINER
+    log:
+        logs/"souporcell/{capture_id}/troublet.log"
+    shell:
+        """
+        troublet --alts {input.alt} --refs {input.ref} --clusters {input.clusters_tmp} \
+            > {output.clusters} 2> {log}
+        """
+
+
+rule souporcell_consensus:
+    input:
+        alt=pileup_path("souporcell", "alt.mtx"),
+        ref=pileup_path("souporcell", "ref.mtx"),
+        variants=pileup_path("souporcell", "variants.vcf"),
+        clusters=rules.souporcell_troublet.output.clusters,
+    output:
+        cluster_genotypes=out_dir/"souporcell/{capture_id}/cluster_genotypes.vcf",
+        ambient_rna=out_dir/"souporcell/{capture_id}/ambient_rna.txt",
+    params:
+        ploidy=config['params']['souporcell']['ploidy'],
+    container:
+        SOUPORCELL_CONTAINER
+    log:
+        logs/"souporcell/{capture_id}/consensus.log"
+    shell:
+        """
+        outdir=$(dirname {output.cluster_genotypes})
+        consensus.py -c {input.clusters} -a {input.alt} -r {input.ref} -p {params.ploidy} \
+            --output_dir $outdir --soup_out {output.ambient_rna} \
+            --vcf_out {output.cluster_genotypes} --vcf {input.variants} \
+            > {log} 2>&1
         """
