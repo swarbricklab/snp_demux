@@ -1,40 +1,11 @@
-rule cellsnp_lite:
-    input:
-        vcf=config['deps']['vcf'],
-        bam=lookup(captures,"bam"),
-        barcodes=lookup(captures,"barcodes")
-    output:
-        base=temp(out_dir/"cellSNP/{capture_id}/cellSNP.base.vcf.gz"),
-        samples=temp(out_dir/"cellSNP/{capture_id}/cellSNP.samples.tsv"),
-        ad_mtx=temp(out_dir/"cellSNP/{capture_id}/cellSNP.tag.AD.mtx"),
-        dp_mtx=temp(out_dir/"cellSNP/{capture_id}/cellSNP.tag.DP.mtx"),
-        oth_mtx=temp(out_dir/"cellSNP/{capture_id}/cellSNP.tag.OTH.mtx")
-    params:
-        minMAF=config['params']['cellsnp_lite']['minMAF'],
-        minCOUNT=config['params']['cellsnp_lite']['minCOUNT']
-    log:
-        logs/"cellsnp_lite/{capture_id}.log"
-    container:
-        config["containers"]["demuxafy"]
-    shell:
-        """
-        outdir=$(dirname {output.base})
-        cellsnp-lite --samFile {input.bam} \
-            --regionsVCF {input.vcf} \
-            --barcodeFile {input.barcodes} \
-            --outDir $outdir \
-            --nproc {resources.threads} \
-            --minMAF {params.minMAF} \
-            --minCOUNT {params.minCOUNT} \
-            --gzip \
-            > {log} 2>&1
-        """
+# cellSNP-lite pileups are produced upstream by sc_pileup (engine `cellsnp`) and
+# consumed here via pileup_path(...); this stage no longer runs cellsnp-lite.
 
 rule subset_vcf:
     input:
         vcf=config['deps']['vcf'],
         idx=config['deps']['vcf']+'.csi',
-        base=rules.cellsnp_lite.output.base
+        base=pileup_path("cellsnp", "cellSNP.base.vcf.gz")
     output:
         donor_subset=temp(out_dir/"vireo/tmp/{capture_id}/donor_subset.vcf")
     params:
@@ -58,10 +29,10 @@ rule subset_vcf:
 
 rule vireo:
     input:
-        base=rules.cellsnp_lite.output.base,
-        samples=rules.cellsnp_lite.output.samples,
-        ad_mtx=rules.cellsnp_lite.output.ad_mtx,
-        dp_mtx=rules.cellsnp_lite.output.dp_mtx,
+        base=pileup_path("cellsnp", "cellSNP.base.vcf.gz"),
+        samples=pileup_path("cellsnp", "cellSNP.samples.tsv"),
+        ad_mtx=pileup_path("cellsnp", "cellSNP.tag.AD.mtx"),
+        dp_mtx=pileup_path("cellsnp", "cellSNP.tag.DP.mtx"),
         donor_vcf=rules.subset_vcf.output.donor_subset
     output:
         donor_ids=temp(out_dir/"vireo/tmp/{capture_id}/donor_ids.tsv"),
