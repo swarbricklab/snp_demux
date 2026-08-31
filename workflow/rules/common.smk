@@ -32,6 +32,19 @@ def pileup_path(engine, *parts):
         return str(_pileup_root.joinpath(engine, plat, wildcards.capture_id, *parts))
     return _inner
 
+def panel_path(*parts):
+    """Return an input-function giving the sc_pileup per-pool informative panel
+    path: <pileup_root>/panel/<capture_id>/<parts...> (no engine/platform level).
+    This panel carries the pool's donor genotypes, already subset to the pool's
+    donors and filtered to informative (donor-discriminative) sites by sc_pileup,
+    so it replaces the old cohort `deps.vcf` as the donor genotype source. Using
+    the SAME file sc_pileup piled against keeps pileup sites and demux genotypes
+    identical by construction."""
+    def _inner(wildcards):
+        return str(_pileup_root.joinpath("panel", wildcards.capture_id, *parts))
+    return _inner
+
+
 def lookup(df,field):
     """
     Look up field in the given dataframe
