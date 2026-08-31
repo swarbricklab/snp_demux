@@ -9,10 +9,13 @@ deps:
   # `vcf` is retained only for reference / non-panel runs; the vireo and
   # known_genotypes rules read the panel instead.
   vcf: data/snp/imputation/imputed_filtered.hg38.vcf.gz
-  # Root of the sc_pileup outputs consumed by this stage. Engine pileups live at
-  # <pileup_root>/<engine>/<platform>/<capture>/ ; the donor genotype panel at
-  # <pileup_root>/panel/<capture>/informative.vcf.gz .
+  # Root of the sc_pileup engine pileups consumed by this stage:
+  # <pileup_root>/<engine>/<platform>/<capture>/ .
   pileup_root: data/snp/pileup
+  # Per-pool informative panels (donor genotypes), built by an upstream stage
+  # (bcarc_chromium build_informative_panels): <panel_root>/<capture>/informative.vcf.gz.
+  # Defaults to <pileup_root>/panel if omitted (standalone sc_pileup builds).
+  panel_root: data/snp/vcf/panel
   # Platform used when a capture row has no `platform` column (sc_pileup keys by it).
   default_platform: short
 
