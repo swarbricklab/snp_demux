@@ -3,8 +3,11 @@
 
 rule subset_vcf:
     input:
-        vcf=config['deps']['vcf'],
-        idx=config['deps']['vcf']+'.csi',
+        # Per-pool informative panel from sc_pileup (already pool-subset +
+        # informative-filtered); here we further intersect with the cellSNP base
+        # sites actually piled in this capture. --samples is a consistency guard.
+        vcf=panel_path("informative.vcf.gz"),
+        idx=panel_path("informative.vcf.gz.csi"),
         base=pileup_path("cellsnp", "cellSNP.base.vcf.gz")
     output:
         donor_subset=temp(out_dir/"vireo/tmp/{capture_id}/donor_subset.vcf")
