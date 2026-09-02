@@ -31,7 +31,7 @@ rule souporcell_cluster:
     shell:
         """
         names=$(echo {params.donors} | tr ',' ' ')
-        souporcell -k {params.k} -a {input.alt} -r {input.ref} -b {input.barcodes} \
+        /opt/souporcell/souporcell/target/release/souporcell -k {params.k} -a {input.alt} -r {input.ref} -b {input.barcodes} \
             --restarts {params.restarts} --min_ref {params.min_ref} --min_alt {params.min_alt} \
             --known_genotypes {input.variants} --known_genotypes_sample_names $names \
             > {output.clusters_tmp} 2> {log}
@@ -51,7 +51,7 @@ rule souporcell_troublet:
         logs/"souporcell/{capture_id}/troublet.log"
     shell:
         """
-        troublet --alts {input.alt} --refs {input.ref} --clusters {input.clusters_tmp} \
+        /opt/souporcell/troublet/target/release/troublet --alts {input.alt} --refs {input.ref} --clusters {input.clusters_tmp} \
             > {output.clusters} 2> {log}
         """
 
@@ -74,7 +74,7 @@ rule souporcell_consensus:
     shell:
         """
         outdir=$(dirname {output.cluster_genotypes})
-        consensus.py -c {input.clusters} -a {input.alt} -r {input.ref} -p {params.ploidy} \
+        /opt/souporcell/consensus.py -c {input.clusters} -a {input.alt} -r {input.ref} -p {params.ploidy} \
             --output_dir $outdir --soup_out {output.ambient_rna} \
             --vcf_out {output.cluster_genotypes} --vcf {input.variants} \
             > {log} 2>&1
