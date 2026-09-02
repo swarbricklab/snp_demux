@@ -78,11 +78,24 @@ set-resources:
     threads: 32
     mem: "190GB"
     runtime: 1440
+  # sc_pileup branch: souporcell is split into cluster/troublet/consensus, resuming
+  # from the sc_pileup ref/alt.mtx (remap+vartrix already done upstream). Cluster is
+  # the heavy step; troublet/consensus are light.
+  souporcell_cluster:
+    threads: 16
+    mem: "64GB"
+    runtime: 720
+  souporcell_troublet:
+    threads: 1
+    mem: "8GB"
+  souporcell_consensus:
+    threads: 1
+    mem: "8GB"
   souporcell_genotyping:
     mem: "20GB"
   vireo:
     threads: 16
-    mem: "128GB"
+    mem: "32GB"
   vireosnp:
     mem: "8GB"
     runtime: 10
