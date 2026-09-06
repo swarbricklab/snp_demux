@@ -5,6 +5,8 @@ deps:
   vcf: test/data/imputation/imputed_filtered.hg38.vcf.gz
   pileup_root: test/data/pileup
   default_platform: short
+  # Optional per-capture sex-call CSV (format-string keyed on {capture_id}).
+  sex_calls: test/data/predemux/{capture_id}/sex_calls.csv
 
 outs:
   root: test/results
@@ -26,6 +28,12 @@ params:
     min_ref: 10
     min_alt: 10
     ploidy: 2
+    known_gt: true
+  hierarchical:
+    margin_min: 0.15
+    sex_weight: 1.0
+    min_cells_floor: 20
+    low_conf_keep: true
 
 ref:
   souporcell:

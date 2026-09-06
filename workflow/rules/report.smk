@@ -44,7 +44,11 @@ rule report_capture_metrics:
         assignments=out_dir/"assignment/{capture_id}/sample_barcode_assignments.tsv",
         cell_assignment=out_dir/"assignment/{capture_id}/cell_assignment.tsv",
         ambient_summary=out_dir/"vireo/{capture_id}/ambient_summary.csv",
-        souporcell_ambient=out_dir/"souporcell/{capture_id}/ambient_rna.txt"
+        souporcell_ambient=out_dir/"souporcell/{capture_id}/ambient_rna.txt",
+        # Diagnostics roll-up into the shared metrics table (design doc §D gates):
+        # overall silhouette + number of absorbed (non-distinct) donors.
+        embedding_metrics=rules.report_variant_embedding.output.tsv,
+        leave_one_out=rules.leave_one_out.output.tsv
     output:
         metrics=report_dir/"metrics/{capture_id}.tsv"
     params:
@@ -71,7 +75,14 @@ rule report_capture:
         ambient_stats=out_dir/"vireo/{capture_id}/ambient_stats.csv",
         gt_distance=out_dir/"vireo/{capture_id}/fig_GT_distance_estimated.png",
         freemuxlet_corr=out_dir/"freemuxlet/{capture_id}/ref_clust_pearson_correlation.png",
-        vireosnp_heatmap=out_dir/"souporcell/annotation/vireosnp/{capture_id}/matched_GPb_diff_scores_cluster_genotype.heatmap.png"
+        vireosnp_heatmap=out_dir/"souporcell/annotation/vireosnp/{capture_id}/matched_GPb_diff_scores_cluster_genotype.heatmap.png",
+        # Per-capture diagnostics (design doc §D/§E): distinctiveness table+plot,
+        # variant-space embedding UMAP + silhouette metrics, leave-one-out table.
+        distinctiveness_tsv=rules.report_distinctiveness.output.tsv,
+        distinctiveness_png=rules.report_distinctiveness.output.png,
+        embedding_png=rules.report_variant_embedding.output.png,
+        embedding_metrics=rules.report_variant_embedding.output.tsv,
+        leave_one_out=rules.leave_one_out.output.tsv
     output:
         # Single output: Snakemake permits an .Rmd script only one.
         report_dir/"captures/{capture_id}.html"

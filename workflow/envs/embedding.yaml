@@ -1,0 +1,12 @@
+name:
+    embedding
+channels:
+    - conda-forge
+    - bioconda
+dependencies:
+    - python=3.10
+    - numpy
+    - scipy
+    - scikit-learn
+    - umap-learn
+    - matplotlib
