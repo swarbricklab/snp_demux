@@ -3,12 +3,78 @@
 # ----------------------------------
 # Run demuxafy "combine results" to find common cell annotation (to individuals) across methods
 # ==================================
+# Per-tool outputs handed to Demuxafy's Combine_Results.R. Kept as a single
+# source of truth so the input files (below) and the shell --<tool> <dir> flags
+# stay in lock-step. NB: Combine_Results.R takes a DIRECTORY per tool (the rule
+# passes dirname(<file>)); flag names are literally --demuxlet/--freemuxlet/
+# --souporcell/--vireo.
+_DEMUXAFY_TOOL_OUTPUTS = {
+    "demuxlet": rules.demuxlet.output.best,
+    "freemuxlet": rules.freemuxlet.output.samples,
+    "souporcell": rules.souporcell_troublet.output.clusters,
+    "vireo": rules.relabel_vireo.output.donor_ids,
+}
+
+
+def _demuxafy_require_two_tools():
+    """Demuxafy consensus needs >=2 per-cell tools to combine. With fewer, it
+    cannot form a consensus; fail early with a clear message rather than crashing
+    inside Combine_Results.R. (Default is 4 tools, so this never triggers in the
+    backward-compatible case.)"""
+    if len(enabled_tools()) < 2:
+        raise WorkflowError(
+            "Demuxafy consensus (rule demuxafy) requires at least 2 enabled "
+            "per-cell demux tools in config params.tools, but only %s "
+            "is/are enabled. Enable a second tool or drop the demuxafy targets."
+            % enabled_tools()
+        )
+
+
+def demuxafy_inputs(wildcards):
+    """Only the ENABLED tools' outputs are declared as inputs, so disabled tools
+    (e.g. demuxlet/freemuxlet without popscle pileups) are never demanded."""
+    _demuxafy_require_two_tools()
+    c = wildcards.capture_id
+    return {
+        tool: _DEMUXAFY_TOOL_OUTPUTS[tool].format(capture_id=c)
+        for tool in enabled_tools()
+    }
+
+
+def demuxafy_combine_flags(wildcards):
+    """Build the per-tool Combine_Results.R flags for just the enabled tools,
+    preserving the original flag order/values so the invocation is byte-for-byte
+    identical when all four tools are enabled."""
+    _demuxafy_require_two_tools()
+    c = wildcards.capture_id
+    p = config['params']['demuxafy']
+    parts = []
+    if tool_enabled("demuxlet"):
+        parts.append("--demuxlet " + str(Path(_DEMUXAFY_TOOL_OUTPUTS["demuxlet"].format(capture_id=c)).parent))
+    if tool_enabled("freemuxlet"):
+        parts.append("--freemuxlet " + str(Path(_DEMUXAFY_TOOL_OUTPUTS["freemuxlet"].format(capture_id=c)).parent))
+        parts.append("--freemuxlet_correlation_limit " + str(p['freemuxlet_correlation_limit']))
+    if tool_enabled("souporcell"):
+        parts.append("--souporcell " + str(Path(_DEMUXAFY_TOOL_OUTPUTS["souporcell"].format(capture_id=c)).parent))
+        parts.append("--souporcell_correlation_limit " + str(p['souporcell_correlation_limit']))
+    if tool_enabled("vireo"):
+        parts.append("--vireo " + str(Path(_DEMUXAFY_TOOL_OUTPUTS["vireo"].format(capture_id=c)).parent))
+    return " ".join(parts)
+
+
+def demuxafy_ref():
+    """Combine_Results.R --ref must name an ENABLED tool. Prefer Vireo, else
+    Souporcell, else the first enabled tool (capitalised, e.g. Demuxlet)."""
+    if tool_enabled("vireo"):
+        return "Vireo"
+    if tool_enabled("souporcell"):
+        return "Souporcell"
+    return enabled_tools()[0].capitalize()
+
+
 rule demuxafy:
     input:
-        demuxlet=rules.demuxlet.output.best,
-        freemuxlet=rules.freemuxlet.output.samples,
-        souporcell=rules.souporcell_troublet.output.clusters,
-        vireo=rules.relabel_vireo.output.donor_ids
+        unpack(demuxafy_inputs)
     output:
         # TODO: add wildcard based logic to determine the combine method (e.g., AtLeastHalfSinglet)
         combined_results=temp(out_dir/"assignment/{capture_id}/combined_results.tsv"),
@@ -17,8 +83,8 @@ rule demuxafy:
         combined_results_demultiplexing_summary=temp(out_dir/"assignment/{capture_id}/combined_results_demultiplexing_summary.tsv"),
         combined_results_summary=temp(out_dir/"assignment/{capture_id}/combined_results_summary.tsv")
     params:
-        freemuxlet_correlation_limit=config['params']['demuxafy']['freemuxlet_correlation_limit'],
-        souporcell_correlation_limit=config['params']['demuxafy']['souporcell_correlation_limit'],
+        combine_flags=demuxafy_combine_flags,
+        ref=demuxafy_ref(),
         pct_agreement=config['params']['demuxafy']['pct_agreement']
     container:
         config["containers"]["demuxafy"]
@@ -26,20 +92,11 @@ rule demuxafy:
         logs/"assignment/{capture_id}/demuxafy.log"
     shell:
         """
-        demuxlet_dir=$(dirname {input.demuxlet})
-        freemuxlet_dir=$(dirname {input.freemuxlet})
-        souporcell_dir=$(dirname {input.souporcell})
-        vireo_dir=$(dirname {input.vireo})
         Combine_Results.R \
             -o {output.combined_results} \
-            --demuxlet $demuxlet_dir \
-            --freemuxlet $freemuxlet_dir \
-            --freemuxlet_correlation_limit {params.freemuxlet_correlation_limit} \
-            --souporcell $souporcell_dir \
-            --souporcell_correlation_limit {params.souporcell_correlation_limit} \
-            --vireo $vireo_dir \
+            {params.combine_flags} \
             --method "AtLeastHalfSinglet" \
-            --ref Vireo \
+            --ref {params.ref} \
             --pct_agreement {params.pct_agreement} \
             > {log}
         """

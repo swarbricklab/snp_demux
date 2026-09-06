@@ -15,6 +15,23 @@ def get_samples_in_capture(wildcards):
     return ",".join(capture.index.tolist())
 
 
+def freemuxlet_corr_fig(wildcards):
+    """Path to the freemuxlet reference-cluster correlation plot for the capture
+    page's method-diagnostics section.
+
+    report_capture.Rmd hard-codes this figure in its `figs` list, so the input
+    key must always resolve to an EXISTING file (a NULL/absent key would crash
+    the Rmd on normalizePath). When freemuxlet is enabled we point at its plot;
+    when it is disabled (no popscle pileup) we fall back to the already-required,
+    always-present per-capture metrics TSV, so the report still builds and the
+    freemuxlet panel simply degrades to a placeholder. The .Rmd is intentionally
+    left untouched."""
+    c = wildcards.capture_id
+    if tool_enabled("freemuxlet"):
+        return str(out_dir/"freemuxlet"/c/"ref_clust_pearson_correlation.png")
+    return str(report_dir/"metrics"/(c + ".tsv"))
+
+
 def get_pool_for_capture(wildcards):
     """
     Return the pool_id wildcards.capture_id belongs to, or "" if unrecorded.
@@ -74,7 +91,7 @@ rule report_capture:
         all_singlets=out_dir/"assignment/{capture_id}/all_singlets_stats.tsv",
         ambient_stats=out_dir/"vireo/{capture_id}/ambient_stats.csv",
         gt_distance=out_dir/"vireo/{capture_id}/fig_GT_distance_estimated.png",
-        freemuxlet_corr=out_dir/"freemuxlet/{capture_id}/ref_clust_pearson_correlation.png",
+        freemuxlet_corr=freemuxlet_corr_fig,
         vireosnp_heatmap=out_dir/"souporcell/annotation/vireosnp/{capture_id}/matched_GPb_diff_scores_cluster_genotype.heatmap.png",
         # Per-capture diagnostics (design doc §D/§E): distinctiveness table+plot,
         # variant-space embedding UMAP + silhouette metrics, leave-one-out table.

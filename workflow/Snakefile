@@ -24,12 +24,23 @@ include: "rules/diagnostics.smk"
 include: "rules/report.smk"
 
 
-rule all:
-    input:
-        rules.aggregate_demuxlet.output.checkpoint_file,
-        rules.aggregate_freemuxlet.output.checkpoint_file,
-        rules.aggregate_vireo.output.checkpoint_file,
-        rules.aggregate_souporcell.output.checkpoint_file,
+# Build the `rule all` target list, requiring each per-tool aggregate sentinel
+# ONLY if that tool is enabled (config params.tools). The demuxafy/hierarchical/
+# diagnostics sentinels and the reports are always required (demuxafy adapts to
+# the enabled subset internally). This is the single gate that keeps disabled
+# tools out of the DAG.
+def _rule_all_targets():
+    targets = []
+    _per_tool_aggregates = {
+        "demuxlet": rules.aggregate_demuxlet.output.checkpoint_file,
+        "freemuxlet": rules.aggregate_freemuxlet.output.checkpoint_file,
+        "vireo": rules.aggregate_vireo.output.checkpoint_file,
+        "souporcell": rules.aggregate_souporcell.output.checkpoint_file,
+    }
+    for tool in ["souporcell", "vireo", "demuxlet", "freemuxlet"]:
+        if tool_enabled(tool):
+            targets.append(_per_tool_aggregates[tool])
+    targets += [
         rules.aggregate_demuxafy.output.checkpoint_file,
         rules.aggregate_hier.output.checkpoint_file,
         rules.aggregate_diagnostics.output.checkpoint_file,
@@ -37,3 +48,10 @@ rule all:
         out_dir/"assignment/report/all_cells_stats_full.tsv",
         out_dir/"assignment/report/combined_results.tsv",
         report_dir/"index.html",
+    ]
+    return targets
+
+
+rule all:
+    input:
+        _rule_all_targets(),

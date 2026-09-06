@@ -13,6 +13,10 @@ outs:
   logs: test/logs
 
 params:
+  # Which per-cell demux tools to run (subset of souporcell/vireo/demuxlet/
+  # freemuxlet). Default = all four. demuxlet + freemuxlet need popscle pileups;
+  # drop them for a souporcell+vireo-only run. Demuxafy needs >=2 enabled tools.
+  tools: [souporcell, vireo, demuxlet, freemuxlet]
   cellsnp_lite:
     minMAF: 0.1
     minCOUNT: 20

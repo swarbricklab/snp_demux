@@ -1,5 +1,35 @@
 import pandas as pd
 from pathlib import Path
+from snakemake.exceptions import WorkflowError
+
+# --- selectable per-cell demux tools ---------------------------------------
+# The pipeline can run/aggregate/consensus any subset of these four per-cell
+# demux tools. Selection is via config['params']['tools']; default = all four
+# (fully backward compatible). demuxlet + freemuxlet need popscle pileups which
+# are not always available, so a run may enable only {souporcell, vireo}.
+KNOWN_TOOLS = ["souporcell", "vireo", "demuxlet", "freemuxlet"]
+
+
+def enabled_tools():
+    """Return the list of enabled per-cell demux tools (config['params']['tools'],
+    defaulting to all four). Validated against KNOWN_TOOLS; an unknown entry raises
+    a clear WorkflowError. Importable/callable at parse time."""
+    tools = config.get('params', {}).get('tools', list(KNOWN_TOOLS))
+    if isinstance(tools, str):
+        tools = [tools]
+    unknown = [t for t in tools if t not in KNOWN_TOOLS]
+    if unknown:
+        raise WorkflowError(
+            "config params.tools contains unknown tool(s) %s; "
+            "valid values are %s" % (unknown, KNOWN_TOOLS)
+        )
+    return list(tools)
+
+
+def tool_enabled(name):
+    """True if per-cell demux tool `name` is enabled for this run."""
+    return name in enabled_tools()
+
 
 samples = pd.read_csv(config["deps"]["samples"], dtype=str, index_col='sample_id')
 samples.index = samples.index.astype(str)
