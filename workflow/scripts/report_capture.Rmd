@@ -242,3 +242,79 @@ for (f in figs) {
   cat(sprintf('![](%s)\n', normalizePath(f$path)))
 }
 ```
+
+## Donor diagnostics
+
+QC gates from the hierarchical design (docs/hierarchical_demux_design.md §D/§E):
+donor distinctiveness and MAF-survival of private sites, the variant-space
+embedding coloured by de-novo cluster with its silhouette, and a score-level
+leave-one-out check of whether each donor's cluster survives as distinct.
+
+```{r diag-helpers}
+# Robust reader: an empty-but-valid TSV (produced when an input was missing)
+# yields NULL so the chunks below print a placeholder note instead of erroring.
+read_diag <- function(key) {
+  path <- snakemake@input[[key]]
+  if (is.null(path) || !file.exists(path) || file.info(path)$size == 0) return(NULL)
+  out <- tryCatch(read_tsv(path, show_col_types = FALSE), error = function(e) NULL)
+  if (is.null(out) || nrow(out) == 0) NULL else out
+}
+```
+
+### Distinctiveness and MAF survival
+
+Per donor: `n_unique` = sites where it is the sole alt-carrier among pool donors;
+`keep@t` = fraction of those sites whose pooled allele fraction survives threshold
+`t`. Low survival at `0.1` is the minMAF-culling failure mode for minority donors.
+
+```{r distinctiveness, results='asis'}
+dist_tbl <- read_diag("distinctiveness_tsv")
+if (is.null(dist_tbl)) {
+  cat("\n> _No distinctiveness data for this capture._\n")
+} else {
+  print(knitr::kable(dist_tbl))
+  cat("\n\n")
+  cat(sprintf('![](%s)\n',
+              normalizePath(snakemake@input[["distinctiveness_png"]])))
+}
+```
+
+### Variant-space embedding
+
+De-novo souporcell clusters in the variant (alt-fraction) space. A clear
+separation with a positive silhouette indicates recoverable donors; a collapsed
+embedding / near-zero silhouette flags the too-few-cells failure mode.
+
+```{r embedding, results='asis'}
+emb <- read_diag("embedding_metrics")
+if (!is.null(emb)) {
+  ov <- emb$silhouette[emb$cluster == "overall"]
+  if (length(ov)) cat(sprintf("\nOverall silhouette: **%.3f**\n\n", ov[1]))
+  print(knitr::kable(emb))
+  cat("\n\n")
+}
+epng <- snakemake@input[["embedding_png"]]
+if (!is.null(epng) && file.exists(epng)) {
+  cat(sprintf('![](%s)\n', normalizePath(epng)))
+} else {
+  cat("\n> _No embedding for this capture._\n")
+}
+```
+
+### Leave-one-out
+
+Drop each donor and check whether its best cluster stays distinct (a clear
+GPb_diff gap to the next-best donor) or gets absorbed (another donor is within
+the margin). Absorbed donors are not separable by genotype alone.
+
+```{r leave-one-out, results='asis'}
+loo <- read_diag("leave_one_out")
+if (is.null(loo)) {
+  cat("\n> _No leave-one-out data for this capture._\n")
+} else {
+  n_abs <- sum(loo$verdict == "absorbed", na.rm = TRUE)
+  cat(sprintf("\n%d of %d donor(s) absorbed (not separable).\n\n",
+              n_abs, nrow(loo)))
+  print(knitr::kable(loo))
+}
+```

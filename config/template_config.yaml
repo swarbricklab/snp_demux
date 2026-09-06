@@ -18,6 +18,13 @@ deps:
   panel_root: data/snp/vcf/panel
   # Platform used when a capture row has no `platform` column (sc_pileup keys by it).
   default_platform: short
+  # Per-capture sex-call CSV (columns: barcode,sex_call,confidence with
+  # sex_call in {female,male,no_signal}), produced upstream by cellranger predemux.
+  # Python format-string keyed on {capture_id}; resolved by sex_path() in common.smk.
+  # Consumed by the hierarchical consensus (sex-aware tie-breaking / QC). The join
+  # is robust to this file being absent, so it is safe to leave pointing at a path
+  # that may not exist yet.
+  sex_calls: data/cellranger/count/predemux/{capture_id}/sex_calls.csv
 
 outs:
   root: data/snp/demux/
@@ -43,6 +50,19 @@ params:
     min_ref: 10     # souporcell default
     min_alt: 10     # souporcell default
     ploidy: 2       # souporcell default
+    # Run the second, genotype-anchored souporcell mode (souporcell/{c}/known/).
+    # Whether it actually runs is decided by targets; this flag documents intent
+    # and lets a downstream config disable the extra compute if desired.
+    known_gt: true
+
+  # Hierarchical, sex-aware consensus (runs ALONGSIDE demuxafy; see
+  # docs/hierarchical_demux_design.md). De-novo souporcell decides cluster
+  # membership (recovery); genotypes decide the donor label; sex breaks ties.
+  hierarchical:
+    margin_min: 0.15      # min vireosnp GPb_diff margin (best vs 2nd-best) to call a confident label
+    sex_weight: 1.0       # weight of the sex prior when down-weighting sex-conflicting donors
+    min_cells_floor: 20   # clusters below this cell count are flagged low_cell
+    low_conf_keep: true   # keep de-novo-recovered cells even when the genotype label is weak
 
 ref:
   souporcell:

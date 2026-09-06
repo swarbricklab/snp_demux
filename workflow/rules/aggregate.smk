@@ -4,7 +4,13 @@ rule aggregate_souporcell:
     """
     input:
         all_souporcell_results=expand(
-                out_dir/"souporcell/annotation/vireosnp/{capture_id}/clusters_annotated.tsv", 
+                out_dir/"souporcell/annotation/vireosnp/{capture_id}/clusters_annotated.tsv",
+                capture_id=captures.index.tolist()
+        ),
+        # de-novo-vs-known partition QC depends on the known-GT second mode, so
+        # make its outputs reachable via the souporcell target too.
+        all_known_results=expand(
+                out_dir/"souporcell/{capture_id}/known/clusters.tsv",
                 capture_id=captures.index.tolist()
         )
     output:
@@ -72,6 +78,20 @@ rule aggregate_demuxafy:
         expand(out_dir/"assignment/{capture_id}/cell_assignment.tsv", capture_id=captures.index.tolist())
     output:
         checkpoint_file=out_dir/"assignment/all.done"
+    shell:
+        """
+        echo {input} > {output.checkpoint_file}
+        """
+
+rule aggregate_hier:
+    """
+    Sentinel for the hierarchical (sex-aware) consensus branch, run alongside
+    demuxafy. Collects the per-capture hierarchical_consensus.tsv tables.
+    """
+    input:
+        expand(out_dir/"assignment/{capture_id}/hierarchical_consensus.tsv", capture_id=captures.index.tolist())
+    output:
+        checkpoint_file=out_dir/"assignment/hierarchical.done"
     shell:
         """
         echo {input} > {output.checkpoint_file}

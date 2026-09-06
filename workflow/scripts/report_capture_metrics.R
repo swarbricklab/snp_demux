@@ -54,6 +54,27 @@ mean_agree <- long %>%
   summarise(n_agree = sum(call == cons_call, na.rm = TRUE), .groups = "drop") %>%
   pull(n_agree) %>% mean(na.rm = TRUE)
 
+# Diagnostics roll-up (design doc §D gates). Robust to empty/absent files: an
+# empty-but-valid TSV yields NA silhouette / 0 absorbed donors rather than error.
+read_diag <- function(key) {
+  path <- snakemake@input[[key]]
+  if (is.null(path) || !file.exists(path) || file.info(path)$size == 0)
+    return(NULL)
+  out <- tryCatch(read_tsv(path, show_col_types = FALSE), error = function(e) NULL)
+  if (is.null(out) || nrow(out) == 0) NULL else out
+}
+
+emb_metrics <- read_diag("embedding_metrics")
+silhouette_overall <- if (!is.null(emb_metrics) && "cluster" %in% names(emb_metrics)) {
+  ov <- emb_metrics$silhouette[emb_metrics$cluster == "overall"]
+  if (length(ov)) ov[1] else NA_real_
+} else NA_real_
+
+loo <- read_diag("leave_one_out")
+n_absorbed_donors <- if (!is.null(loo) && "verdict" %in% names(loo)) {
+  sum(loo$verdict == "absorbed", na.rm = TRUE)
+} else NA_integer_
+
 n_cells   <- nrow(cells)
 n_singlet <- sum(cells$status == "singlet", na.rm = TRUE)
 n_doublet <- sum(cells$status == "doublet", na.rm = TRUE)
@@ -73,7 +94,9 @@ tibble(
   missing_samples       = paste(setdiff(declared, recovered), collapse = ";"),
   ambient_souporcell    = soup_amb / 100,
   ambient_vireo_median  = median(amb_sum$ambient_other, na.rm = TRUE),
-  mean_methods_agreeing = mean_agree
+  mean_methods_agreeing = mean_agree,
+  silhouette_overall    = silhouette_overall,
+  n_absorbed_donors     = n_absorbed_donors
 ) %>% write_tsv(snakemake@output[["metrics"]])
 
 message("wrote ", snakemake@output[["metrics"]])

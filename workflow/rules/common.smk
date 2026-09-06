@@ -50,6 +50,33 @@ def panel_path(*parts):
     return _inner
 
 
+# Per-capture sex-call CSV (barcode,sex_call,confidence), produced upstream by
+# cellranger predemux. Configured as a Python format-string keyed on {capture_id}
+# (config deps.sex_calls). May be None if the key is absent.
+_sex_calls_template = config["deps"].get("sex_calls")
+
+
+def sex_path(*parts):
+    """Return an input-function giving the per-capture sex-call CSV path, resolved
+    from the deps.sex_calls format-string on {capture_id} (mirrors pileup_path in
+    spirit; the template already points at the file so *parts is normally unused,
+    but any extra parts are appended for forward flexibility). Returns "" when the
+    key is unset so the hierarchical join can degrade to empty sex columns.
+
+    NB: consume this via `params:` (not `input:`) — the sex CSV is an optional
+    upstream source with no producing rule, so making it a hard input would break
+    the DAG whenever it is absent. join_sex.py / hierarchical_consensus.py check
+    for existence at run time."""
+    def _inner(wildcards):
+        if not _sex_calls_template:
+            return ""
+        path = _sex_calls_template.format(capture_id=wildcards.capture_id)
+        if parts:
+            path = str(Path(path).joinpath(*parts))
+        return path
+    return _inner
+
+
 def lookup(df,field):
     """
     Look up field in the given dataframe
