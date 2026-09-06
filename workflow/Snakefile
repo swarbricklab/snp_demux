@@ -24,6 +24,23 @@ include: "rules/diagnostics.smk"
 include: "rules/report.smk"
 
 
+# Run genuinely-trivial file-bookkeeping rules on the submit host (no qsub), so
+# they don't queue behind cluster congestion. Only pure aggregate sentinels and
+# combine/index rules are listed here -- nothing that does real computation.
+localrules:
+    aggregate_souporcell,
+    aggregate_vireo,
+    aggregate_demuxlet,
+    aggregate_freemuxlet,
+    aggregate_demuxafy,
+    aggregate_hier,
+    aggregate_diagnostics,
+    combine_cell_assignments,
+    combine_cell_stats,
+    combine_singlet_stats,
+    report_index,
+
+
 # Build the `rule all` target list, requiring each per-tool aggregate sentinel
 # ONLY if that tool is enabled (config params.tools). The demuxafy/hierarchical/
 # diagnostics sentinels and the reports are always required (demuxafy adapts to

@@ -28,6 +28,11 @@ soup_amb <- suppressWarnings(as.numeric(sub(
 )))
 
 methods   <- c("Demuxlet", "Freemuxlet", "Souporcell", "Vireo", "Souporcell_vireosnp")
+# Keep only tools actually present in the combined table: with a configurable
+# params.tools subset (e.g. [souporcell, vireo]), the disabled tools' *_DropletType
+# columns are absent, and referencing them yields a length-0 `call` column that
+# breaks the tibble() below.
+methods   <- methods[paste0(methods, "_DropletType") %in% names(assign_tbl)]
 consensus <- "AtLeastHalfSinglet"
 
 # A call is the sample id for a singlet, or the droplet type otherwise, so that
