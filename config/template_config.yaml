@@ -34,6 +34,14 @@ outs:
   reports: reports/snp_demux
 
 params:
+  # Which per-cell demux tools to run. The pipeline runs, aggregates and
+  # consensuses ONLY the selected subset; `rule all` and the Demuxafy consensus
+  # (Combine_Results.R) adapt automatically. Default = all four (fully backward
+  # compatible). NOTE: demuxlet + freemuxlet require popscle pileups that are not
+  # always available -- a run without them should list only e.g.
+  # [souporcell, vireo], and Demuxafy will then combine just those two.
+  # Demuxafy needs >=2 enabled tools to form a consensus.
+  tools: [souporcell, vireo, demuxlet, freemuxlet]
   cellsnp_lite:
     minMAF: 0.1
     minCOUNT: 20

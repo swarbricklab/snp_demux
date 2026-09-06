@@ -59,6 +59,15 @@ workspace's `build_informative_panels`; this module is source-agnostic. The pane
 
 Pileup at `minMAF 0` (retain minority sites) — already the cohort default.
 
+### B0. Configurable tool set
+
+`params.tools` (subset of `{souporcell, vireo, demuxlet, freemuxlet}`, default all four)
+selects which per-cell demux tools run. `rule all`, the per-tool aggregates, and the Demuxafy
+consensus adapt: only enabled tools are required/passed to `Combine_Results.R`, and `--ref` is
+chosen from the enabled set (Vireo > Souporcell). Demuxafy needs ≥2 tools or it fails fast with
+an actionable message. This lets a workspace without popscle pileups run `[souporcell, vireo]`
+end-to-end (both consensuses + report) without demuxlet/freemuxlet.
+
 ### B. Pipeline — souporcell twice + vireo + hierarchical consensus (ALONGSIDE Demuxafy)
 
 - **souporcell de-novo** (existing `souporcell.smk`) — the recovery backbone. Keep.

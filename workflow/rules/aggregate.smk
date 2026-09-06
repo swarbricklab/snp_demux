@@ -73,6 +73,13 @@ rule aggregate_vireo:
         echo {input.all_vireo_results} > {output.checkpoint_file}
         """
 
+# NOTE on selectable tools (config params.tools): the four per-tool sentinels
+# above (aggregate_souporcell/demuxlet/freemuxlet/vireo) are only ever pulled
+# into the DAG by `rule all`, which now requires each one ONLY when that tool is
+# enabled -- so a disabled tool's branch is never built. aggregate_demuxafy
+# depends solely on the tool-agnostic cell_assignment.tsv (produced by the
+# demuxafy->wrangle chain), so it does NOT demand demuxlet/freemuxlet outputs;
+# the demuxafy rule itself declares only the enabled tools' outputs as inputs.
 rule aggregate_demuxafy:
     input:
         expand(out_dir/"assignment/{capture_id}/cell_assignment.tsv", capture_id=captures.index.tolist())
