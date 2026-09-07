@@ -13,6 +13,7 @@
 # source with no producing rule, and join_sex.py degrades to empty sex columns if
 # it is absent.
 rule join_sex:
+    group: "postproc"
     input:
         base_table=rules.souporcell_troublet.output.clusters,
     output:
@@ -28,6 +29,7 @@ rule join_sex:
 
 
 rule hierarchical_consensus:
+    group: "postproc"
     input:
         # recovery backbone (de-novo souporcell) + doublet/singlet log-probs
         denovo_clusters=rules.souporcell_troublet.output.clusters,

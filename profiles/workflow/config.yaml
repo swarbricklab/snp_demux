@@ -7,34 +7,14 @@ rerun-incomplete: True
 latency-wait: 30
 retries: 2
 
-# Job grouping: pack each capture's lightweight post-processing chain into ONE
-# PBS submission (per-capture; group-components postproc=1) instead of ~12 tiny
-# jobs, to cut scheduler churn and queue waits. Heavy/parallel rules
-# (souporcell*, vireo) are deliberately left OUT so they still spread across
-# nodes. Group resources are derived from members + default-resources; every
-# member here is small (<=8GB, minutes), so a per-capture group fits one node.
-groups:
-  known_genotypes: postproc
-  extract_genotyped_donors: postproc
-  subset_vcf: postproc
-  relabel_vireo: postproc
-  reheader_vireo_vcf: postproc
-  summarise_ambient: postproc
-  vireosnp: postproc
-  join_sex: postproc
-  hierarchical_consensus: postproc
-  report_distinctiveness: postproc
-  report_variant_embedding: postproc
-  leave_one_out: postproc
-  demuxafy: postproc
-  add_vireosnp_to_combined_results: postproc
-  wrangle_demuxafy_assignments: postproc
-  wrangle_stats: postproc
-  report_capture: postproc
-  report_capture_metrics: postproc
-
-group-components:
-  postproc: 1
+# Job grouping: each capture's lightweight post-processing chain is packed into
+# ONE PBS submission (per-capture) via rule-level `group: "postproc"` directives
+# in workflow/rules/*.smk, instead of ~12 tiny jobs, to cut scheduler churn and
+# queue waits. The directives live in the rules (not here) because snakemake 7.32
+# does not reliably honor `groups:`/`group-components:` from a --workflow-profile.
+# Heavy/parallel rules (souporcell*, vireo) and the pre-flight screen are left
+# ungrouped so they still spread across nodes / run early. Snakemake's default of
+# one job per connected group component already yields per-capture grouping.
 
 # Conda settings
 use-conda: True

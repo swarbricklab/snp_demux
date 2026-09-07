@@ -3,6 +3,7 @@
 # retains the donor-aware genotype helpers used by souporcell/demuxlet.
 
 rule known_genotypes:
+    group: "postproc"
     input:
         # Per-pool informative panel from sc_pileup (donor GTs, already pool-subset
         # + informative-filtered). The --samples step below is now a consistency
@@ -26,6 +27,7 @@ rule known_genotypes:
         """
 
 rule extract_genotyped_donors:
+    group: "postproc"
     input:
         vcf=rules.known_genotypes.output.vcf
     output:
