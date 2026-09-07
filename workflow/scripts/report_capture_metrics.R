@@ -80,6 +80,21 @@ n_absorbed_donors <- if (!is.null(loo) && "verdict" %in% names(loo)) {
   sum(loo$verdict == "absorbed", na.rm = TRUE)
 } else NA_integer_
 
+# Pre-flight present/absent screen: roll the per-donor verdicts into counts so
+# the landing page can flag captures with absent/underdetermined donors.
+pa <- read_diag("present_absent")
+if (!is.null(pa) && "verdict" %in% names(pa)) {
+  n_screened_donors <- nrow(pa)
+  n_present         <- sum(pa$verdict == "present", na.rm = TRUE)
+  n_underdetermined <- sum(pa$verdict == "present_underdetermined", na.rm = TRUE)
+  n_absent          <- sum(pa$verdict == "absent", na.rm = TRUE)
+  n_untestable      <- sum(pa$verdict == "untestable", na.rm = TRUE)
+} else {
+  n_screened_donors <- NA_integer_
+  n_present <- NA_integer_; n_underdetermined <- NA_integer_
+  n_absent <- NA_integer_;  n_untestable <- NA_integer_
+}
+
 n_cells   <- nrow(cells)
 n_singlet <- sum(cells$status == "singlet", na.rm = TRUE)
 n_doublet <- sum(cells$status == "doublet", na.rm = TRUE)
@@ -101,7 +116,12 @@ tibble(
   ambient_vireo_median  = median(amb_sum$ambient_other, na.rm = TRUE),
   mean_methods_agreeing = mean_agree,
   silhouette_overall    = silhouette_overall,
-  n_absorbed_donors     = n_absorbed_donors
+  n_absorbed_donors     = n_absorbed_donors,
+  pa_n_donors           = n_screened_donors,
+  pa_n_present          = n_present,
+  pa_n_underdetermined  = n_underdetermined,
+  pa_n_absent           = n_absent,
+  pa_n_untestable       = n_untestable
 ) %>% write_tsv(snakemake@output[["metrics"]])
 
 message("wrote ", snakemake@output[["metrics"]])
