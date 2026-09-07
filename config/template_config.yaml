@@ -72,16 +72,14 @@ params:
     min_cells_floor: 20   # clusters below this cell count are flagged low_cell
     low_conf_keep: true   # keep de-novo-recovered cells even when the genotype label is weak
 
-  # Donor present/absent screen (workflow/scripts/present_absent_screen.py).
-  # Thresholds on the per-cell private-alt-site tail vs the ambient-only binomial
-  # null (ambient estimated from cells NOT assigned to the donor).
+  # Pre-flight donor present/absent screen (workflow/scripts/present_absent_screen.py).
+  # Coarse QC gate: per donor, count cells carrying >= k_sites of that donor's private
+  # alleles; call present when >= min_cells such cells exist. A flag only -- nothing
+  # downstream prunes the panel or sets souporcell k from it.
   present_absent:
-    min_covered_sites: 200    # fewer covered private sites than this -> "untestable"
-    present_min_assigned: 15  # demux cells assigned to a donor at/above which it is present outright
-    present_ge5_floor: 5      # cells with >=5 private-alt sites needed to call "present"
-    present_tail_ratio: 2.0   # AND cells_ge3 must exceed this * null_exp_ge3
-    absent_tail_ratio: 3.0    # "absent" needs cells_ge3 <= max(absent_ge3_abs, this*null)
-    absent_ge3_abs: 3         # absolute floor on the >=3 tail tolerated for "absent"
+    min_covered_sites: 200  # fewer covered private sites than this -> "untestable"
+    k_sites: 3              # a cell needs >= this many private-alt sites to count as evidence
+    min_cells: 3            # >= this many evidence cells -> "present" (else "absent")
 
 ref:
   souporcell:

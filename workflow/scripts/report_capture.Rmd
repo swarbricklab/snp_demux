@@ -61,13 +61,15 @@ missing   <- if (is.na(mx$missing_samples) || !nzchar(mx$missing_samples)) {
 
 ## Donor present/absent screen
 
-Clustering-independent pre-flight: for each declared pool donor, is it actually
-**present** in this capture? Private sites are biallelic panel sites where a donor
-is the sole alt-carrier among pool donors; per cell we count covered private sites
-carrying an alt read and compare the tail against the ambient-only null. Verdicts:
-**present** (clear tail above null), **absent** (no tail / dropout),
-**present_underdetermined** (testable but ambiguous), **untestable** (too few
-private sites covered). Non-`present` donors are listed first.
+Clustering-independent pre-flight QC flag (a flag only -- nothing downstream acts
+on it): for each declared pool donor, is it actually **present** in this capture?
+Private sites are biallelic panel sites where a donor is the sole alt-carrier among
+pool donors; per cell we count covered private sites carrying an alt read.
+`n_evidence` = cells showing several private alleles at once. Verdicts:
+**present** (enough evidence cells), **absent** (testable but no evidence /
+dropout), **untestable** (too few private sites covered). `ambient_p` is the pooled
+alt-fraction over the donor's private rows (context only). Non-`present` donors are
+listed first.
 
 ```{r present-absent, results='asis'}
 pa_path <- snakemake@input[["present_absent"]]
@@ -82,15 +84,14 @@ if (is.null(pa)) {
   cat("\n> _No present/absent screen for this capture (empty or missing input)._\n")
 } else {
   n_present <- sum(pa$verdict == "present", na.rm = TRUE)
-  n_under   <- sum(pa$verdict == "present_underdetermined", na.rm = TRUE)
   n_absent  <- sum(pa$verdict == "absent", na.rm = TRUE)
   n_untest  <- sum(pa$verdict == "untestable", na.rm = TRUE)
   cat(sprintf(
-    "\n**%d donor(s):** %d present, %d underdetermined, %d absent, %d untestable.\n\n",
-    nrow(pa), n_present, n_under, n_absent, n_untest))
+    "\n**%d donor(s):** %d present, %d absent, %d untestable.\n\n",
+    nrow(pa), n_present, n_absent, n_untest))
   flagged <- pa$donor[pa$verdict != "present"]
   if (length(flagged)) {
-    cat(sprintf("\n> **Flagged (not clearly present): %s**\n\n",
+    cat(sprintf("\n> **Flagged (not called present): %s**\n\n",
                 paste(flagged, collapse = ", ")))
   }
   # TSV is already sorted non-`present` first; show the decision-relevant columns.
@@ -98,10 +99,9 @@ if (is.null(pa)) {
     transmute(
       donor,
       verdict,
-      `cells >=1` = cells_ge1,
+      n_evidence,
       `cells >=3` = cells_ge3,
       `cells >=5` = cells_ge5,
-      `null (>=3)` = null_exp_ge3,
       ambient_p,
       n_private,
       n_covered
