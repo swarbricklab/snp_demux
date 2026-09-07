@@ -1,6 +1,5 @@
 # Use vireoSNP to do the scRNA SNP to known genotype mapping
 rule vireosnp:
-    group: "postproc"
     input:
         clusters=out_dir/"souporcell/{capture_id}/clusters.tsv",
         cluster_genotypes=out_dir/"souporcell/{capture_id}/cluster_genotypes.vcf",

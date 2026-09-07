@@ -57,7 +57,6 @@ rule report_capture_metrics:
     single output file. Keeping it separate also means the page and the index
     quote the same numbers instead of each deriving their own.
     """
-    group: "postproc"
     input:
         assignments=out_dir/"assignment/{capture_id}/sample_barcode_assignments.tsv",
         cell_assignment=out_dir/"assignment/{capture_id}/cell_assignment.tsv",
@@ -88,7 +87,6 @@ rule report_capture:
     Per-capture demux summary: cell counts, sample assignments, ambient RNA and
     agreement between the demultiplexing methods.
     """
-    group: "postproc"
     input:
         metrics=rules.report_capture_metrics.output.metrics,
         # Pre-flight donor present/absent screen, surfaced at the TOP of the page.

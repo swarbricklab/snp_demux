@@ -73,7 +73,6 @@ def demuxafy_ref():
 
 
 rule demuxafy:
-    group: "postproc"
     input:
         unpack(demuxafy_inputs)
     output:
@@ -122,7 +121,6 @@ rule pdf_to_png:
 # Add VireoSNP annotation results to the demuxafy combined annotations
 # ==================================
 rule add_vireosnp_to_combined_results:
-    group: "postproc"
     input:
         demuxafy_assignments=rules.demuxafy.output.combined_results_annotated,
         vireosnp_assignments=rules.vireosnp.output.clusters_annotated
@@ -136,7 +134,6 @@ rule add_vireosnp_to_combined_results:
         "../scripts/add_vireosnp_to_combined_results.R"
 
 rule wrangle_demuxafy_assignments:
-    group: "postproc"
     input:
         sample_map=config["deps"]["samples"],
         #vcf=config["deps"]["vcf"],
@@ -155,7 +152,6 @@ rule wrangle_demuxafy_assignments:
         "../scripts/wrangle_assignments.R"
 
 rule wrangle_stats:
-    group: "postproc"
     input:
         sample_barcode_assignments=rules.wrangle_demuxafy_assignments.output.sample_barcode_assignments
     output:

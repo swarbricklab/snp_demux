@@ -15,7 +15,6 @@ rule report_distinctiveness:
     genotypes, plus the MAF-survival curve of those unique sites in the cellSNP
     pileup. TSV + barplot PNG.
     """
-    group: "postproc"
     input:
         known_genotypes_vcf=rules.known_genotypes.output.vcf,
         ad_mtx=pileup_path("cellsnp", "cellSNP.tag.AD.mtx"),
@@ -37,7 +36,6 @@ rule report_variant_embedding:
     Cells x sites alt-fraction -> TruncatedSVD(30) -> UMAP, coloured by the de-novo
     souporcell cluster, with per-cluster + overall silhouette on the SVD space.
     """
-    group: "postproc"
     input:
         ad_mtx=pileup_path("cellsnp", "cellSNP.tag.AD.mtx"),
         dp_mtx=pileup_path("cellsnp", "cellSNP.tag.DP.mtx"),
@@ -59,7 +57,6 @@ rule leave_one_out:
     Score-level leave-one-out over the vireosnp GPb_diff matrix: does each donor's
     best cluster survive as distinct when that donor is removed, or get absorbed?
     """
-    group: "postproc"
     input:
         scores_full=rules.vireosnp.output.scores_full,
     output:
