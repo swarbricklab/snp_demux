@@ -2,7 +2,6 @@
 # consumed here via pileup_path(...); this stage no longer runs cellsnp-lite.
 
 rule subset_vcf:
-    group: "postproc"
     input:
         # Per-pool informative panel from sc_pileup (already pool-subset +
         # informative-filtered); here we further intersect with the cellSNP base
@@ -82,7 +81,6 @@ rule vireo:
 # It uses the relabel_vireo.R script, which takes all inputs and outputs from Snakemake variables.
 
 rule relabel_vireo:
-    group: "postproc"
     input:
         samples_csv=config["deps"]["samples"],
         donor_ids=rules.vireo.output.donor_ids,
@@ -112,7 +110,6 @@ rule relabel_vireo:
 # It uses bcftools reheader to update the sample names in the VCF.
 
 rule reheader_vireo_vcf:
-    group: "postproc"
     input:
         vcf=rules.vireo.output.vcf,
         sample_map=rules.relabel_vireo.output.sample_map
@@ -133,7 +130,6 @@ rule reheader_vireo_vcf:
 
 # Summarise ambient RNA per barcode using vireo outputs
 rule summarise_ambient:
-    group: "postproc"
     input:
         prop_ambient=rules.relabel_vireo.output.prop_ambient,
         donor_ids=rules.relabel_vireo.output.donor_ids
