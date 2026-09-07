@@ -13,9 +13,19 @@ else
     global_profile=""
 fi
 
+# Config, output dir and log dir are overridable via env vars (defaults match the
+# production single-pass run). A cohort/experiment run sets all three, e.g.:
+#   SNP_DEMUX_CONFIG=config/snp_demux/config.cohort.yaml \
+#   SNP_DEMUX_OUT=data/snp/experiments/cohort/demux \
+#   SNP_DEMUX_LOGDIR=logs/snp/demux_cohort \
+#   bash modules/snp_demux/run_mod.sh
+CONFIGFILE="${SNP_DEMUX_CONFIG:-config/snp_demux/config.yaml}"
+DEMUX_OUT="${SNP_DEMUX_OUT:-data/snp/demux}"
+DEMUX_LOGDIR="${SNP_DEMUX_LOGDIR:-logs/snp/demux}"
+
 snakemake $global_profile $workflow_profile \
     --snakefile modules/snp_demux/workflow/Snakefile \
-    --configfile config/snp_demux/config.yaml \
+    --configfile "$CONFIGFILE" \
     $@
 
 # Clean up empty PNG files used to trigger rules
@@ -23,8 +33,8 @@ snakemake $global_profile $workflow_profile \
 # But if all genotypes are known then no file is generated 
 # The 'relabel_vireo' creates empty files to trigger downstream rules
 # So we need to remove them if they are empty to avoid confusion later
-find data/snp/demux/vireo -type f -name fig_GT_distance_input.png -empty -delete
-find data/snp/demux/vireo -type f -name fig_GT_distance_estimated.png -empty -delete
+find "$DEMUX_OUT/vireo" -type f -name fig_GT_distance_input.png -empty -delete 2>/dev/null || true
+find "$DEMUX_OUT/vireo" -type f -name fig_GT_distance_estimated.png -empty -delete 2>/dev/null || true
 
 # Tar logs
 # This workflow can generate a lot of small log files
@@ -38,9 +48,9 @@ find data/snp/demux/vireo -type f -name fig_GT_distance_estimated.png -empty -de
 # that object for every workspace linking to it.
 #
 # Appending merges instead: on extraction, a later entry for a path wins.
-ARCHIVE=logs/snp/demux.tar.gz
+ARCHIVE="${DEMUX_LOGDIR}.tar.gz"
 
-if [ -d logs/snp/demux ]; then
+if [ -d "$DEMUX_LOGDIR" ]; then
     STAGE=$(mktemp -d "${PBS_JOBFS:-${TMPDIR:-/tmp}}/demuxlogs.XXXXXX")
     if [ -e "$ARCHIVE" ]; then
         cp -L "$ARCHIVE" "$STAGE/demux.tar.gz"   # -L: read through the symlink
@@ -53,11 +63,11 @@ if [ -d logs/snp/demux ]; then
     else
         tar -cf "$STAGE/demux.tar" -T /dev/null
     fi
-    tar -rf "$STAGE/demux.tar" logs/snp/demux
+    tar -rf "$STAGE/demux.tar" "$DEMUX_LOGDIR"
     gzip "$STAGE/demux.tar"
 
     rm -f "$ARCHIVE"                             # unlink; never write through it
     mv "$STAGE/demux.tar.gz" "$ARCHIVE"
     rmdir "$STAGE"
-    rm -rf logs/snp/demux
+    rm -rf "$DEMUX_LOGDIR"
 fi
