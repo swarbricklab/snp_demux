@@ -21,121 +21,151 @@ use-conda: True
 conda-frontend: mamba
 
 # Resource settings per rule
+#
+# Values below were refined against ACTUAL PBS "Resource Usage" blocks from the
+# cohort run (logs/joblogs/<rule>/*.log). Sizing = ~1.3x observed max Memory Used
+# (rounded to a sensible value, floor ~2GB) and ~1.5x max Walltime Used (floor 30
+# min). See the review notes in the report for per-rule provenance. NOTE: some
+# joblogs used for sizing predate the removal of job grouping (a2a973f) -- while
+# grouped, the diagnostic rules ran at the 4GB DEFAULT (set-resources didn't apply
+# to grouped submissions), which is why report_variant_embedding OOM-killed ~18x.
+# Grouping is now removed, so these set-resources DO apply going forward.
 set-resources:
+  # --- Pileup (per-chromosome dsc_pileup) ---
+  # ~3000 jobs each; real peak ~33GB (p95 ~18GB), max walltime ~60min. Was 64GB.
   dsc_pileup_demuxlet_by_chromosome:
     threads: 1
-    mem: "64GB"
+    mem: "48GB"
+    runtime: 90
   dsc_pileup_freemuxlet_by_chromosome:
     threads: 1
-    mem: "64GB"
-  cellsnp-lite:
+    mem: "48GB"
+    runtime: 90
+  # cellSNP-lite: the key was previously "cellsnp-lite" (hyphen) and never matched
+  # the rule "cellsnp_lite", so it ran at the 4GB/1-thread DEFAULT and still
+  # completed (its memory was page-cache-capped at the limit, no OOM; walltime up to
+  # ~157min at 1 thread). Name fixed here; sized generously given the capped signal.
+  cellsnp_lite:
     threads: 32
-    mem: "32GB"
-    runtime: 1440
+    mem: "16GB"
+    runtime: 240
+  # --- demuxlet family ---
+  demuxlet:
+    threads: 1
+    mem: "10GB"
+    runtime: 30
+  demuxlet_summary:
+    threads: 1
+    mem: "2GB"
+    runtime: 30
   merge_cel_demuxlet:
     threads: 1
-    mem: 4GB
+    mem: "2GB"
   merge_var_demuxlet:
     threads: 1
-    mem: 4GB
+    mem: "2GB"
   merge_plp_demuxlet:
     threads: 1
-    mem: 4GB
+    mem: "2GB"
   merge_umi_demuxlet:
+    # Peak sits at the request (reclaimable page cache); resident set fits in 4GB.
     threads: 1
-    mem: 4GB
+    mem: "4GB"
+    runtime: 30
   wrangle_umi_demuxlet:
+    # Trivial memory (<1GB) but long walltime (~150min) on the big pools.
     threads: 1
-    mem: 4GB
-  merge_cel_demuxlet:
-    threads: 1
-    mem: 4GB
-  merge_var_demuxlet:
-    threads: 1
-    mem: 4GB
-  merge_plp_demuxlet:
-    threads: 1
-    mem: 4GB
-  merge_umi_demuxlet:
-    threads: 1
-    mem: 4GB
-  wrangle_umi_demuxlet:
-    threads: 1
-    mem: 4GB
+    mem: "2GB"
+    runtime: 240
+  # --- demuxafy wrapper ---
   demuxafy:
     mem: "2GB"
-    runtime: 60
-  demuxlet:
-    mem: "16GB"
-    runtime: 60
-  demuxlet_summary:
-    mem: "8GB"
-    runtime: 5
+    runtime: 30
+  # --- freemuxlet family ---
   freemuxlet:
     threads: 2
     mem: "16GB"
-    runtime: 60
+    runtime: 45
   freemuxlet_genotyping:
+    # No jobs under this rule name in this cohort run -- left as-is (unverified).
     mem: "20GB"
   freemuxlet_summary:
     mem: "2GB"
-    runtime: 5
+    runtime: 30
   split_by_chr:
+    # No matching rule ran under this name this cohort -- left as-is (unverified).
     mem: "2GB"
     runtime: 5
+  # --- souporcell (full de-novo) ---
+  # Real peak ~158GB of 190GB requested (no OOM); kept near the node memory cap.
   souporcell:
     threads: 32
     mem: "190GB"
     runtime: 1440
-  # sc_pileup branch: souporcell is split into cluster/troublet/consensus, resuming
-  # from the sc_pileup ref/alt.mtx (remap+vartrix already done upstream). Cluster is
-  # the heavy step; troublet/consensus are light.
+  # sc_pileup branch: "cluster" is the heavy step but it is CPU-bound, not
+  # memory-bound -- real peak only ~3GB. Was 64GB.
   souporcell_cluster:
     threads: 16
-    mem: "64GB"
-    runtime: 720
+    mem: "8GB"
+    runtime: 660
   souporcell_troublet:
     threads: 1
-    mem: "16GB"
+    mem: "6GB"
+    runtime: 30
   souporcell_consensus:
-    # consensus.py loads the alt/ref matrices and runs a pystan mixture model; it
-    # is NOT light -- it OOM-killed at 8GB on the ~40k-cell pools (Atlas_Pool_7b).
+    # consensus.py runs a pystan mixture model and historically OOM-killed at 8GB.
+    # Real peak ~11GB this cohort -> 16GB (comfortably above the 8GB that failed).
     threads: 1
-    mem: "48GB"
-  # The genotype-anchored second souporcell pass mirrors the de-novo trio and needs
-  # matching resources -- without these it falls back to the 4GB default and OOMs
-  # cluster/consensus on large pools.
+    mem: "16GB"
+    runtime: 30
+  # Genotype-anchored second pass mirrors the de-novo trio's (now smaller) footprint.
   souporcell_cluster_known:
     threads: 16
-    mem: "64GB"
-    runtime: 720
+    mem: "8GB"
+    runtime: 300
   souporcell_troublet_known:
     threads: 1
-    mem: "16GB"
+    mem: "4GB"
+    runtime: 30
   souporcell_consensus_known:
+    # No direct data this cohort; mirrors souporcell_consensus.
     threads: 1
-    mem: "48GB"
+    mem: "16GB"
+    runtime: 30
   souporcell_genotyping:
+    # No jobs under this rule name in this cohort run -- left as-is (unverified).
     mem: "20GB"
+  # --- vireo ---
+  # Real peak only ~10GB; profile was 32GB. (Some vireo jobs were also seen running
+  # at 125GB via a rule-level mem override -- flagged for follow-up.)
   vireo:
     threads: 16
-    mem: "32GB"
+    mem: "16GB"
+    runtime: 30
   vireosnp:
-    mem: "8GB"
-    runtime: 10
-  # Python diagnostics / pre-flight screen load the cellSNP AD/DP matrices; the
-  # largest captures (~30-40k cells) OOM at the 4GB default -- report_variant_embedding
-  # (UMAP) was SIGKILLed on the 30k-cell Atlas_Pool_13a. Sized for the biggest pools.
+    # Real peak ~6.6GB -> 10GB (nudged up from 8GB for 1.3x headroom).
+    mem: "10GB"
+    runtime: 30
+  # --- Python diagnostics / pre-flight screen ---
+  # (Historically ran at the 4GB DEFAULT while grouped -- grouping is now removed
+  # so these apply.) report_variant_embedding (UMAP) OOM-killed ~18x at 4GB, so its
+  # 32GB is KEPT (never below what OOM'd; true peak still unverified as it was killed
+  # before reaching it). The others fit comfortably in 4GB (observed peaks noted).
   report_variant_embedding:
     threads: 1
     mem: "32GB"
   present_absent_screen:
+    # Observed peak ~2.5GB across 144 jobs.
     threads: 1
-    mem: "16GB"
+    mem: "4GB"
+    runtime: 30
   report_distinctiveness:
+    # Observed peak ~2.6GB across 144 jobs.
     threads: 1
-    mem: "12GB"
+    mem: "4GB"
+    runtime: 30
   hierarchical_consensus:
+    # Observed peak ~0.7GB across 116 jobs.
     threads: 1
-    mem: "8GB"
-
+    mem: "2GB"
+    runtime: 30
