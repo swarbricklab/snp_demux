@@ -96,10 +96,25 @@ set-resources:
     runtime: 720
   souporcell_troublet:
     threads: 1
-    mem: "8GB"
+    mem: "16GB"
   souporcell_consensus:
+    # consensus.py loads the alt/ref matrices and runs a pystan mixture model; it
+    # is NOT light -- it OOM-killed at 8GB on the ~40k-cell pools (Atlas_Pool_7b).
     threads: 1
-    mem: "8GB"
+    mem: "48GB"
+  # The genotype-anchored second souporcell pass mirrors the de-novo trio and needs
+  # matching resources -- without these it falls back to the 4GB default and OOMs
+  # cluster/consensus on large pools.
+  souporcell_cluster_known:
+    threads: 16
+    mem: "64GB"
+    runtime: 720
+  souporcell_troublet_known:
+    threads: 1
+    mem: "16GB"
+  souporcell_consensus_known:
+    threads: 1
+    mem: "48GB"
   souporcell_genotyping:
     mem: "20GB"
   vireo:
