@@ -35,8 +35,14 @@ rule souporcell_cluster:
         # no column here, and souporcell panics ("no entry found for key") on a
         # missing name. k is left unchanged: souporcell treats clusters beyond the
         # supplied known names as de-novo, so the pool's resolvable donors still cluster.
-        avail=$( (zcat -f {input.variants} 2>/dev/null || cat {input.variants}) | grep -m1 '^#CHROM' | cut -f10- | tr '\t' '\n' )
-        names=$(for d in $(echo {params.donors} | tr ',' ' '); do printf '%s\n' "$avail" | grep -qxF "$d" && printf '%s ' "$d"; done)
+        # NB: strict-mode-safe (snakemake wraps shell in `set -euo pipefail`).
+        # `|| true` swallows the SIGPIPE from grep -m1 closing the reader; the
+        # if/then keeps a not-found grep from aborting the loop.
+        avail=$( ( zcat -f {input.variants} 2>/dev/null || cat {input.variants} ) | grep -m1 '^#CHROM' | cut -f10- | tr '\t' '\n' ) || true
+        names=""
+        for d in $(echo {params.donors} | tr ',' ' '); do
+            if printf '%s\n' "$avail" | grep -qxF -- "$d"; then names="$names $d"; fi
+        done
         /opt/souporcell/souporcell/target/release/souporcell -k {params.k} -a {input.alt} -r {input.ref} -b {input.barcodes} \
             --restarts {params.restarts} --min_ref {params.min_ref} --min_alt {params.min_alt} \
             --known_genotypes {input.variants} --known_genotypes_sample_names $names \
@@ -122,8 +128,13 @@ rule souporcell_cluster_known:
         # Same guard as the de-novo rule: only pass known-genotype names that are
         # real samples in the panel (a donor absent from all sources is ./.-only /
         # missing and makes souporcell panic or produce degenerate clusters).
-        avail=$( (zcat -f {input.known_gt} 2>/dev/null || cat {input.known_gt}) | grep -m1 '^#CHROM' | cut -f10- | tr '\t' '\n' )
-        names=$(for d in $(echo {params.donors} | tr ',' ' '); do printf '%s\n' "$avail" | grep -qxF "$d" && printf '%s ' "$d"; done)
+        # strict-mode-safe (see de-novo rule): || true swallows grep -m1 SIGPIPE;
+        # if/then keeps a not-found grep from aborting the loop under `set -e`.
+        avail=$( ( zcat -f {input.known_gt} 2>/dev/null || cat {input.known_gt} ) | grep -m1 '^#CHROM' | cut -f10- | tr '\t' '\n' ) || true
+        names=""
+        for d in $(echo {params.donors} | tr ',' ' '); do
+            if printf '%s\n' "$avail" | grep -qxF -- "$d"; then names="$names $d"; fi
+        done
         /opt/souporcell/souporcell/target/release/souporcell -k {params.k} -a {input.alt} -r {input.ref} -b {input.barcodes} \
             --restarts {params.restarts} --min_ref {params.min_ref} --min_alt {params.min_alt} \
             --known_genotypes {input.known_gt} --known_genotypes_sample_names $names \
