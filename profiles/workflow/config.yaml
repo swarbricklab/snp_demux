@@ -123,4 +123,19 @@ set-resources:
   vireosnp:
     mem: "8GB"
     runtime: 10
+  # Python diagnostics / pre-flight screen load the cellSNP AD/DP matrices; the
+  # largest captures (~30-40k cells) OOM at the 4GB default -- report_variant_embedding
+  # (UMAP) was SIGKILLed on the 30k-cell Atlas_Pool_13a. Sized for the biggest pools.
+  report_variant_embedding:
+    threads: 1
+    mem: "32GB"
+  present_absent_screen:
+    threads: 1
+    mem: "16GB"
+  report_distinctiveness:
+    threads: 1
+    mem: "12GB"
+  hierarchical_consensus:
+    threads: 1
+    mem: "8GB"
 
