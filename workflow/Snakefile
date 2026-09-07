@@ -21,6 +21,7 @@ include: "rules/hierarchical_consensus.smk"
 include: "rules/prepare_data_for_report.smk"
 include: "rules/aggregate.smk"
 include: "rules/diagnostics.smk"
+include: "rules/preflight.smk"
 include: "rules/report.smk"
 
 
@@ -35,6 +36,7 @@ localrules:
     aggregate_demuxafy,
     aggregate_hier,
     aggregate_diagnostics,
+    aggregate_present_absent,
     combine_cell_assignments,
     combine_cell_stats,
     combine_singlet_stats,
@@ -61,6 +63,7 @@ def _rule_all_targets():
         rules.aggregate_demuxafy.output.checkpoint_file,
         rules.aggregate_hier.output.checkpoint_file,
         rules.aggregate_diagnostics.output.checkpoint_file,
+        rules.aggregate_present_absent.output.checkpoint_file,
         out_dir/"assignment/report/all_singlets_stats_full.tsv",
         out_dir/"assignment/report/all_cells_stats_full.tsv",
         out_dir/"assignment/report/combined_results.tsv",

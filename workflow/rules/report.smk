@@ -65,7 +65,10 @@ rule report_capture_metrics:
         # Diagnostics roll-up into the shared metrics table (design doc §D gates):
         # overall silhouette + number of absorbed (non-distinct) donors.
         embedding_metrics=rules.report_variant_embedding.output.tsv,
-        leave_one_out=rules.leave_one_out.output.tsv
+        leave_one_out=rules.leave_one_out.output.tsv,
+        # Pre-flight present/absent verdict counts roll into the shared metrics
+        # row so the landing page can show them per capture at a glance.
+        present_absent=rules.present_absent_screen.output.tsv
     output:
         metrics=report_dir/"metrics/{capture_id}.tsv"
     params:
@@ -86,6 +89,8 @@ rule report_capture:
     """
     input:
         metrics=rules.report_capture_metrics.output.metrics,
+        # Pre-flight donor present/absent screen, surfaced at the TOP of the page.
+        present_absent=rules.present_absent_screen.output.tsv,
         assignments=out_dir/"assignment/{capture_id}/sample_barcode_assignments.tsv",
         all_cells=out_dir/"assignment/{capture_id}/all_cells_stats.tsv",
         all_singlets=out_dir/"assignment/{capture_id}/all_singlets_stats.tsv",

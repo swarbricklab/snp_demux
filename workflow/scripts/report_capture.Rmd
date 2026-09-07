@@ -59,6 +59,57 @@ missing   <- if (is.na(mx$missing_samples) || !nzchar(mx$missing_samples)) {
 
 # `r capture`
 
+## Donor present/absent screen
+
+Clustering-independent pre-flight: for each declared pool donor, is it actually
+**present** in this capture? Private sites are biallelic panel sites where a donor
+is the sole alt-carrier among pool donors; per cell we count covered private sites
+carrying an alt read and compare the tail against the ambient-only null. Verdicts:
+**present** (clear tail above null), **absent** (no tail / dropout),
+**present_underdetermined** (testable but ambiguous), **untestable** (too few
+private sites covered). Non-`present` donors are listed first.
+
+```{r present-absent, results='asis'}
+pa_path <- snakemake@input[["present_absent"]]
+pa <- if (is.null(pa_path) || !file.exists(pa_path) || file.info(pa_path)$size == 0) {
+  NULL
+} else {
+  out <- tryCatch(read_tsv(pa_path, show_col_types = FALSE), error = function(e) NULL)
+  if (is.null(out) || nrow(out) == 0) NULL else out
+}
+
+if (is.null(pa)) {
+  cat("\n> _No present/absent screen for this capture (empty or missing input)._\n")
+} else {
+  n_present <- sum(pa$verdict == "present", na.rm = TRUE)
+  n_under   <- sum(pa$verdict == "present_underdetermined", na.rm = TRUE)
+  n_absent  <- sum(pa$verdict == "absent", na.rm = TRUE)
+  n_untest  <- sum(pa$verdict == "untestable", na.rm = TRUE)
+  cat(sprintf(
+    "\n**%d donor(s):** %d present, %d underdetermined, %d absent, %d untestable.\n\n",
+    nrow(pa), n_present, n_under, n_absent, n_untest))
+  flagged <- pa$donor[pa$verdict != "present"]
+  if (length(flagged)) {
+    cat(sprintf("\n> **Flagged (not clearly present): %s**\n\n",
+                paste(flagged, collapse = ", ")))
+  }
+  # TSV is already sorted non-`present` first; show the decision-relevant columns.
+  pa %>%
+    transmute(
+      donor,
+      verdict,
+      `cells >=1` = cells_ge1,
+      `cells >=3` = cells_ge3,
+      `cells >=5` = cells_ge5,
+      `null (>=3)` = null_exp_ge3,
+      ambient_p,
+      n_private,
+      n_covered
+    ) %>%
+    knitr::kable() %>% print()
+}
+```
+
 ## Summary
 
 ```{r summary}
