@@ -30,7 +30,13 @@ rule souporcell_cluster:
         logs/"souporcell/{capture_id}/cluster.log"
     shell:
         """
-        names=$(echo {params.donors} | tr ',' ' ')
+        # Restrict --known_genotypes_sample_names to donors actually present as
+        # samples in variants.vcf. A donor absent from every genotype source has
+        # no column here, and souporcell panics ("no entry found for key") on a
+        # missing name. k is left unchanged: souporcell treats clusters beyond the
+        # supplied known names as de-novo, so the pool's resolvable donors still cluster.
+        avail=$( (zcat -f {input.variants} 2>/dev/null || cat {input.variants}) | grep -m1 '^#CHROM' | cut -f10- | tr '\t' '\n' )
+        names=$(for d in $(echo {params.donors} | tr ',' ' '); do printf '%s\n' "$avail" | grep -qxF "$d" && printf '%s ' "$d"; done)
         /opt/souporcell/souporcell/target/release/souporcell -k {params.k} -a {input.alt} -r {input.ref} -b {input.barcodes} \
             --restarts {params.restarts} --min_ref {params.min_ref} --min_alt {params.min_alt} \
             --known_genotypes {input.variants} --known_genotypes_sample_names $names \
@@ -113,7 +119,11 @@ rule souporcell_cluster_known:
         logs/"souporcell/{capture_id}/known/cluster.log"
     shell:
         """
-        names=$(echo {params.donors} | tr ',' ' ')
+        # Same guard as the de-novo rule: only pass known-genotype names that are
+        # real samples in the panel (a donor absent from all sources is ./.-only /
+        # missing and makes souporcell panic or produce degenerate clusters).
+        avail=$( (zcat -f {input.known_gt} 2>/dev/null || cat {input.known_gt}) | grep -m1 '^#CHROM' | cut -f10- | tr '\t' '\n' )
+        names=$(for d in $(echo {params.donors} | tr ',' ' '); do printf '%s\n' "$avail" | grep -qxF "$d" && printf '%s ' "$d"; done)
         /opt/souporcell/souporcell/target/release/souporcell -k {params.k} -a {input.alt} -r {input.ref} -b {input.barcodes} \
             --restarts {params.restarts} --min_ref {params.min_ref} --min_alt {params.min_alt} \
             --known_genotypes {input.known_gt} --known_genotypes_sample_names $names \
