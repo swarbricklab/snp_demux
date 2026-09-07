@@ -1,17 +1,14 @@
 # ==================================
-# Per-capture donor present/absent screen
+# Pre-flight: per-capture donor present/absent screen
 # ----------------------------------
-# A largely clustering-INDEPENDENT check of whether each declared pool donor is
+# A clustering-INDEPENDENT coarse check of whether each declared pool donor is
 # actually PRESENT in a capture, giving an at-a-glance "who is here / who dropped
-# out" verdict that the report surfaces at the very top of every page.
+# out" verdict the report surfaces at the very top of every page.
 #
-# It reads the sc_pileup cellSNP pileup and the pool's known genotypes AND the
-# per-cell hierarchical consensus: the demux assignment is used only to (a) call a
-# confidently-assigned donor present outright and (b) estimate each donor's ambient
-# background from cells NOT assigned to it, so a dominant donor's own reads cannot
-# inflate its own null. That makes the screen demux-INFORMED rather than strictly
-# pre-flight (intended) -- the private-site test still stands on its own for the
-# rare donors the demux misses.
+# It reads ONLY the sc_pileup cellSNP pileup and the pool's known genotypes -- NO
+# demux dependency -- so it is a genuine pre-flight that runs early/in parallel. It
+# is a QC FLAG only: nothing downstream prunes the panel or sets souporcell k from
+# it (both tested and rejected).
 #
 # Deliberately UNGROUPED (not in the `postproc` job group): it fans out per capture
 # rather than queueing behind per-capture post-processing.
@@ -20,24 +17,17 @@
 
 rule present_absent_screen:
     """
-    Per-donor private-site present/absent verdict for one capture. Private sites =
+    Per-donor coarse present/absent verdict for one capture. Private sites =
     biallelic panel sites where a donor is the sole alt-carrier among pool donors;
-    per cell we count covered private sites with an alt read and compare the tail
-    against the ambient-only binomial null. See workflow/scripts/present_absent_screen.py.
+    per cell we count covered private sites with an alt read, and call the donor
+    present when enough cells show several private alleles at once. See
+    workflow/scripts/present_absent_screen.py.
     """
     input:
         known_genotypes_vcf=rules.known_genotypes.output.vcf,
         base_vcf=pileup_path("cellsnp", "cellSNP.base.vcf.gz"),
         ad_mtx=pileup_path("cellsnp", "cellSNP.tag.AD.mtx"),
         dp_mtx=pileup_path("cellsnp", "cellSNP.tag.DP.mtx"),
-        # cellSNP barcodes give the AD/DP matrix COLUMN order, so the per-cell
-        # demux assignment can be aligned onto the matrix columns.
-        samples=pileup_path("cellsnp", "cellSNP.samples.tsv"),
-        # Per-cell hierarchical consensus (barcode, donor, status, ...). Used to
-        # estimate each donor's ambient background from cells NOT assigned to it,
-        # so a dominant donor's own reads cannot inflate its own null. This makes
-        # the screen demux-INFORMED rather than strictly pre-flight (intended).
-        hier=rules.hierarchical_consensus.output.hier,
     output:
         tsv=report_dir/"preflight/{capture_id}.present_absent.tsv"
     params:

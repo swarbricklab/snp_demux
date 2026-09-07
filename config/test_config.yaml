@@ -38,14 +38,11 @@ params:
     sex_weight: 1.0
     min_cells_floor: 20
     low_conf_keep: true
-  # Donor present/absent screen (present_absent_screen.py).
+  # Pre-flight donor present/absent screen (present_absent_screen.py).
   present_absent:
     min_covered_sites: 200
-    present_min_assigned: 15
-    present_ge5_floor: 5
-    present_tail_ratio: 2.0
-    absent_tail_ratio: 3.0
-    absent_ge3_abs: 3
+    k_sites: 3
+    min_cells: 3
 
 ref:
   souporcell:
