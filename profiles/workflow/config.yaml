@@ -105,9 +105,11 @@ set-resources:
   # sc_pileup branch: "cluster" is the heavy step but it is CPU-bound, not
   # memory-bound -- real peak only ~3GB. Was 64GB.
   souporcell_cluster:
+    # CPU-bound (peak ~3GB), but --restarts 100 on the 30-40k-cell pools exceeds
+    # 12h -> 24h walltime (NeoMet_Pool_009_2 / Atlas_Pool_7b class).
     threads: 16
     mem: "8GB"
-    runtime: 660
+    runtime: 1440
   souporcell_troublet:
     threads: 1
     mem: "6GB"
@@ -120,9 +122,11 @@ set-resources:
     runtime: 30
   # Genotype-anchored second pass mirrors the de-novo trio's (now smaller) footprint.
   souporcell_cluster_known:
+    # Same as the de-novo cluster: --restarts 100 on big pools needs 24h
+    # (job 963 / NeoMet_Pool_009_2 hit the old 12h limit at only 2.6GB used).
     threads: 16
     mem: "8GB"
-    runtime: 300
+    runtime: 1440
   souporcell_troublet_known:
     threads: 1
     mem: "4GB"
