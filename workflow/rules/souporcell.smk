@@ -44,7 +44,7 @@ rule souporcell_cluster:
             if printf '%s\n' "$avail" | grep -qxF -- "$d"; then names="$names $d"; fi
         done
         /opt/souporcell/souporcell/target/release/souporcell -k {params.k} -a {input.alt} -r {input.ref} -b {input.barcodes} \
-            --restarts {params.restarts} --min_ref {params.min_ref} --min_alt {params.min_alt} \
+            --restarts {params.restarts} --min_ref {params.min_ref} --min_alt {params.min_alt} --threads {threads} \
             --known_genotypes {input.variants} --known_genotypes_sample_names $names \
             > {output.clusters_tmp} 2> {log}
         """
@@ -136,7 +136,7 @@ rule souporcell_cluster_known:
             if printf '%s\n' "$avail" | grep -qxF -- "$d"; then names="$names $d"; fi
         done
         /opt/souporcell/souporcell/target/release/souporcell -k {params.k} -a {input.alt} -r {input.ref} -b {input.barcodes} \
-            --restarts {params.restarts} --min_ref {params.min_ref} --min_alt {params.min_alt} \
+            --restarts {params.restarts} --min_ref {params.min_ref} --min_alt {params.min_alt} --threads {threads} \
             --known_genotypes {input.known_gt} --known_genotypes_sample_names $names \
             > {output.clusters_tmp} 2> {log}
         """
