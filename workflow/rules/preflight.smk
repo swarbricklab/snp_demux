@@ -28,10 +28,21 @@ rule present_absent_screen:
         base_vcf=pileup_path("cellsnp", "cellSNP.base.vcf.gz"),
         ad_mtx=pileup_path("cellsnp", "cellSNP.tag.AD.mtx"),
         dp_mtx=pileup_path("cellsnp", "cellSNP.tag.DP.mtx"),
+        barcodes=pileup_path("cellsnp", "cellSNP.samples.tsv"),
     output:
-        tsv=report_dir/"preflight/{capture_id}.present_absent.tsv"
+        tsv=report_dir/"preflight/{capture_id}.present_absent.tsv",
+        # Per-barcode x genotyped-donor private-alt score (hit/cov counts). The
+        # post-hoc negative-test diagnostic reads this to sanity-check the
+        # barcodes a by-elimination-recovered (ungenotyped) donor was assigned.
+        score_matrix=out_dir/"preflight/{capture_id}.private_score.tsv.gz",
     params:
         present_absent=config['params'].get('present_absent', {}),
+        # Full declared roster (all pool donors incl. any ungenotyped one). The
+        # screen compares this against the genotyped donors in known_genotypes.vcf
+        # to (a) HARD-FAIL if >1 donor is ungenotyped (by-elimination handles only
+        # one) and (b) log/flag the single ungenotyped donor as a
+        # recover-by-elimination candidate that cannot be positively screened.
+        donor_ids=get_donors_in_capture,
     conda:
         "../envs/embedding.yaml"
     log:
