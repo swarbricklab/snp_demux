@@ -67,3 +67,47 @@ rule aggregate_present_absent:
         """
         echo {input} > {output.checkpoint_file}
         """
+
+
+rule negative_test:
+    """
+    POST-HOC sanity check of a by-elimination donor recovery. For a pool with one
+    UNGENOTYPED donor X (flagged by the present/absent screen), test whether the
+    barcodes hier-assigned to X are a genuinely distinct donor or mislabeled
+    known-donor / doublet cells -- using the per-barcode private-alt score matrix
+    (own-vs-baseline hit-rate per known donor) plus per-barcode sex. Emits an n/a
+    row for pools with no ungenotyped donor. See workflow/scripts/negative_test.py.
+    """
+    input:
+        present_absent=rules.present_absent_screen.output.tsv,
+        score_matrix=rules.present_absent_screen.output.score_matrix,
+        hier=rules.hierarchical_consensus.output.hier,
+    output:
+        tsv=report_dir/"preflight/{capture_id}.negative_test.tsv"
+    conda:
+        "../envs/embedding.yaml"
+    log:
+        logs/"preflight/{capture_id}.negative_test.log"
+    script:
+        "../scripts/negative_test.py"
+
+
+rule aggregate_negative_test:
+    """
+    Concatenate the per-capture negative-test verdicts into one cohort table and a
+    sentinel `rule all` can pull in. Header once; then every capture's single row.
+    """
+    input:
+        expand(
+            report_dir/"preflight/{capture_id}.negative_test.tsv",
+            capture_id=captures.index.tolist()
+        )
+    output:
+        summary=report_dir/"preflight/negative_test_summary.tsv",
+        checkpoint_file=out_dir/"preflight/negative_test.all.done"
+    shell:
+        """
+        head -n1 {input[0]} > {output.summary}
+        for f in {input}; do tail -n +2 "$f" >> {output.summary}; done
+        echo {input} > {output.checkpoint_file}
+        """
