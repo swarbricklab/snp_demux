@@ -110,6 +110,29 @@ if (is.null(pa)) {
 }
 ```
 
+```{r negative-test, results='asis'}
+nt_path <- snakemake@input[["negative_test"]]
+nt <- if (is.null(nt_path) || !file.exists(nt_path) || file.info(nt_path)$size == 0) {
+  NULL
+} else {
+  tryCatch(read_tsv(nt_path, show_col_types = FALSE), error = function(e) NULL)
+}
+if (!is.null(nt) && nrow(nt) && any(nt$genotype_verdict != "none", na.rm = TRUE)) {
+  r <- nt[nt$genotype_verdict != "none", ][1, ]
+  closest <- if (!is.na(r$max_frac_donor) && nzchar(as.character(r$max_frac_donor))) {
+    sprintf(" (closest known donor %s, frac %s)", r$max_frac_donor, r$max_frac)
+  } else ""
+  cat(sprintf(
+    paste0("\n### By-elimination recovery check\n\nDonor **%s** has no known genotype ",
+           "and was recovered by elimination (**%s** cells). Post-hoc: **genotype = %s**%s; ",
+           "**sex = %s**.\n\n"),
+    r$ungenotyped, r$n_recovered, r$genotype_verdict, closest, r$sex_verdict))
+  cat(paste0("> _`likely-real` = distinct from every known donor; `suspect->d` = looks like ",
+             "donor d (probable mislabel / souporcell over-split); `doublet-lump` = matches ",
+             ">=2 donors; sex `MIXED` flags a doublet/ambient lump._\n\n"))
+}
+```
+
 ## Summary
 
 ```{r summary}

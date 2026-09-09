@@ -91,6 +91,8 @@ rule report_capture:
         metrics=rules.report_capture_metrics.output.metrics,
         # Pre-flight donor present/absent screen, surfaced at the TOP of the page.
         present_absent=rules.present_absent_screen.output.tsv,
+        # Post-hoc by-elimination recovery check (genotype + sex verdict).
+        negative_test=rules.negative_test.output.tsv,
         assignments=out_dir/"assignment/{capture_id}/sample_barcode_assignments.tsv",
         all_cells=out_dir/"assignment/{capture_id}/all_cells_stats.tsv",
         all_singlets=out_dir/"assignment/{capture_id}/all_singlets_stats.tsv",
