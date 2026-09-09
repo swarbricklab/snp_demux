@@ -27,6 +27,21 @@
 # ambient_p (= pooled sum(AD)/sum(DP) over d's private rows across all cells) is
 # reported for context only -- it is NOT used in the verdict.
 #
+# ROSTER-AWARENESS (params.donor_ids = the full declared pool roster):
+#   * A donor omitted from the panel (no genotype in any source) is UNGENOTYPED.
+#     By-elimination can recover at most ONE per pool, so >1 ungenotyped -> the
+#     screen HARD-FAILS the capture at pre-flight (a clear early error; the deep
+#     annotate.py raise stays as a backstop). The single ungenotyped donor gets a
+#     `verdict=ungenotyped` row so the report names it (it has no private sites and
+#     cannot be positively screened -- it is validated post-hoc instead).
+#
+# SCORE MATRIX (output score_matrix): per-barcode x genotyped-donor private-alt
+#   scores -- columns `<donor>__hit` (# private sites with an ALT read) and
+#   `<donor>__cov` (# with any read). The post-hoc negative-test diagnostic reads
+#   this to check whether a by-elimination donor's assigned barcodes look like a
+#   genuinely distinct donor (baseline hits on every known donor) or like
+#   mislabeled known-donor / doublet cells (own-donor-level hits on one/multiple).
+#
 # NOTE: snakemake-driven script (reads the `snakemake` object), mirroring
 # report_distinctiveness.py / hierarchical_consensus.py. Deterministic. Robust to
 # missing/empty inputs -> emits an empty-but-valid TSV rather than crashing.
@@ -64,7 +79,8 @@ OUT_COLS = [
 ]
 
 # Non-`present` verdicts sort FIRST so problems surface at the top of the table.
-_VERDICT_RANK = {"absent": 0, "untestable": 1, "present": 2}
+# `ungenotyped` (the single recover-by-elimination donor) sorts at the very top.
+_VERDICT_RANK = {"ungenotyped": -1, "absent": 0, "untestable": 1, "present": 2}
 
 
 def _p(key, default):
@@ -90,6 +106,33 @@ f_tsv = snakemake.output["tsv"]
 capture = snakemake.wildcards["capture_id"]
 
 
+def _opt_input(key):
+    try:
+        return snakemake.input[key]
+    except (KeyError, TypeError):
+        return None
+
+
+def _opt_output(key):
+    try:
+        return snakemake.output[key]
+    except (KeyError, TypeError):
+        return None
+
+
+f_barcodes = _opt_input("barcodes")     # cellSNP.samples.tsv (one barcode/line)
+f_matrix = _opt_output("score_matrix")  # per-barcode x donor private-alt score
+
+# Full declared roster (comma/space separated); genotyped donors are read from the
+# panel below. Ungenotyped = roster - genotyped (donors omitted from the panel by
+# build_harmonized_panel.sh because they have no genotype in any source).
+try:
+    _roster_raw = snakemake.params["donor_ids"]
+except (KeyError, TypeError):
+    _roster_raw = ""
+roster = [d for d in str(_roster_raw).replace(",", " ").split() if d]
+
+
 def _open(path):
     return gzip.open(path, "rt") if str(path).endswith(".gz") else open(path)
 
@@ -107,10 +150,22 @@ def _write(df):
     log.info("wrote %s (%d donor rows)", f_tsv, len(df))
 
 
+def _write_matrix(df):
+    """Persist the per-barcode x donor score matrix (or an empty stub). Declared as
+    a rule output, so it must exist on every non-failing exit."""
+    if not f_matrix:
+        return
+    if df is None:
+        df = pd.DataFrame(columns=["barcode"])
+    df.to_csv(f_matrix, sep="\t", index=False, compression="gzip")
+    log.info("wrote %s (%d barcode rows, %d cols)", f_matrix, len(df), df.shape[1])
+
+
 def _empty(note):
-    """Emit an empty-but-valid TSV rather than crashing."""
+    """Emit an empty-but-valid TSV (+ matrix stub) rather than crashing."""
     log.warning("present_absent: %s", note)
     _write(pd.DataFrame(columns=OUT_COLS))
+    _write_matrix(None)
 
 
 # ---- 1. parse the per-donor genotypes into private-site sets ----------------
@@ -180,6 +235,41 @@ def decide(n_covered, n_evidence):
     return "absent"
 
 
+# ---- 3b. per-barcode x donor score matrix -----------------------------------
+def _read_barcodes(n_expected):
+    """Barcodes from cellSNP.samples.tsv (col 1), aligned to the AD/DP columns.
+    Returns None if unavailable or the count disagrees with the matrix width."""
+    if not (f_barcodes and _exists(f_barcodes)):
+        return None
+    with _open(f_barcodes) as fh:
+        bc = [ln.strip().split("\t")[0] for ln in fh if ln.strip()]
+    if n_expected and len(bc) != n_expected:
+        log.warning("barcodes count %d != matrix cols %d; using positional ids",
+                    len(bc), n_expected)
+        return None
+    return bc
+
+
+def _emit_matrix(donors, hit_by_donor, cov_by_donor, n_cells):
+    """Write barcode x genotyped-donor private-alt scores: for each donor d two
+    columns `<d>__hit` (# of d's private sites with an ALT read in the barcode) and
+    `<d>__cov` (# with any read). The post-hoc negative test compares a
+    by-elimination donor's barcodes against these known-donor columns."""
+    if not f_matrix:
+        return
+    if not n_cells:
+        _write_matrix(None)
+        return
+    bc = _read_barcodes(n_cells)
+    if bc is None:
+        bc = ["cell_%d" % i for i in range(n_cells)]
+    data = {"barcode": bc}
+    for d in donors:
+        data["%s__hit" % d] = hit_by_donor[d]
+        data["%s__cov" % d] = cov_by_donor[d]
+    _write_matrix(pd.DataFrame(data))
+
+
 def main():
     if not _exists(f_vcf):
         _empty("known_genotypes.vcf missing/empty; no donors screened")
@@ -188,6 +278,30 @@ def main():
     if not samples:
         _empty("no donors in known_genotypes.vcf")
         return
+
+    # ---- roster-awareness + pre-flight ungenotyped-donor gate ----------------
+    # `samples` = genotyped donors (panel columns). Ungenotyped = declared roster
+    # donors omitted from the panel (no genotype in any source). By-elimination can
+    # recover AT MOST ONE; >1 is unrecoverable -> hard-fail the capture up front
+    # (clearer than the deep annotate.py raise, which remains a backstop).
+    genotyped_set = set(samples)
+    ungenotyped = [d for d in roster if d not in genotyped_set]
+    if len(ungenotyped) > 1:
+        msg = (
+            "PRE-FLIGHT FAIL [%s]: %d pool donors have NO known genotype (%s). "
+            "Recovery-by-elimination resolves at most ONE ungenotyped donor per "
+            "pool; provide genotypes for all but one (or drop the extras from the "
+            "roster) before demuxing this capture."
+            % (capture, len(ungenotyped), ", ".join(ungenotyped))
+        )
+        log.error(msg)
+        raise RuntimeError(msg)
+    if ungenotyped:
+        log.info(
+            "donor=%s is UNGENOTYPED (recover-by-elimination candidate; no private "
+            "sites, so it cannot be positively screened -- validate post-hoc)",
+            ungenotyped[0],
+        )
 
     have_mtx = _exists(f_ad) and _exists(f_dp) and _exists(f_base)
     if have_mtx:
@@ -198,6 +312,10 @@ def main():
     else:
         idx, AD, DP = {}, None, None
         log.warning("cellSNP AD/DP/base missing; every donor -> untestable")
+
+    n_cells = AD.shape[1] if have_mtx else 0
+    hit_by_donor = {}  # donor -> per-cell #private-alt sites hit (for the matrix)
+    cov_by_donor = {}  # donor -> per-cell #private sites covered (any read)
 
     rows_out = []
     for donor in samples:
@@ -210,10 +328,13 @@ def main():
         cells_ge1 = cells_ge2 = cells_ge3 = cells_ge5 = cells_ge10 = 0
         max_hits = 0
         n_evidence = 0
+        n_hit = np.zeros(n_cells, dtype=int)
+        n_cov_cell = np.zeros(n_cells, dtype=int)
         if have_mtx and rows:
             ad = AD[rows, :]
             dp = DP[rows, :]
             n_hit = np.asarray((ad >= 1).sum(axis=0)).ravel()  # per cell: #private-alt sites
+            n_cov_cell = np.asarray((dp >= 1).sum(axis=0)).ravel()  # per cell: #covered
             cells_ge1 = int((n_hit >= 1).sum())
             cells_ge2 = int((n_hit >= 2).sum())
             cells_ge3 = int((n_hit >= 3).sum())
@@ -225,6 +346,8 @@ def main():
             tot_ad = float(ad.sum())
             tot_dp = float(dp.sum())
             ambient_p = (tot_ad / tot_dp) if tot_dp > 0 else 0.0
+        hit_by_donor[donor] = n_hit
+        cov_by_donor[donor] = n_cov_cell
 
         verdict = decide(n_covered, n_evidence)
         rows_out.append({
@@ -248,6 +371,18 @@ def main():
             donor, verdict, n_evidence, n_private, n_covered, ambient_p,
             cells_ge1, cells_ge2, cells_ge3, cells_ge5, cells_ge10, max_hits,
         )
+
+    # The single ungenotyped donor: a placeholder row so the report names it and
+    # flags it explicitly (no private sites -> nothing to positively screen).
+    if ungenotyped:
+        rows_out.append({
+            "capture_id": capture, "donor": ungenotyped[0], "verdict": "ungenotyped",
+            "n_evidence": 0, "n_private": 0, "n_covered": 0, "ambient_p": 0.0,
+            "cells_ge1": 0, "cells_ge2": 0, "cells_ge3": 0, "cells_ge5": 0,
+            "cells_ge10": 0, "max_hits": 0,
+        })
+
+    _emit_matrix(samples, hit_by_donor, cov_by_donor, n_cells)
 
     out = pd.DataFrame(rows_out, columns=OUT_COLS)
     # Non-`present` verdicts first (problems surface), then by donor for stability.
