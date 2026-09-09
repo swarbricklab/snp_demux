@@ -30,7 +30,9 @@ rule present_absent_screen:
         dp_mtx=pileup_path("cellsnp", "cellSNP.tag.DP.mtx"),
         barcodes=pileup_path("cellsnp", "cellSNP.samples.tsv"),
     output:
-        tsv=report_dir/"preflight/{capture_id}.present_absent.tsv",
+        # Per-capture preflight data lives in the DATA tree (out_dir), not the
+        # reports dir -- reports/ is for published HTML + key aggregated summaries.
+        tsv=out_dir/"preflight/{capture_id}.present_absent.tsv",
         # Per-barcode x genotyped-donor private-alt score (hit/cov counts). The
         # post-hoc negative-test diagnostic reads this to sanity-check the
         # barcodes a by-elimination-recovered (ungenotyped) donor was assigned.
@@ -58,7 +60,7 @@ rule aggregate_present_absent:
     """
     input:
         expand(
-            report_dir/"preflight/{capture_id}.present_absent.tsv",
+            out_dir/"preflight/{capture_id}.present_absent.tsv",
             capture_id=captures.index.tolist()
         )
     output:
@@ -83,7 +85,9 @@ rule negative_test:
         score_matrix=rules.present_absent_screen.output.score_matrix,
         hier=rules.hierarchical_consensus.output.hier,
     output:
-        tsv=report_dir/"preflight/{capture_id}.negative_test.tsv"
+        # Per-capture data in the DATA tree; only the aggregated summary below is
+        # published under reports/.
+        tsv=out_dir/"preflight/{capture_id}.negative_test.tsv"
     conda:
         "../envs/embedding.yaml"
     log:
@@ -99,10 +103,11 @@ rule aggregate_negative_test:
     """
     input:
         expand(
-            report_dir/"preflight/{capture_id}.negative_test.tsv",
+            out_dir/"preflight/{capture_id}.negative_test.tsv",
             capture_id=captures.index.tolist()
         )
     output:
+        # The ONE published artifact for this branch: a cohort summary in reports/.
         summary=report_dir/"preflight/negative_test_summary.tsv",
         checkpoint_file=out_dir/"preflight/negative_test.all.done"
     shell:
