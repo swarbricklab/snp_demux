@@ -5,7 +5,7 @@ rule subset_vcf:
     input:
         # Per-pool informative panel from sc_pileup (already pool-subset +
         # informative-filtered); here we further intersect with the cellSNP base
-        # sites actually piled in this capture. --samples is a consistency guard.
+        # sites actually piled in this capture.
         vcf=panel_path("informative.vcf.gz"),
         idx=panel_path("informative.vcf.gz.csi"),
         base=pileup_path("cellsnp", "cellSNP.base.vcf.gz")
@@ -19,12 +19,26 @@ rule subset_vcf:
         config["containers"]["demuxafy"]
     shell:
         """
+        # Select only the declared pool donors ACTUALLY PRESENT in the panel
+        # (declared ∩ panel samples). A donor absent from every genotype source
+        # is OMITTED from the panel by build_harmonized_panel.sh; the previous
+        # `--samples <declared> --force-samples` RE-ADDED it here as an all-./.
+        # column, which vireo treats as an unknown catch-all donor and bleeds a
+        # dominant donor's fringe cells into (the by-elimination donor is instead
+        # recovered downstream via souporcell + vireoSNP + hierarchical_consensus).
+        # Mirrors the known_genotypes rule. strict-mode-safe (see split.smk).
+        avail=$(bcftools query -l {input.vcf}) || true
+        keep=""
+        for d in $(echo {params.donor_ids} | tr ',' ' '); do
+            if printf '%s\\n' "$avail" | grep -qxF -- "$d"; then keep="$keep,$d"; fi
+        done
+        keep=${{keep#,}}
+        echo "subset_vcf {wildcards.capture_id}: declared=[{params.donor_ids}] kept=[$keep]" > {log}
         bcftools view {input.vcf} \
             --regions-file {input.base} \
-            --samples {params.donor_ids} \
-            --force-samples \
+            --samples "$keep" \
             -Ov -o {output.donor_subset} \
-            2> {log}
+            2>> {log}
         """
 
 # This rule runs the vireo algorithm to estimate the probability of each cell being a doublet or singlet,
@@ -60,9 +74,18 @@ rule vireo:
         cell_data=$(dirname $base)
         donor_ids={output.donor_ids}
         vireo_dir=$(dirname $donor_ids)
+        # nDonor = the number of donors ACTUALLY in the donorFile (the genotyped,
+        # panel-present donors), NOT the full pool roster ({params.n}). Passing the
+        # roster tells vireo to estimate one extra DE-NOVO donor for the omitted
+        # (ungenotyped) one; that estimate is unstable -- when the missing donor is
+        # rare under a dominant donor it latches onto the dominant donor's fringe
+        # cells and mislabels them (the "suspect" recoveries). The ungenotyped
+        # by-elimination donor is instead recovered from souporcell's de-novo
+        # clustering + vireoSNP downstream (see hierarchical_consensus.py).
+        n=$(bcftools query -l {input.donor_vcf} | wc -l)
         cmd="vireo --cellData=$cell_data \
             --donorFile={input.donor_vcf} \
-            --nDonor={params.n} \
+            --nDonor=$n \
             --nproc={resources.threads} \
             --callAmbientRNAs \
             --outDir=$vireo_dir \
