@@ -184,8 +184,10 @@ cluster_margin = {}  # cluster id -> margin (best vs 2nd best); inf if single do
 cluster_ranked = {}  # cluster id -> donors sorted best-first (ascending GPb_diff)
 
 scores = _read_tsv(f_scores_full)
+scores_donors = set()  # genotyped donors present in the GPb matrix (NOT the by-elimination donor)
 if scores is not None and "known genotype" in scores.columns:
     scores = scores.set_index("known genotype")
+    scores_donors = set(str(d) for d in scores.index)
     for col in scores.columns:
         if not col.startswith("snp_cluster_"):
             continue
@@ -391,6 +393,13 @@ for cl, members in cluster_members.items():
         # fraction of the WHOLE cluster confidently given this donor by vireo,
         # capped below 1 so a recovered cell never outranks a native vireo singlet
         recovery_label_conf[cl] = min(cnt / n_members, 0.95) if n_members else 0.0
+    elif cl in annot_label and str(annot_label[cl]) not in scores_donors:
+        # vireoSNP annotated this cluster as a donor ABSENT from the GPb matrix --
+        # the ungenotyped BY-ELIMINATION donor. vireoSNP is the only authoritative
+        # source for it; cluster_label (GPb argmin) below can only pick a GENOTYPED
+        # donor and would mislabel this leftover cluster as its nearest known donor.
+        recovery_donor[cl] = annot_label[cl]
+        recovery_label_conf[cl] = 0.4
     elif cl in cluster_label:
         recovery_donor[cl] = cluster_label[cl]
         m = cluster_margin.get(cl, np.nan)
@@ -434,7 +443,19 @@ for bc in master_barcodes:
     donor = None
     label_conf = 0.0
     backbone = "none"
-    if _is_real_donor(vdonor):
+    # 0. BY-ELIMINATION OVERRIDE (takes precedence over the vireo backbone). If
+    # souporcell placed this cell in a cluster that vireoSNP annotated as the
+    # UNGENOTYPED donor (a donor absent from the GPb matrix, which vireo cannot
+    # emit), trust that de-novo/by-elimination label. vireo (genotyped donors
+    # only) would otherwise mislabel these cells to their nearest KNOWN donor.
+    # Only for souporcell singlets; doublets fall through to the doublet logic.
+    byelim_donor = (str(annot_label[cl]) if (cl is not None and cl in annot_label
+                    and str(annot_label[cl]) not in scores_donors) else None)
+    if byelim_donor is not None and st_sc == "singlet":
+        donor = byelim_donor
+        label_conf = recovery_label_conf.get(cl, 0.4)
+        backbone = "recovered"
+    elif _is_real_donor(vdonor):
         # 1. BACKBONE: vireo per-cell donor call
         donor = str(vdonor)
         label_conf = vpmax if (vpmax == vpmax) else 0.0
@@ -464,9 +485,17 @@ for bc in master_barcodes:
         label_conf *= max(0.0, 1.0 - sex_weight)
 
     # ---- doublet flag --------------------------------------------------------
-    doublet_flag = bool(
+    # For a cell resolved via the by-elimination / de-novo recovery override,
+    # vireo's own doublet signal is UNRELIABLE: the cell belongs to an ungenotyped
+    # donor absent from vireo's reference, so vireo (unable to place it) inflates
+    # its doublet posterior and would spuriously drop a real singlet. Trust
+    # souporcell's singlet call instead; keep the souporcell-doublet + sex signals.
+    vireo_doublet_sig = (
         (vdonor is not None and str(vdonor).strip().lower() == "doublet")
         or ((vpd == vpd) and vpd > VIREO_DOUBLET_MAX)
+    )
+    doublet_flag = bool(
+        (vireo_doublet_sig and backbone != "recovered")
         or (st_sc == "doublet")
         or (sex_conc is False)
     )
