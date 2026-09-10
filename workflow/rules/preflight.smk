@@ -84,6 +84,11 @@ rule negative_test:
         present_absent=rules.present_absent_screen.output.tsv,
         score_matrix=rules.present_absent_screen.output.score_matrix,
         hier=rules.hierarchical_consensus.output.hier,
+        # RELATEDNESS axis: de-novo souporcell cluster consensus (cluster ids match
+        # hier's `cluster` column) + the per-pool donor genotype panel. Used to tell
+        # a mislabel (X==D) from a distinct relative of D at D's hom-alt sites.
+        cluster_genotypes=rules.souporcell_consensus.output.cluster_genotypes,
+        panel_vcf=panel_path("informative.vcf.gz"),
     output:
         # Per-capture data in the DATA tree; only the aggregated summary below is
         # published under reports/.
@@ -98,8 +103,12 @@ rule negative_test:
 
 rule aggregate_negative_test:
     """
-    Concatenate the per-capture negative-test verdicts into one cohort table and a
-    sentinel `rule all` can pull in. Header once; then every capture's single row.
+    Concatenate the per-capture negative-test rows into one cohort table AND finalise
+    the relatedness verdict across co-pooled captures. The per-capture step emits a
+    provisional related/suspect call from its LOCAL het_share; here we pool by donor
+    pair and rewrite each verdict from the best-powered (max) het_share, since
+    souporcell's cluster consensus only collapses het->hom at low cell counts. See
+    workflow/scripts/aggregate_negative_test.py.
     """
     input:
         expand(
@@ -110,9 +119,9 @@ rule aggregate_negative_test:
         # The ONE published artifact for this branch: a cohort summary in reports/.
         summary=report_dir/"preflight/negative_test_summary.tsv",
         checkpoint_file=out_dir/"preflight/negative_test.all.done"
-    shell:
-        """
-        head -n1 {input[0]} > {output.summary}
-        for f in {input}; do tail -n +2 "$f" >> {output.summary}; done
-        echo {input} > {output.checkpoint_file}
-        """
+    conda:
+        "../envs/embedding.yaml"
+    log:
+        logs/"preflight/aggregate_negative_test.log"
+    script:
+        "../scripts/aggregate_negative_test.py"

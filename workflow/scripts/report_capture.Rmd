@@ -127,9 +127,12 @@ if (!is.null(nt) && nrow(nt) && any(nt$genotype_verdict != "none", na.rm = TRUE)
            "and was recovered by elimination (**%s** cells). Post-hoc: **genotype = %s**%s; ",
            "**sex = %s**.\n\n"),
     r$ungenotyped, r$n_recovered, r$genotype_verdict, closest, r$sex_verdict))
-  cat(paste0("> _`likely-real` = distinct from every known donor; `suspect->d` = looks like ",
-             "donor d (probable mislabel / souporcell over-split); `doublet-lump` = matches ",
-             ">=2 donors; sex `MIXED` flags a doublet/ambient lump._\n\n"))
+  cat(paste0("> _`likely-real` = distinct from every known donor; `related->d` = a distinct ",
+             "donor but a first-degree relative of d (het-mixed at d's hom-alt sites); ",
+             "`suspect->d` = looks like donor d itself (probable mislabel / souporcell ",
+             "over-split); `doublet-lump` = matches >=2 donors; sex `MIXED` flags a ",
+             "doublet/ambient lump. The related/suspect split is finalised cohort-wide in ",
+             "the aggregated summary (best-powered capture of each donor pair)._\n\n"))
 }
 ```
 
