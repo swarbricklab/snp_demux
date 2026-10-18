@@ -12,4 +12,5 @@ resources/genotyping/variants/common_variants_grch38.vcf
 temp/
 .vscode/
 Rplots.pdf
-*.pyc
+*.pycstan_consensus.pickle
+.dt/

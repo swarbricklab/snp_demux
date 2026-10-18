@@ -1,0 +1,89 @@
+# The Zenodo concept DOI is added under `identifiers:` once the first GitHub
+# release mints it. Version and date-released are finalised at release time.
+cff-version: 1.2.0
+message: "If you use this workflow, please cite it using the metadata below."
+version: "1.0.0"
+date-released: "2026-10-18"
+title: "snp_demux: a Snakemake workflow for SNP-based single-cell demultiplexing"
+abstract: >-
+  A Snakemake workflow that demultiplexes genetically-pooled single-cell RNA-seq
+  captures back to their donors from natural genetic variation. It runs
+  vireo, demuxlet, freemuxlet and souporcell and combines them into a Demuxafy
+  consensus per-cell assignment, with HTML QC reports. The expensive per-cell
+  pileups are produced upstream by sc_pileup and consumed here, so the fast
+  assignment step can be re-run and re-tuned cheaply. It runs standalone or as a
+  git submodule within a DVC-tracked dataset.
+type: software
+authors:
+  - given-names: John
+    family-names: Reeves
+    affiliation: "Garvan Institute of Medical Research"
+    alias: johnyaku
+    orcid: "https://orcid.org/0000-0001-7368-7489"
+  - given-names: Daniel
+    family-names: Roden
+    affiliation: "Garvan Institute of Medical Research"
+    alias: dlroden
+    orcid: "https://orcid.org/0000-0003-2393-5805"
+  - given-names: Beata
+    family-names: Kiedik
+    affiliation: "Garvan Institute of Medical Research"
+    alias: BeataKiedik
+  - given-names: Victor
+    family-names: Liu
+    affiliation: "Garvan Institute of Medical Research"
+    alias: VictorrLiu
+    orcid: "https://orcid.org/0009-0008-7628-7825"
+  - given-names: Alexander
+    family-names: Swarbrick
+    affiliation: "Garvan Institute of Medical Research"
+    orcid: "https://orcid.org/0000-0002-3051-5676"
+repository-code: "https://github.com/swarbricklab/snp_demux"
+url: "https://github.com/swarbricklab/snp_demux"
+license: MIT
+keywords:
+  - single-cell
+  - scRNA-seq
+  - demultiplexing
+  - genetic multiplexing
+  - vireo
+  - demuxlet
+  - freemuxlet
+  - souporcell
+  - Demuxafy
+  - Snakemake
+references:
+  - type: software
+    title: "Demuxafy"
+    authors:
+      - name: "Drew Neavin"
+    url: "https://github.com/drneavin/Demultiplexing_Doublet_Detecting_Docs"
+    doi: "10.1186/s13059-024-03224-8"
+    notes: >-
+      snp_demux is a simplification/refactoring of the demuxafy workflow and
+      wraps the Demuxafy package and consensus method developed by Drew Neavin at
+      the Powell Lab.
+  - type: software
+    title: "vireo (vireoSNP)"
+    authors:
+      - name: "Yuanhua Huang and contributors"
+    url: "https://github.com/single-cell-genetics/vireo"
+    doi: "10.1186/s13059-019-1865-2"
+  - type: software
+    title: "popscle (demuxlet / freemuxlet)"
+    authors:
+      - name: "Hyun Min Kang and contributors"
+    url: "https://github.com/statgen/popscle"
+    doi: "10.1038/nbt.4042"
+  - type: software
+    title: "souporcell"
+    authors:
+      - name: "Haynes Heaton and contributors"
+    url: "https://github.com/wheaton5/souporcell"
+    doi: "10.1038/s41592-020-0820-1"
+  - type: software
+    title: "cellSNP-lite"
+    authors:
+      - name: "Xianjie Huang, Yuanhua Huang, and contributors"
+    url: "https://github.com/single-cell-genetics/cellSNP-lite"
+    doi: "10.1093/bioinformatics/btab358"

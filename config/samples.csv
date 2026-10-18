@@ -1,8 +1,8 @@
 sample_id,donor_id,capture_id
-3558,3558,Mixed_1
-3561,3561,Mixed_1
-3564,3564,Mixed_1
-3840,3840,Mixed_1
-3930,3930,Mixed_1
-3947,3947,Mixed_1
+DONOR_1,DONOR_1,Mixed_1
+DONOR_2,DONOR_2,Mixed_1
+DONOR_3,DONOR_3,Mixed_1
+DONOR_4,DONOR_4,Mixed_1
+DONOR_5,DONOR_5,Mixed_1
+DONOR_6,DONOR_6,Mixed_1
 PBMC,PBMC,Mixed_1
