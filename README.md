@@ -166,13 +166,17 @@ Leave it blank if the captures are not organised into named pools.
 
 ```csv
 sample_id,donor_id,capture_id
-***REMOVED***,***REMOVED***,Mixed_1
-***REMOVED***,***REMOVED***,Mixed_1
+DONOR_1,DONOR_1,Mixed_1
+DONOR_2,DONOR_2,Mixed_1
 ```
 
 `sample_id` identifies the sample in the pool; `donor_id` identifies the genotype in the VCF.
 These differ when several samples come from one donor, for example a primary and a metastasis.
 The number of rows for a capture sets the number of clusters souporcell, freemuxlet and vireo are told to look for, so this sheet must be complete.
+
+The donor-genotype panel and the BAM must satisfy a few tool requirements (all-autosome
+coverage, matching contig order, a populated `R2` field for demuxlet) — see
+[`docs/data_prep_requirements.md`](docs/data_prep_requirements.md).
 
 ## Running
 
