@@ -3,9 +3,12 @@ deps:
   samples: config/samples.csv
   captures: config/captures.csv
   vcf: test/data/imputation/imputed_filtered.hg38.vcf.gz
+  pileup_root: test/data/pileup
+  default_platform: short
 
 outs:
   root: test/results
+  logs: test/logs
 
 params:
   cellsnp_lite:
@@ -18,6 +21,11 @@ params:
     freemuxlet_correlation_limit: 0.7 # default
     souporcell_correlation_limit: 0.7 # default
     pct_agreement: 0.7 # default
+  souporcell:
+    restarts: 100
+    min_ref: 10
+    min_alt: 10
+    ploidy: 2
 
 ref:
   souporcell:

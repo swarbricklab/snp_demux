@@ -30,7 +30,10 @@ We can also use SNP information to detect "heterotypic doublets", where a barcod
 This workflow is a simplification and refactoring of the [demuxafy](https://github.com/swarbricklab/demuxafy) workflow developed by [Daniel Roden](https://github.com/dlroden) and [Beata Kiedik](https://github.com/BeataKiedik). 
 The demuxafy workflow is, in turn, a Snakemake wrapper around the [Demuxafy](https://demultiplexing-doublet-detecting-docs.readthedocs.io/en/latest/index.html) package and tools developed by [Drew Neavin](https://github.com/drneavin) at the Powell Lab.
 
-The main difference between this workflow and the [demuxafy](https://github.com/swarbricklab/demuxafy) workflow is that the [genotyping](https://github.com/swarbricklab/genotyping) and [imputation](https://github.com/swarbricklab/imputation) phases have been factored out into separate workflows, which are prerequisites for this workflow. 
+The main difference between this workflow and the [demuxafy](https://github.com/swarbricklab/demuxafy) workflow is that several phases have been factored out into separate, reusable workflows that are prerequisites for this one:
+
+- [genotyping](https://github.com/swarbricklab/genotyping) and [imputation](https://github.com/swarbricklab/imputation) — build the donor SNP-genotype panel;
+- [sc_pileup](https://github.com/swarbricklab/sc_pileup) — the expensive, deterministic **per-cell pileup** (cellSNP-lite, popscle `dsc-pileup`, souporcell `vartrix`). snp_demux no longer computes pileups: it **consumes sc_pileup's outputs** and runs only the (comparatively fast) demultiplexing + consensus. This means the pileups can be frozen and the demux re-run and re-tuned cheaply, and it greatly simplifies this workflow's rule graph (see below).
 
 ## Method
 
@@ -86,15 +89,32 @@ flowchart TB
     VS -. "appended after<br/>the consensus" .-> OUT
 ```
 
+### Rule graph
+
+Because the pileups are produced upstream by [sc_pileup](https://github.com/swarbricklab/sc_pileup)
+and consumed here, the rule graph contains **only** the demultiplexing, consensus,
+aggregation and reporting rules — no per-cell pileup, per-chromosome split, or
+merge rules:
+
+![snp_demux rule graph](docs/rulegraph.svg)
+
+Each engine reads sc_pileup's output for the capture (`cellSNP.*` for vireo,
+`pileup.{cel,var,plp,umi}.gz` for demuxlet/freemuxlet, `ref/alt.mtx` for
+souporcell) and the per-pool donor-genotype panel; nothing re-reads the BAM.
+
 ## Requirements
 
-This workflow requires
-1. `cellranger` "outs" for each capture (barcode and bam files)
-2. SNP profiles for each donor (*) as a VCF file
+This workflow requires, per capture:
+1. **sc_pileup outputs** — the per-cell pileups produced by [sc_pileup](https://github.com/swarbricklab/sc_pileup) (cellSNP-lite, popscle `dsc-pileup`, souporcell `vartrix`), under `deps.pileup_root`.
+2. **A per-pool donor-genotype panel** — the donors' SNP profiles at the piled sites, as `deps.panel_root/<capture>/informative.vcf.gz` (bgzipped + `.csi`-indexed).
 
-### `cellranger` outs
+The cellranger `barcodes.tsv.gz` and `possorted_genome_bam.bam` are inputs to **sc_pileup** (which reads the BAM once to build the pileups); snp_demux itself never re-reads the BAM. Run [sc_pileup](https://github.com/swarbricklab/sc_pileup) first against the panel's sites, then point `deps.pileup_root` at its output root.
 
-This workflow requires the following `cellranger` "outs":
+Before running, make sure the panel and BAM satisfy the tool requirements (all-autosome coverage, matching contig order, a populated `R2` field for demuxlet) — see [`docs/data_prep_requirements.md`](docs/data_prep_requirements.md).
+
+### `cellranger` barcodes (for sc_pileup)
+
+sc_pileup takes the following `cellranger` "outs":
 1. `barcodes.tsv.gz`
 2. `possorted_genome_bam.bam`
 
@@ -128,12 +148,15 @@ See [`config/template_config.yaml`](config/template_config.yaml) for a starting 
 | Key | Meaning |
 | --- | --- |
 | `deps.samples` | Sample sheet: which samples are in which capture (see below) |
-| `deps.captures` | Capture sheet: `cellranger` outs for each capture (see below) |
-| `deps.vcf` | Donor SNP profiles, bgzipped, with a `.csi` index alongside |
+| `deps.captures` | Capture sheet: one row per capture (see below) |
+| `deps.pileup_root` | Root of the sc_pileup outputs consumed here: `<pileup_root>/<engine>/<platform>/<capture>/` |
+| `deps.panel_root` | Per-pool donor-genotype panels: `<panel_root>/<capture>/informative.vcf.gz`. Defaults to `<pileup_root>/panel` |
+| `deps.default_platform` | Platform used when a capture row has no `platform` column (default `short`) |
+| `deps.vcf` | Legacy cohort donor VCF; retained for reference. Donor genotypes now come per-capture from the panel above |
 | `outs.root` | Root for all data outputs |
 | `outs.logs` | Root for per-rule logs |
 | `outs.reports` | Optional. Where the HTML reports are written; defaults to `<outs.root>/report` |
-| `params.cellsnp_lite` | `minMAF` and `minCOUNT` thresholds for pileup |
+| `params.cellsnp_lite` | Legacy pileup thresholds; the pileup is now done upstream in sc_pileup, so these are unused here |
 | `params.demuxlet` | `coeff` and `offset` for the demuxlet doublet prior |
 | `params.demuxafy` | Correlation limits for matching souporcell and freemuxlet clusters to donors, and the agreement threshold for the consensus |
 | `ref.souporcell.genome_fasta` | Reference genome FASTA, matching the transcriptome used by `cellranger` |

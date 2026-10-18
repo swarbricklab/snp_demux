@@ -7,7 +7,7 @@ rule demuxafy:
     input:
         demuxlet=rules.demuxlet.output.best,
         freemuxlet=rules.freemuxlet.output.samples,
-        souporcell=rules.souporcell.output.clusters,
+        souporcell=rules.souporcell_troublet.output.clusters,
         vireo=rules.relabel_vireo.output.donor_ids
     output:
         # TODO: add wildcard based logic to determine the combine method (e.g., AtLeastHalfSinglet)
