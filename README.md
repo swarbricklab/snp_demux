@@ -203,6 +203,24 @@ coverage, matching contig order, a populated `R2` field for demuxlet) — see
 
 ## Running
 
+### Preflight the inputs
+
+Before a full run, validate each capture's donor panel against the
+[input requirements](docs/data_prep_requirements.md):
+
+```bash
+snakemake check_inputs --workflow-profile profiles/workflow
+```
+
+This read-only check (one `check_panel` per capture) confirms the
+`informative.vcf.gz` panel spans every autosome (chr1–chr22), carries an `R2`
+INFO value on every site, and is contig-ordered to match Cell Ranger — the three
+things that otherwise surface as cryptic popscle/demuxlet FATALs partway through
+a run. It is not part of `rule all`, so running or skipping it cannot change any
+demux result.
+
+### The pipeline
+
 This module is defined as a [Snakemake](https://snakemake.readthedocs.io/en/v7.32.3/) workflow.
 The pipeline is roughly as follows.
 This is a simplification: each box stands for a group of rules, and the
