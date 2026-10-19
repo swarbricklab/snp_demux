@@ -1,0 +1,98 @@
+$schema: "http://json-schema.org/draft-07/schema#"
+description: >-
+  snp_demux configuration. Validated at workflow start via
+  snakemake.utils.validate() in rules/common.smk.
+type: object
+properties:
+  deps:
+    type: object
+    description: Inputs the workflow depends on.
+    properties:
+      samples:
+        type: string
+        description: Path to samples.csv (sample_id, donor_id, capture_id).
+      captures:
+        type: string
+        description: Path to captures.csv (capture_id + barcodes; optional platform column).
+      pileup_root:
+        type: string
+        description: >-
+          Root of the sc_pileup outputs consumed here, laid out as
+          <pileup_root>/<engine>/<platform>/<capture_id>/<files>.
+      panel_root:
+        type: string
+        description: >-
+          Root of the per-pool informative donor-genotype panels
+          (<panel_root>/<capture_id>/informative.vcf.gz). Defaults to
+          <pileup_root>/panel.
+      default_platform:
+        type: string
+        description: Platform segment used when a capture has no `platform` column. Defaults to "short".
+      vcf:
+        type: string
+        description: Legacy cohort donor VCF; retained for reference, unused by the current rules.
+    required: [samples, captures, pileup_root]
+    additionalProperties: false
+  outs:
+    type: object
+    properties:
+      root: {type: string, description: Root for all data outputs.}
+      logs: {type: string, description: Root for per-rule logs.}
+      reports:
+        type: string
+        description: Where HTML reports are written. Defaults to <outs.root>/report.
+    required: [root, logs]
+    additionalProperties: false
+  params:
+    type: object
+    properties:
+      cellsnp_lite:
+        type: object
+        description: Legacy pileup thresholds; the pileup is produced upstream now, so these are unused here.
+      demuxlet:
+        type: object
+        properties:
+          coeff: {type: number}
+          offset: {type: number}
+        required: [coeff, offset]
+      demuxafy:
+        type: object
+        properties:
+          freemuxlet_correlation_limit: {type: number}
+          souporcell_correlation_limit: {type: number}
+          pct_agreement: {type: number}
+        required: [freemuxlet_correlation_limit, souporcell_correlation_limit, pct_agreement]
+      souporcell:
+        type: object
+        properties:
+          restarts: {type: integer}
+          min_ref: {type: integer}
+          min_alt: {type: integer}
+          ploidy: {type: integer}
+        required: [restarts, min_ref, min_alt]
+    required: [demuxlet, demuxafy, souporcell]
+  ref:
+    type: object
+    properties:
+      souporcell:
+        type: object
+        properties:
+          genome_fasta:
+            type: string
+            description: Reference genome FASTA, matching the cellranger transcriptome.
+        required: [genome_fasta]
+    required: [souporcell]
+  containers:
+    type: object
+    description: Per-tool container images (replaces the old monolithic Demuxafy.sif).
+    properties:
+      bcftools: {type: string}
+      popscle: {type: string}
+      vireo: {type: string}
+      vireosnp: {type: string}
+      souporcell: {type: string}
+      r: {type: string}
+      demuxafy: {type: string}
+    required: [bcftools, popscle, vireo, vireosnp, souporcell, r, demuxafy]
+    additionalProperties: false
+required: [deps, outs, params, ref, containers]

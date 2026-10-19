@@ -1,0 +1,50 @@
+name: CI
+
+# Data-independent checks: they need no real pileups/genotypes, so they run on
+# every push/PR. Real end-to-end testing waits on a public multi-donor demux
+# fixture (tracked separately).
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -el {0}
+    steps:
+      - uses: actions/checkout@v4
+        # profiles/global is a private submodule and is not used here (CI runs
+        # with --workflow-profile profiles/workflow, which is in-repo).
+
+      - uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-name: ci
+          create-args: >-
+            snakemake=7.32.4
+            snakefmt
+            pandas
+            jsonschema
+          condarc: |
+            channels:
+              - conda-forge
+              - bioconda
+
+      - name: Touch placeholder inputs
+        run: bash .tests/ci/setup_placeholders.sh
+
+      - name: Dry-run (builds the full DAG + validates config against the schema)
+        run: >-
+          snakemake -n
+          --workflow-profile profiles/workflow
+          --configfile .tests/ci/config.yaml
+
+      - name: snakemake lint (informational)
+        continue-on-error: true
+        run: snakemake --lint --configfile .tests/ci/config.yaml
+
+      - name: snakefmt check (informational)
+        continue-on-error: true
+        run: snakefmt --check workflow/

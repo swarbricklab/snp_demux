@@ -1,5 +1,10 @@
 import pandas as pd
 from pathlib import Path
+from snakemake.utils import validate
+
+# Fail fast with a clear message if the config is missing/misnamed keys, rather
+# than deep inside a rule. Schema in workflow/schemas/config.schema.yaml.
+validate(config, "../schemas/config.schema.yaml")
 
 samples = pd.read_csv(config["deps"]["samples"], dtype=str, index_col='sample_id')
 samples.index = samples.index.astype(str)
