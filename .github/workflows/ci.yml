@@ -22,9 +22,12 @@ jobs:
       - uses: mamba-org/setup-micromamba@v2
         with:
           environment-name: ci
+          # snakefmt + shfmt are pinned so the format check is reproducible:
+          # snakefmt formats shell: blocks via shfmt, so both must match locally.
           create-args: >-
             snakemake=7.32.4
-            snakefmt
+            snakefmt=2.1.0
+            shfmt
             pandas
             jsonschema
           condarc: |
@@ -41,10 +44,8 @@ jobs:
           --workflow-profile profiles/workflow
           --configfile .tests/ci/config.yaml
 
-      - name: snakemake lint (informational)
-        continue-on-error: true
+      - name: snakemake lint
         run: snakemake --lint --configfile .tests/ci/config.yaml
 
-      - name: snakefmt check (informational)
-        continue-on-error: true
+      - name: snakefmt check
         run: snakefmt --check workflow/

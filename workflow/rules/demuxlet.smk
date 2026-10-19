@@ -2,6 +2,7 @@
 # shared by demuxlet AND freemuxlet; this stage no longer runs dsc-pileup or the
 # per-chromosome split/merge. demuxlet resumes from the merged pileup prefix.
 
+
 rule demuxlet:
     input:
         var=pileup_path("popscle", "pileup.var.gz"),
@@ -9,17 +10,17 @@ rule demuxlet:
         plp=pileup_path("popscle", "pileup.plp.gz"),
         umi=pileup_path("popscle", "pileup.umi.gz"),
         vcf=rules.known_genotypes.output.vcf,
-        barcodes=lookup(captures,"barcodes")
+        barcodes=lookup(captures, "barcodes"),
     output:
-        best=out_dir/"demuxlet/{capture_id}/demuxlet.best"
-    params:
-        tag="GT",
-        coeff=config['params']['demuxlet']['coeff'],
-        offset=config['params']['demuxlet']['offset']
+        best=out_dir / "demuxlet/{capture_id}/demuxlet.best",
+    log:
+        logs / "demuxlet/{capture_id}/demuxlet.log",
     container:
         config["containers"]["popscle"]
-    log:
-        logs/"demuxlet/{capture_id}/demuxlet.log"
+    params:
+        tag="GT",
+        coeff=config["params"]["demuxlet"]["coeff"],
+        offset=config["params"]["demuxlet"]["offset"],
     shell:
         """
         var={input.var}
@@ -34,17 +35,20 @@ rule demuxlet:
             --geno-error-coeff {params.coeff} \
             --geno-error-offset {params.offset} \
             --out $out_prefix \
-            > {log} 2>&1
+            >{log} 2>&1
         """
+
 
 rule demuxlet_summary:
     input:
-        demuxlet_best=rules.demuxlet.output.best
+        demuxlet_best=rules.demuxlet.output.best,
     output:
-        summary=out_dir/"demuxlet/{capture_id}/summary.txt"
+        summary=out_dir / "demuxlet/{capture_id}/summary.txt",
+    log:
+        logs / "demuxlet/{capture_id}/summary.log",
     container:
         config["containers"]["demuxafy"]
     shell:
         """
-        bash Demuxlet_summary.sh {input.demuxlet_best} > {output.summary}
+        bash Demuxlet_summary.sh {input.demuxlet_best} >{output.summary} 2>{log}
         """
