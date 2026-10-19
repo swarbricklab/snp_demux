@@ -1,13 +1,17 @@
 from pathlib import Path
 import pandas as pd
+from snakemake.utils import min_version
+
+min_version("7.32.0")
 
 # Path roots as global variables
-out_dir=Path(config['outs']['root'])
-logs=Path(config['outs']['logs'])
+out_dir = Path(config["outs"]["root"])
+logs = Path(config["outs"]["logs"])
 # Where the HTML reports are written. Configurable so a dataset can place them
 # alongside its other published reports; defaults to keeping them under the
 # module's own output root.
-report_dir=Path(config['outs'].get('reports', str(out_dir/"report")))
+report_dir = Path(config["outs"].get("reports", str(out_dir / "report")))
+
 
 include: "rules/common.smk"
 include: "rules/preflight.smk"
@@ -30,7 +34,7 @@ rule all:
         rules.aggregate_vireo.output.checkpoint_file,
         rules.aggregate_souporcell.output.checkpoint_file,
         rules.aggregate_demuxafy.output.checkpoint_file,
-        out_dir/"assignment/report/all_singlets_stats_full.tsv",
-        out_dir/"assignment/report/all_cells_stats_full.tsv",
-        out_dir/"assignment/report/combined_results.tsv",
-        report_dir/"index.html",
+        out_dir / "assignment/report/all_singlets_stats_full.tsv",
+        out_dir / "assignment/report/all_cells_stats_full.tsv",
+        out_dir / "assignment/report/combined_results.tsv",
+        report_dir / "index.html",

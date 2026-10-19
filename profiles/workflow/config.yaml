@@ -11,51 +11,10 @@ retries: 2
 use-conda: True
 conda-frontend: mamba
 
-# Resource settings per rule
+# Resource settings per rule. Only rules that need more than the defaults are
+# listed; everything else (bcftools helpers, R wrangling/reporting, summaries,
+# aggregation, preflight) runs with Snakemake's defaults.
 set-resources:
-  dsc_pileup_demuxlet_by_chromosome:
-    threads: 1
-    mem: "64GB"
-  dsc_pileup_freemuxlet_by_chromosome:
-    threads: 1
-    mem: "64GB"
-  cellsnp-lite:
-    threads: 32
-    mem: "32GB"
-    runtime: 1440
-  merge_cel_demuxlet:
-    threads: 1
-    mem: 4GB
-  merge_var_demuxlet:
-    threads: 1
-    mem: 4GB
-  merge_plp_demuxlet:
-    threads: 1
-    mem: 4GB
-  merge_umi_demuxlet:
-    threads: 1
-    mem: 4GB
-  wrangle_umi_demuxlet:
-    threads: 1
-    mem: 4GB
-  merge_cel_demuxlet:
-    threads: 1
-    mem: 4GB
-  merge_var_demuxlet:
-    threads: 1
-    mem: 4GB
-  merge_plp_demuxlet:
-    threads: 1
-    mem: 4GB
-  merge_umi_demuxlet:
-    threads: 1
-    mem: 4GB
-  wrangle_umi_demuxlet:
-    threads: 1
-    mem: 4GB
-  demuxafy:
-    mem: "2GB"
-    runtime: 60
   demuxlet:
     mem: "16GB"
     runtime: 60
@@ -66,21 +25,14 @@ set-resources:
     threads: 2
     mem: "16GB"
     runtime: 60
-  freemuxlet_genotyping:
-    mem: "20GB"
   freemuxlet_summary:
     mem: "2GB"
     runtime: 5
-  split_by_chr:
+  demuxafy:
     mem: "2GB"
-    runtime: 5
-  souporcell:
-    threads: 32
-    mem: "190GB"
-    runtime: 1440
-  # sc_pileup branch: souporcell is split into cluster/troublet/consensus, resuming
-  # from the sc_pileup ref/alt.mtx (remap+vartrix already done upstream). Cluster is
-  # the heavy step; troublet/consensus are light.
+    runtime: 60
+  # souporcell resumes from sc_pileup's ref/alt.mtx: cluster is the heavy step;
+  # troublet/consensus are light.
   souporcell_cluster:
     threads: 16
     mem: "64GB"
@@ -91,12 +43,9 @@ set-resources:
   souporcell_consensus:
     threads: 1
     mem: "8GB"
-  souporcell_genotyping:
-    mem: "20GB"
   vireo:
     threads: 16
     mem: "32GB"
   vireosnp:
     mem: "8GB"
     runtime: 10
-
