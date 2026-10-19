@@ -27,7 +27,7 @@ jobs:
           create-args: >-
             snakemake=7.32.4
             snakefmt=2.1.0
-            shfmt
+            go-shfmt
             pandas
             jsonschema
           condarc: |
