@@ -50,8 +50,10 @@ rule report_capture_metrics:
     params:
         declared_samples=get_samples_in_capture,
         pool_id=get_pool_for_capture
-    conda:
-        "../envs/report_html.yaml"
+    container:
+        config["containers"]["r"]
+    # conda:  # swap for the container above on platforms without singularity
+    #     "../envs/report_html.yaml"
     log:
         logs/"report/{capture_id}.metrics.log"
     script:
@@ -77,8 +79,10 @@ rule report_capture:
         report_dir/"captures/{capture_id}.html"
     params:
         pool_id=get_pool_for_capture
-    conda:
-        "../envs/report_html.yaml"
+    container:
+        config["containers"]["r"]
+    # conda:  # swap for the container above on platforms without singularity
+    #     "../envs/report_html.yaml"
     log:
         logs/"report/{capture_id}.log"
     script:
@@ -104,8 +108,10 @@ rule report_index:
         all_cells=out_dir/"assignment/report/all_cells_stats_full.tsv"
     output:
         report_dir/"index.html"
-    conda:
-        "../envs/report_html.yaml"
+    container:
+        config["containers"]["r"]
+    # conda:  # swap for the container above on platforms without singularity
+    #     "../envs/report_html.yaml"
     log:
         logs/"report/index.log"
     script:

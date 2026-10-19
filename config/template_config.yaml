@@ -48,5 +48,21 @@ ref:
   souporcell:
     genome_fasta: resources/genomes/refdata-gex-GRCh38-2020-A/fasta/genome.fa
 
-containers: 
-  demuxafy: resources/Demuxafy.sif
+containers:
+  # Focused per-tool images replace the monolithic Demuxafy.sif. demuxafy is a
+  # slimmed image carrying only the Demuxafy consensus + summary scripts; the
+  # workflow's own R scripts/reports run in a plain R image.
+  bcftools: docker://quay.io/biocontainers/bcftools:1.13--h3a49de5_0
+  # vireo (demux CLI) pinned to Demuxafy.sif's exact vireoSNP 0.5.7 env.
+  vireo: docker://ghcr.io/swarbricklab/snp_demux-vireo:0.5.7
+  # souporcell-genotyping (annotate.py) + the vireoSNP cell-count script keep the
+  # original 0.5.6 image (their pre-split baseline; count uses only pandas/numpy).
+  vireosnp: docker://swarbricklab/vireo_snp:0.5.6
+  souporcell: docker://cumulusprod/souporcell:2.5
+  # popscle (demuxlet + freemuxlet clustering), built from the da70fc78 commit
+  # Demuxafy.sif shipped; shared with sc_pileup's dsc-pileup image.
+  popscle: docker://ghcr.io/swarbricklab/sc_pileup-popscle:da70fc78
+  r: docker://ghcr.io/swarbricklab/snp_demux-r:r4.2
+  # demuxafy = R + the Demuxafy consensus/summary/assign scripts (Combine_Results.R,
+  # Assign_Indiv_by_Geno.R, *_summary.sh) pinned to the sif's script commit.
+  demuxafy: docker://ghcr.io/swarbricklab/snp_demux-demuxafy:63fb228

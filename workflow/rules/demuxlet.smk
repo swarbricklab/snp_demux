@@ -17,7 +17,7 @@ rule demuxlet:
         coeff=config['params']['demuxlet']['coeff'],
         offset=config['params']['demuxlet']['offset']
     container:
-        config["containers"]["demuxafy"]
+        config["containers"]["popscle"]
     log:
         logs/"demuxlet/{capture_id}/demuxlet.log"
     shell:

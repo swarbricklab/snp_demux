@@ -1,0 +1,29 @@
+# Conda R environment for snp_demux's own R scripts + Rmd reports. Built via
+# absconda -> GHCR, it replaces the per-rule conda envs under workflow/envs/
+# (ambient, combine_matrices, pdftools, relabel_vireo, report, report_html,
+# wrangle_demuxafy). It is the UNION of their R dependencies so every R/Rmd
+# rule resolves against one pinned image. The Demuxafy consensus (Combine_Results.R)
+# lives in the separate slimmed demuxafy image; the python vireoSNP counting
+# script runs in the vireo image.
+name: snp_demux-r
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - r-base>=4.2
+  - r-tidyverse       # dplyr, tidyr, readr, tibble, stringr, ggplot2, forcats, scales
+  - r-data.table
+  - r-pdftools
+  - r-png
+  - r-rmarkdown
+  - r-knitr
+  - r-xfun
+  - r-dt
+  - r-htmltools
+  - r-jsonlite
+  - r-flexdashboard
+  - r-kableextra
+  - r-complexupset
+  - r-upsetr
+  - bioconductor-variantannotation
+  - pandoc
