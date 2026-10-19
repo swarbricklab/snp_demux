@@ -6,9 +6,9 @@ from snakemake.utils import validate
 # than deep inside a rule. Schema in workflow/schemas/config.schema.yaml.
 validate(config, "../schemas/config.schema.yaml")
 
-samples = pd.read_csv(config["deps"]["samples"], dtype=str, index_col='sample_id')
+samples = pd.read_csv(config["deps"]["samples"], dtype=str, index_col="sample_id")
 samples.index = samples.index.astype(str)
-captures= pd.read_csv(config["deps"]["captures"], dtype=str, index_col='capture_id')
+captures = pd.read_csv(config["deps"]["captures"], dtype=str, index_col="capture_id")
 captures.index = captures.index.astype(str)
 
 # --- sc_pileup integration -------------------------------------------------
@@ -37,10 +37,13 @@ def pileup_path(engine, *parts):
     """Return an input-function giving the sc_pileup output path for
     <engine>/<platform>/<capture_id>/<parts...>. NB: pathlib join (no f-strings
     in .smk — snakemake mangles `{}` inside them)."""
+
     def _inner(wildcards):
         plat = _capture_platform(wildcards.capture_id)
         return str(_pileup_root.joinpath(engine, plat, wildcards.capture_id, *parts))
+
     return _inner
+
 
 def panel_path(*parts):
     """Return an input-function giving the per-pool informative panel path:
@@ -50,21 +53,25 @@ def panel_path(*parts):
     so it replaces the old cohort `deps.vcf` as the donor genotype source. Using
     the SAME file sc_pileup piled against keeps pileup sites and demux genotypes
     identical by construction."""
+
     def _inner(wildcards):
         return str(_panel_root.joinpath(wildcards.capture_id, *parts))
+
     return _inner
 
 
-def lookup(df,field):
+def lookup(df, field):
     """
     Look up field in the given dataframe
     """
+
     def handle_wildcards(wildcards):
         """
         Internal function for processing wildcards
         """
-        result=df.loc[wildcards.capture_id, field]
+        result = df.loc[wildcards.capture_id, field]
         return result.split(";")
+
     return handle_wildcards
 
 
@@ -72,12 +79,40 @@ def get_donors_in_capture(wildcards):
     """
     Return a comma-separated list of the donors in wildcards.capture_id
     """
-    capture=samples.loc[samples['capture_id']==wildcards.capture_id]
-    donor_list=",".join(capture['donor_id'].tolist())
+    capture = samples.loc[samples["capture_id"] == wildcards.capture_id]
+    donor_list = ",".join(capture["donor_id"].tolist())
     return donor_list
+
 
 def get_number_of_samples_in_capture_pool(wildcards):
     """
     Return the number of samples in wildcards.capture_id
     """
-    return len(samples.loc[samples['capture_id']==wildcards.capture_id])
+    return len(samples.loc[samples["capture_id"] == wildcards.capture_id])
+
+
+def get_samples_in_capture(wildcards):
+    """
+    Return the sample_ids declared for wildcards.capture_id, comma-separated.
+    """
+    capture = samples.loc[samples["capture_id"] == wildcards.capture_id]
+    return ",".join(capture.index.tolist())
+
+
+def get_pool_for_capture(wildcards):
+    """
+    Return the pool_id wildcards.capture_id belongs to, or "" if unrecorded.
+
+    pool_id is optional and used only for display and grouping in the reports;
+    no other rule reads it. A blank cell in captures.csv reaches us as a pandas
+    NaN, which Snakemake serialises into the generated R script as a bare `nan`
+    -- an undefined symbol in R, so the job dies with "object 'nan' not found"
+    before the script runs. Coerce to a string so a missing optional field
+    cannot fail a rule.
+    """
+    if "pool_id" not in captures.columns:
+        return ""
+    pool = captures.loc[wildcards.capture_id, "pool_id"]
+    if pool is None or (isinstance(pool, float) and pd.isna(pool)):
+        return ""
+    return str(pool)

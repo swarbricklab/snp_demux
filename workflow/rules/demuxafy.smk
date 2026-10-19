@@ -8,22 +8,36 @@ rule demuxafy:
         demuxlet=rules.demuxlet.output.best,
         freemuxlet=rules.freemuxlet.output.samples,
         souporcell=rules.souporcell_troublet.output.clusters,
-        vireo=rules.relabel_vireo.output.donor_ids
+        vireo=rules.relabel_vireo.output.donor_ids,
     output:
         # TODO: add wildcard based logic to determine the combine method (e.g., AtLeastHalfSinglet)
-        combined_results=temp(out_dir/"assignment/{capture_id}/combined_results.tsv"),
-        combined_resultsSinglets_upset=temp(out_dir/"assignment/{capture_id}/combined_resultsSinglets_upset.pdf"),
-        combined_results_annotated=temp(out_dir/"assignment/{capture_id}/combined_results_w_combined_assignments.tsv"),
-        combined_results_demultiplexing_summary=temp(out_dir/"assignment/{capture_id}/combined_results_demultiplexing_summary.tsv"),
-        combined_results_summary=temp(out_dir/"assignment/{capture_id}/combined_results_summary.tsv")
-    params:
-        freemuxlet_correlation_limit=config['params']['demuxafy']['freemuxlet_correlation_limit'],
-        souporcell_correlation_limit=config['params']['demuxafy']['souporcell_correlation_limit'],
-        pct_agreement=config['params']['demuxafy']['pct_agreement']
+        combined_results=temp(out_dir / "assignment/{capture_id}/combined_results.tsv"),
+        combined_resultsSinglets_upset=temp(
+            out_dir / "assignment/{capture_id}/combined_resultsSinglets_upset.pdf"
+        ),
+        combined_results_annotated=temp(
+            out_dir
+            / "assignment/{capture_id}/combined_results_w_combined_assignments.tsv"
+        ),
+        combined_results_demultiplexing_summary=temp(
+            out_dir
+            / "assignment/{capture_id}/combined_results_demultiplexing_summary.tsv"
+        ),
+        combined_results_summary=temp(
+            out_dir / "assignment/{capture_id}/combined_results_summary.tsv"
+        ),
+    log:
+        logs / "assignment/{capture_id}/demuxafy.log",
     container:
         config["containers"]["demuxafy"]
-    log:
-        logs/"assignment/{capture_id}/demuxafy.log"
+    params:
+        freemuxlet_correlation_limit=config["params"]["demuxafy"][
+            "freemuxlet_correlation_limit"
+        ],
+        souporcell_correlation_limit=config["params"]["demuxafy"][
+            "souporcell_correlation_limit"
+        ],
+        pct_agreement=config["params"]["demuxafy"]["pct_agreement"],
     shell:
         """
         demuxlet_dir=$(dirname {input.demuxlet})
@@ -41,21 +55,23 @@ rule demuxafy:
             --method "AtLeastHalfSinglet" \
             --ref Vireo \
             --pct_agreement {params.pct_agreement} \
-            > {log}
+            >{log}
         """
+
 
 # Convert PDF plot above to PNG format
 rule pdf_to_png:
     input:
-        Singlets_upset_pdf=rules.demuxafy.output.combined_resultsSinglets_upset
+        Singlets_upset_pdf=rules.demuxafy.output.combined_resultsSinglets_upset,
     output:
-        Singlets_upset_png=out_dir/"assignment/{capture_id}/plots/combined_resultsSinglets_upset.png"
-    container:
-        config["containers"]["r"]
-    # conda:  # swap for the container above on platforms without singularity
+        Singlets_upset_png=out_dir
+        / "assignment/{capture_id}/plots/combined_resultsSinglets_upset.png",
+    # conda:  # conda fallback for platforms without singularity (use instead of the container)
     #     "../envs/pdftools.yaml"
     log:
-        logs/"pdf_to_png/{capture_id}.log"
+        logs / "pdf_to_png/{capture_id}.log",
+    container:
+        config["containers"]["r"]
     script:
         "../scripts/pdf_to_png.R"
 
@@ -68,69 +84,79 @@ rule pdf_to_png:
 rule add_vireosnp_to_combined_results:
     input:
         demuxafy_assignments=rules.demuxafy.output.combined_results_annotated,
-        vireosnp_assignments=rules.vireosnp.output.clusters_annotated
+        vireosnp_assignments=rules.vireosnp.output.clusters_annotated,
     output:
-        assignments_with_vireosnp=temp(out_dir/"assignment/{capture_id}/combined_results_w_combined_assignments.inc_vireosnp.tsv")
-    container:
-        config["containers"]["r"]
-    # conda:  # swap for the container above on platforms without singularity
+        assignments_with_vireosnp=temp(
+            out_dir
+            / "assignment/{capture_id}/combined_results_w_combined_assignments.inc_vireosnp.tsv"
+        ),
+    # conda:  # conda fallback for platforms without singularity (use instead of the container)
     #     "../envs/report.yaml"
     log:
-        logs/"assignment/{capture_id}/add_vireosnp_to_combined_results.log"
+        logs / "assignment/{capture_id}/add_vireosnp_to_combined_results.log",
+    container:
+        config["containers"]["r"]
     script:
         "../scripts/add_vireosnp_to_combined_results.R"
+
 
 rule wrangle_demuxafy_assignments:
     input:
         sample_map=config["deps"]["samples"],
         #vcf=config["deps"]["vcf"],
-        demuxafy_assignments=rules.add_vireosnp_to_combined_results.output.assignments_with_vireosnp
+        demuxafy_assignments=rules.add_vireosnp_to_combined_results.output.assignments_with_vireosnp,
     output:
-        sample_barcode_assignments=out_dir/"assignment/{capture_id}/sample_barcode_assignments.tsv",
-        cell_assignment=out_dir/"assignment/{capture_id}/cell_assignment.tsv"
+        sample_barcode_assignments=out_dir
+        / "assignment/{capture_id}/sample_barcode_assignments.tsv",
+        cell_assignment=out_dir / "assignment/{capture_id}/cell_assignment.tsv",
+    # conda:  # conda fallback for platforms without singularity (use instead of the container)
+    #     "../envs/wrangle_demuxafy.yaml"
+    log:
+        logs / "assignment/{capture_id}/wrangle_demuxafy_output.assignments.log",
+    container:
+        config["containers"]["r"]
     params:
         assignment_column="AtLeastHalfSinglet_Individual_Assignment",
         droplettype_column="AtLeastHalfSinglet_DropletType",
-    container:
-        config["containers"]["r"]
-    # conda:  # swap for the container above on platforms without singularity
-    #     "../envs/wrangle_demuxafy.yaml"
-    log:
-        logs/"assignment/{capture_id}/wrangle_demuxafy_output.assignments.log"
     script:
         "../scripts/wrangle_assignments.R"
 
+
 rule wrangle_stats:
     input:
-        sample_barcode_assignments=rules.wrangle_demuxafy_assignments.output.sample_barcode_assignments
+        sample_barcode_assignments=rules.wrangle_demuxafy_assignments.output.sample_barcode_assignments,
     output:
-        all_cells_stats=out_dir/"assignment/{capture_id}/all_cells_stats.tsv",
-        all_singlets_stats=out_dir/"assignment/{capture_id}/all_singlets_stats.tsv"
-    params:
-        assignment_column="AtLeastHalfSinglet_Individual_Assignment"
-    container:
-        config["containers"]["r"]
-    # conda:  # swap for the container above on platforms without singularity
+        all_cells_stats=out_dir / "assignment/{capture_id}/all_cells_stats.tsv",
+        all_singlets_stats=out_dir / "assignment/{capture_id}/all_singlets_stats.tsv",
+    # conda:  # conda fallback for platforms without singularity (use instead of the container)
     #     "../envs/wrangle_demuxafy.yaml"
     log:
-        logs/"assignment/{capture_id}/wrangle_stats.log"
+        logs / "assignment/{capture_id}/wrangle_stats.log",
+    container:
+        config["containers"]["r"]
+    params:
+        assignment_column="AtLeastHalfSinglet_Individual_Assignment",
     script:
         "../scripts/wrangle_stats.R"
 
+
 rule demuxafy_count_cells_AtLeastHalfSinglet:
     input:
-        clusters_annotated=rules.wrangle_demuxafy_assignments.output.sample_barcode_assignments
+        clusters_annotated=rules.wrangle_demuxafy_assignments.output.sample_barcode_assignments,
     output:
-        cell_counts_all=out_dir/"assignment/{capture_id}/plots/demuxafy_cell_count_all.png",
-        cell_counts_singlets=out_dir/"assignment/{capture_id}/plots/demuxafy_cell_count_singlets.png",
-        table_cell_counts_all=out_dir/"assignment/{capture_id}/demuxafy_cell_count_table.tsv"
-    params:
-        dir_output=out_dir/"assignment/{capture_id}/"
-    container:
-        config["containers"]["vireosnp"]
-    # conda:  # swap for the container above on platforms without singularity
+        cell_counts_all=out_dir
+        / "assignment/{capture_id}/plots/demuxafy_cell_count_all.png",
+        cell_counts_singlets=out_dir
+        / "assignment/{capture_id}/plots/demuxafy_cell_count_singlets.png",
+        table_cell_counts_all=out_dir
+        / "assignment/{capture_id}/demuxafy_cell_count_table.tsv",
+    # conda:  # conda fallback for platforms without singularity (use instead of the container)
     #     "../envs/vireosnp.yaml"
     log:
-        logs/"assignment/{capture_id}/output.count_cells.log"
+        logs / "assignment/{capture_id}/output.count_cells.log",
+    container:
+        config["containers"]["vireosnp"]
+    params:
+        dir_output=out_dir / "assignment/{capture_id}/",
     script:
         "../scripts/demuxafy_counts_AtLeastHalfSinglet.py"

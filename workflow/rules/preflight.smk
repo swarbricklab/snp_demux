@@ -8,13 +8,14 @@
 #
 #   snakemake check_inputs --workflow-profile profiles/workflow [--use-singularity ...]
 
+
 rule check_panel:
     input:
         vcf=panel_path("informative.vcf.gz"),
     output:
-        report=out_dir/"preflight/{capture_id}.panel_check.txt",
+        report=out_dir / "preflight/{capture_id}.panel_check.txt",
     log:
-        logs/"preflight/{capture_id}.log",
+        logs / "preflight/{capture_id}.log",
     container:
         config["containers"]["bcftools"]
     script:
@@ -29,5 +30,9 @@ rule check_inputs:
         ),
     output:
         out_dir / "preflight/ALL_PANELS_OK.txt",
+    log:
+        logs / "preflight/aggregate.log",
+    container:
+        config["containers"]["bcftools"]
     shell:
-        "cat {input} > {output} && echo '# All panels passed preflight.' >> {output}"
+        "cat {input} > {output} 2> {log} && echo '# All panels passed preflight.' >> {output}"
