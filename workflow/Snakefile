@@ -10,6 +10,7 @@ logs=Path(config['outs']['logs'])
 report_dir=Path(config['outs'].get('reports', str(out_dir/"report")))
 
 include: "rules/common.smk"
+include: "rules/preflight.smk"
 include: "rules/split.smk"
 include: "rules/vireo.smk"
 include: "rules/demuxlet.smk"
