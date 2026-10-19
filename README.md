@@ -323,3 +323,15 @@ Each capture page covers:
 Figures are embedded rather than linked, so a capture page can be sent on its own.
 
 The `metrics/<capture_id>.tsv` files are the per-capture roll-up that both the capture page and the index read, so the two cannot disagree.
+
+## Reproducibility
+
+Every rule runs in a pinned container (the Demuxafy-toolchain images are pinned to
+the exact versions the retired `Demuxafy.sif` shipped), and all demultiplexing
+**calls** reproduce byte-for-byte given the same frozen pileups + panel. The one
+output that is *not* bit-reproducible is vireo's ambient-RNA proportion QC
+(`--callAmbientRNAs` uses multithreaded, non-associative float reductions) — it
+does not affect any donor assignment. See
+[`docs/reproducibility.md`](docs/reproducibility.md) for the container pins, the
+full list of what is / isn't reproducible, and how the container split was
+verified against the `Demuxafy.sif` baseline.
