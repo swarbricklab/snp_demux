@@ -7,7 +7,7 @@
 # matrices were built on) so its rows align with alt.mtx/ref.mtx;
 # --known_genotypes_sample_names restricts to the pool's donors.
 
-SOUPORCELL_CONTAINER = "docker://cumulusprod/souporcell:2.5"
+SOUPORCELL_CONTAINER = config["containers"]["souporcell"]
 
 
 rule souporcell_cluster:

@@ -50,8 +50,8 @@ rule pdf_to_png:
         Singlets_upset_pdf=rules.demuxafy.output.combined_resultsSinglets_upset
     output:
         Singlets_upset_png=out_dir/"assignment/{capture_id}/plots/combined_resultsSinglets_upset.png"
-    conda:
-        "../envs/pdftools.yaml"
+    container:
+        config["containers"]["r"]
     log:
         logs/"pdf_to_png/{capture_id}.log"
     script:
@@ -69,8 +69,8 @@ rule add_vireosnp_to_combined_results:
         vireosnp_assignments=rules.vireosnp.output.clusters_annotated
     output:
         assignments_with_vireosnp=temp(out_dir/"assignment/{capture_id}/combined_results_w_combined_assignments.inc_vireosnp.tsv")
-    conda:
-        "../envs/report.yaml"
+    container:
+        config["containers"]["r"]
     log:
         logs/"assignment/{capture_id}/add_vireosnp_to_combined_results.log"
     script:
@@ -87,8 +87,8 @@ rule wrangle_demuxafy_assignments:
     params:
         assignment_column="AtLeastHalfSinglet_Individual_Assignment",
         droplettype_column="AtLeastHalfSinglet_DropletType",
-    conda:
-        "../envs/wrangle_demuxafy.yaml"
+    container:
+        config["containers"]["r"]
     log:
         logs/"assignment/{capture_id}/wrangle_demuxafy_output.assignments.log"
     script:
@@ -102,8 +102,8 @@ rule wrangle_stats:
         all_singlets_stats=out_dir/"assignment/{capture_id}/all_singlets_stats.tsv"
     params:
         assignment_column="AtLeastHalfSinglet_Individual_Assignment"
-    conda:
-        "../envs/wrangle_demuxafy.yaml"
+    container:
+        config["containers"]["r"]
     log:
         logs/"assignment/{capture_id}/wrangle_stats.log"
     script:
@@ -118,8 +118,8 @@ rule demuxafy_count_cells_AtLeastHalfSinglet:
         table_cell_counts_all=out_dir/"assignment/{capture_id}/demuxafy_cell_count_table.tsv"
     params:
         dir_output=out_dir/"assignment/{capture_id}/"
-    conda:
-        "../envs/vireosnp.yaml"
+    container:
+        config["containers"]["vireosnp"]
     log:
         logs/"assignment/{capture_id}/output.count_cells.log"
     script:

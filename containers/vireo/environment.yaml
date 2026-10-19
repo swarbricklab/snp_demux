@@ -1,0 +1,25 @@
+# vireo (the demultiplexing CLI) for the `vireo` rule. Pinned to the exact
+# versions the retired Demuxafy.sif shipped for its vireo step, so the demux
+# calls stay numerically identical to the atlas baseline. NOTE this differs from
+# the genotyping leg: the souporcell-genotyping `vireosnp`/count rules keep
+# swarbricklab/vireo_snp:0.5.6 (their original image) — see config `vireosnp`.
+# The retired image lacked threadpoolctl, which vireoSNP 0.5.7's vireo_wrap imports.
+name: snp_demux-vireo
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.7.2
+  # Demuxafy.sif's numpy linked Intel MKL 2021.4; match it (and force the MKL BLAS
+  # variant) so vireo's --callAmbientRNAs ambient-proportion estimates stay
+  # numerically identical, not just the argmax donor calls.
+  - mkl=2021.4
+  - libblas=*=*mkl
+  - numpy=1.21.5
+  - scipy=1.7.3
+  - pandas=1.3.5
+  - matplotlib=3.5.2
+  - threadpoolctl=3.1.0
+  - pip
+  - pip:
+      - vireoSNP==0.5.7

@@ -16,7 +16,7 @@ rule subset_vcf:
     log:
         logs/"subset_vcf/subset_{capture_id}.log"
     container:
-        config["containers"]["demuxafy"]
+        config["containers"]["bcftools"]
     shell:
         """
         bcftools view {input.vcf} \
@@ -53,7 +53,7 @@ rule vireo:
         console=logs/"vireo/{capture_id}.console.log",
         vireo=logs/"vireo/{capture_id}_log.txt"
     container:
-        config["containers"]["demuxafy"]
+        config["containers"]["vireo"]
     shell:
         """
         base={input.base}
@@ -101,8 +101,8 @@ rule relabel_vireo:
         summary=out_dir/"vireo/{capture_id}/summary.tsv"
     log:
         logs/"vireo/relabel_{capture_id}.log"
-    conda:
-        "../envs/relabel_vireo.yaml"
+    container:
+        config["containers"]["r"]
     script:
         "../scripts/relabel_vireo.R"
 
@@ -118,7 +118,7 @@ rule reheader_vireo_vcf:
     log:
         logs/"vireo/reheader_{capture_id}.log"
     container:
-        config["containers"]["demuxafy"]
+        config["containers"]["bcftools"]
     shell:
         """
         if [ -s {input.vcf} ]; then
@@ -139,7 +139,7 @@ rule summarise_ambient:
         plot=out_dir/"vireo/{capture_id}/ambient_plot.png"
     log:
         logs/"vireo/summarise_ambient_{capture_id}.log"
-    conda:
-        "../envs/ambient.yaml"
+    container:
+        config["containers"]["r"]
     script:
         "../scripts/summarise_ambient.R"
