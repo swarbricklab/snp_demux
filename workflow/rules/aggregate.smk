@@ -7,6 +7,7 @@
 rule aggregate_souporcell:
     """
     This rule does nothing interesting, but can be used to trigger a rerun of just the souporcell branch of the DAG
+
     """
     input:
         all_souporcell_results=expand(
@@ -29,6 +30,7 @@ rule aggregate_souporcell:
 rule aggregate_demuxlet:
     """
     This rule does nothing interesting, but can be used to trigger a rerun of just the demuxlet branch of the DAG
+
     """
     input:
         all_demuxlet_results=expand(
@@ -50,6 +52,7 @@ rule aggregate_demuxlet:
 rule aggregate_freemuxlet:
     """
     This rule does nothing interesting, but can be used to trigger a rerun of just the freemuxlet branch of the DAG
+
     """
     input:
         all_freemuxlet_results=expand(
@@ -71,6 +74,7 @@ rule aggregate_freemuxlet:
 rule aggregate_vireo:
     """
     This rule does nothing interesting, but can be used to trigger a rerun of just the demuxlet branch of the DAG
+
     """
     input:
         all_vireo_results=expand(
