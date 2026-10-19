@@ -18,7 +18,7 @@ rule vireosnp:
     params:
         dir_output=out_dir/"souporcell/annotation/vireosnp/{capture_id}/"
     container:
-        "docker://swarbricklab/vireo_snp:0.5.6"
+        config["containers"]["vireosnp"]
     log:
         logs/"vireosnp/{capture_id}.log"
     script:

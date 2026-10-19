@@ -31,5 +31,11 @@ ref:
   souporcell:
     genome_fasta: resources/genomes/refdata-gex-GRCh38-2020-A/fasta/genome.fa
 
-containers: 
-  demuxafy: resources/Demuxafy.sif
+containers:
+  bcftools: docker://quay.io/biocontainers/bcftools:1.13--h3a49de5_0
+  vireo: docker://ghcr.io/swarbricklab/snp_demux-vireo:0.5.7
+  vireosnp: docker://swarbricklab/vireo_snp:0.5.6
+  souporcell: docker://cumulusprod/souporcell:2.5
+  popscle: docker://ghcr.io/swarbricklab/sc_pileup-popscle:da70fc78
+  r: docker://ghcr.io/swarbricklab/snp_demux-r:r4.2
+  demuxafy: docker://ghcr.io/swarbricklab/snp_demux-demuxafy:63fb228

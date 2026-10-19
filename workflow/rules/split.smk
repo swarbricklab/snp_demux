@@ -15,7 +15,7 @@ rule known_genotypes:
     log:
         logs/"souporcell/annotation/known_genotypes_{capture_id}.log"
     container:
-        config["containers"]["demuxafy"]
+        config["containers"]["bcftools"]
     shell:
         """
         bcftools view {input.vcf} \
@@ -33,7 +33,7 @@ rule extract_genotyped_donors:
     log:
         logs/"souporcell/annotation/extract_genotyped_donors_{capture_id}.log"
     container:
-        config["containers"]["demuxafy"]
+        config["containers"]["bcftools"]
     shell:
         """
         bcftools query -l {input.vcf} > {output.genotyped_donors}

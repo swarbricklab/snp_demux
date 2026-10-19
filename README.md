@@ -160,7 +160,7 @@ See [`config/template_config.yaml`](config/template_config.yaml) for a starting 
 | `params.demuxlet` | `coeff` and `offset` for the demuxlet doublet prior |
 | `params.demuxafy` | Correlation limits for matching souporcell and freemuxlet clusters to donors, and the agreement threshold for the consensus |
 | `ref.souporcell.genome_fasta` | Reference genome FASTA, matching the transcriptome used by `cellranger` |
-| `containers.demuxafy` | Path to the Demuxafy `.sif` image |
+| `containers.*` | Per-tool container images (replaces the old monolithic Demuxafy.sif): `bcftools`, `popscle` (demuxlet/freemuxlet), `vireo` (demux CLI), `vireosnp` (souporcell-genotyping + cell counts), `souporcell`, `r` (all R/Rmd rules), `demuxafy` (consensus/summary/assign scripts). See `config/template_config.yaml` and the recipes under [`containers/`](containers) |
 
 Set `outs.reports` when the reports should be published alongside a dataset's other reports rather than buried in the data tree.
 For example, in a dataset repository:
