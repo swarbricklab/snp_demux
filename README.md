@@ -1,5 +1,7 @@
 # SNP Demux
 
+[![CI](https://github.com/swarbricklab/snp_demux/actions/workflows/ci.yml/badge.svg)](https://github.com/swarbricklab/snp_demux/actions/workflows/ci.yml)
+
 This workflow demultiplexes "pooled captures".
 A "pooled capture" is when multiple tissues samples are dissociated into single cells together in the same test tube, and then captured together using the 10X Chromium platform to generate scRNA-seq libraries.
 
@@ -222,32 +224,27 @@ demux result.
 ### The pipeline
 
 This module is defined as a [Snakemake](https://snakemake.readthedocs.io/en/v7.32.3/) workflow.
-The pipeline is roughly as follows.
-This is a simplification: each box stands for a group of rules, and the
-per-chromosome fan-out and merge steps are collapsed.
+The pipeline is roughly as follows. This is a simplification: each box stands for a
+group of rules. The per-cell pileups are produced upstream by
+[sc_pileup](https://github.com/swarbricklab/sc_pileup) and consumed here, so this
+workflow starts from those pileups and the donor panel — it does not read the BAM
+or run the pileup/split/merge steps itself (see the full rule graph above).
 
 ```mermaid
 flowchart TB
-    BAM["possorted_genome_bam.bam"]
-    BC["barcodes.tsv.gz"]
-    VCF["donor genotypes<br/>(VCF)"]
+    PANEL["donor panel<br/>informative.vcf.gz"]
+    PLP["sc_pileup outputs<br/>(cellSNP · popscle · souporcell pileups)"]
 
-    BAM --> SPLIT
-    VCF --> SPLIT
-    SPLIT["split by chromosome"] --> PILEUP["dsc_pileup per chromosome,<br/>then merged"]
-    PILEUP --> DL["demuxlet"]
-    PILEUP --> FM["freemuxlet"]
-
-    BAM --> CS
-    BC --> CS
-    VCF --> CS
-    CS["cellsnp_lite"] --> VI["vireo"]
+    PLP --> DL["demuxlet"]
+    PANEL --> DL
+    PLP --> FM["freemuxlet"]
+    PANEL --> FM
+    PLP --> VI["vireo"]
+    PANEL --> VI
     VI --> AMB["ambient RNA<br/>summary"]
-
-    BAM --> SO
-    BC --> SO
-    VCF --> SO
-    SO["souporcell"] --> VS["vireoSNP<br/>cluster annotation"]
+    PLP --> SO["souporcell"]
+    PANEL --> SO
+    SO --> VS["vireoSNP<br/>cluster annotation"]
 
     DL --> DX
     FM --> DX
