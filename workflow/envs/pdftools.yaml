@@ -1,0 +1,8 @@
+name:
+    pdftools
+channels:
+    - conda-forge
+    - bioconda
+dependencies:
+    - r-pdftools
+    - r-png

@@ -103,6 +103,8 @@ rule relabel_vireo:
         logs/"vireo/relabel_{capture_id}.log"
     container:
         config["containers"]["r"]
+    # conda:  # swap for the container above on platforms without singularity
+    #     "../envs/relabel_vireo.yaml"
     script:
         "../scripts/relabel_vireo.R"
 
@@ -141,5 +143,7 @@ rule summarise_ambient:
         logs/"vireo/summarise_ambient_{capture_id}.log"
     container:
         config["containers"]["r"]
+    # conda:  # swap for the container above on platforms without singularity
+    #     "../envs/ambient.yaml"
     script:
         "../scripts/summarise_ambient.R"

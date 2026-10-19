@@ -52,6 +52,8 @@ rule report_capture_metrics:
         pool_id=get_pool_for_capture
     container:
         config["containers"]["r"]
+    # conda:  # swap for the container above on platforms without singularity
+    #     "../envs/report_html.yaml"
     log:
         logs/"report/{capture_id}.metrics.log"
     script:
@@ -79,6 +81,8 @@ rule report_capture:
         pool_id=get_pool_for_capture
     container:
         config["containers"]["r"]
+    # conda:  # swap for the container above on platforms without singularity
+    #     "../envs/report_html.yaml"
     log:
         logs/"report/{capture_id}.log"
     script:
@@ -106,6 +110,8 @@ rule report_index:
         report_dir/"index.html"
     container:
         config["containers"]["r"]
+    # conda:  # swap for the container above on platforms without singularity
+    #     "../envs/report_html.yaml"
     log:
         logs/"report/index.log"
     script:

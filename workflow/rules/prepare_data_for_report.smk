@@ -26,6 +26,8 @@ rule combine_cell_assignments:
         logs/"assignment/report/output.combine_cell_assignments.log"
     container:
         config["containers"]["r"]
+    # conda:  # swap for the container above on platforms without singularity
+    #     "../envs/combine_matrices.yaml"
     script:
         "../scripts/combine_matrices_by_row.R"
 

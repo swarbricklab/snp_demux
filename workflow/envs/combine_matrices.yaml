@@ -1,0 +1,8 @@
+# conda env create -f conda_environment.yml
+name: combine_matrices
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - r-dplyr
+  - r-data.table

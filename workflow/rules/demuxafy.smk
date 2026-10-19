@@ -52,6 +52,8 @@ rule pdf_to_png:
         Singlets_upset_png=out_dir/"assignment/{capture_id}/plots/combined_resultsSinglets_upset.png"
     container:
         config["containers"]["r"]
+    # conda:  # swap for the container above on platforms without singularity
+    #     "../envs/pdftools.yaml"
     log:
         logs/"pdf_to_png/{capture_id}.log"
     script:
@@ -71,6 +73,8 @@ rule add_vireosnp_to_combined_results:
         assignments_with_vireosnp=temp(out_dir/"assignment/{capture_id}/combined_results_w_combined_assignments.inc_vireosnp.tsv")
     container:
         config["containers"]["r"]
+    # conda:  # swap for the container above on platforms without singularity
+    #     "../envs/report.yaml"
     log:
         logs/"assignment/{capture_id}/add_vireosnp_to_combined_results.log"
     script:
@@ -89,6 +93,8 @@ rule wrangle_demuxafy_assignments:
         droplettype_column="AtLeastHalfSinglet_DropletType",
     container:
         config["containers"]["r"]
+    # conda:  # swap for the container above on platforms without singularity
+    #     "../envs/wrangle_demuxafy.yaml"
     log:
         logs/"assignment/{capture_id}/wrangle_demuxafy_output.assignments.log"
     script:
@@ -104,6 +110,8 @@ rule wrangle_stats:
         assignment_column="AtLeastHalfSinglet_Individual_Assignment"
     container:
         config["containers"]["r"]
+    # conda:  # swap for the container above on platforms without singularity
+    #     "../envs/wrangle_demuxafy.yaml"
     log:
         logs/"assignment/{capture_id}/wrangle_stats.log"
     script:
@@ -120,6 +128,8 @@ rule demuxafy_count_cells_AtLeastHalfSinglet:
         dir_output=out_dir/"assignment/{capture_id}/"
     container:
         config["containers"]["vireosnp"]
+    # conda:  # swap for the container above on platforms without singularity
+    #     "../envs/vireosnp.yaml"
     log:
         logs/"assignment/{capture_id}/output.count_cells.log"
     script:
