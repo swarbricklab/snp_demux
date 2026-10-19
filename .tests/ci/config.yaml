@@ -1,0 +1,25 @@
+# Minimal config used only by CI (lint + schema validation + dry-run parse).
+# Paths are placeholders; no real data is read during --lint/validate.
+deps:
+  samples: .tests/ci/samples.csv
+  captures: .tests/ci/captures.csv
+  pileup_root: .tests/ci/pileup
+  panel_root: .tests/ci/panel
+  default_platform: short
+outs:
+  root: .tests/ci/out
+  logs: .tests/ci/logs
+params:
+  demuxlet: {coeff: 1.0, offset: 0.05}
+  demuxafy: {freemuxlet_correlation_limit: 0.7, souporcell_correlation_limit: 0.7, pct_agreement: 0.7}
+  souporcell: {restarts: 100, min_ref: 10, min_alt: 10, ploidy: 2}
+ref:
+  souporcell: {genome_fasta: .tests/ci/genome.fa}
+containers:
+  bcftools: docker://quay.io/biocontainers/bcftools:1.13--h3a49de5_0
+  popscle: docker://ghcr.io/swarbricklab/sc_pileup-popscle:da70fc78
+  vireo: docker://ghcr.io/swarbricklab/snp_demux-vireo:0.5.7
+  vireosnp: docker://swarbricklab/vireo_snp:0.5.6
+  souporcell: docker://cumulusprod/souporcell:2.5
+  r: docker://ghcr.io/swarbricklab/snp_demux-r:r4.2
+  demuxafy: docker://ghcr.io/swarbricklab/snp_demux-demuxafy:63fb228
