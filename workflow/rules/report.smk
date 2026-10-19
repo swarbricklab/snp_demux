@@ -26,6 +26,8 @@ def get_pool_for_capture(wildcards):
     before the script runs. Coerce to a string so a missing optional field
     cannot fail a rule.
     """
+    if "pool_id" not in captures.columns:
+        return ""
     pool = captures.loc[wildcards.capture_id, "pool_id"]
     if pool is None or (isinstance(pool, float) and pd.isna(pool)):
         return ""
