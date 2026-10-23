@@ -1,0 +1,2 @@
+capture_id,pool_id,barcodes,bam,cells_captured,possible_live_cells
+onek1k,onek1k,/scratch/a56/jr9959/demuxafy_testdata/full/fixture/barcodes.tsv.gz,,20982,20982

@@ -1,0 +1,26 @@
+deps:
+  samples: config/samples.full.csv
+  captures: config/captures.full.csv
+  vcf: /scratch/a56/jr9959/demuxafy_testdata/full/fixture/donors.vcf.gz
+  pileup_root: /scratch/a56/jr9959/sc_pileup/results/full
+  panel_root: /scratch/a56/jr9959/demuxafy_testdata/full/fixture/panel
+  default_platform: short
+outs:
+  root: test/results_full
+  logs: test/logs_full
+params:
+  cellsnp_lite: {minMAF: 0.1, minCOUNT: 20}
+  demuxlet: {coeff: 1.0, offset: 0.05}
+  demuxafy: {freemuxlet_correlation_limit: 0.7, souporcell_correlation_limit: 0.7, pct_agreement: 0.7}
+  souporcell: {restarts: 100, min_ref: 10, min_alt: 10, ploidy: 2}
+ref:
+  souporcell:
+    genome_fasta: resources/genomes/refdata-gex-GRCh38-2020-A/fasta/genome.fa
+containers:
+  bcftools: docker://quay.io/biocontainers/bcftools:1.13--h3a49de5_0
+  vireo: docker://ghcr.io/swarbricklab/snp_demux-vireo:0.5.7
+  vireosnp: docker://swarbricklab/vireo_snp:0.5.6
+  souporcell: docker://cumulusprod/souporcell:2.5
+  popscle: docker://ghcr.io/swarbricklab/sc_pileup-popscle:da70fc78
+  r: docker://ghcr.io/swarbricklab/snp_demux-r:r4.2
+  demuxafy: docker://ghcr.io/swarbricklab/snp_demux-demuxafy:63fb228

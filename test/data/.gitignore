@@ -3,3 +3,5 @@
 /imputed_filtered.hg38.vcf.gz.csi
 /imputation
 /cellranger
+/pileup
+/barcodes.tsv.gz

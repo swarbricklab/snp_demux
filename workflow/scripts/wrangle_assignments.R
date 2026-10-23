@@ -89,6 +89,13 @@ df_summary <- df_assign %>%
     )
   )
 
+# Demuxafy's combine step can emit duplicate per-barcode rows (a join artifact
+# with relaxed thresholds on sparse data) — mostly identical, occasionally
+# conflicting. Keep exactly one row per barcode (first wins) so every downstream
+# consumer sees a single assignment per cell.
+df_assign   <- dplyr::distinct(df_assign, Barcode, .keep_all = TRUE)
+df_summary  <- dplyr::distinct(df_summary, barcode, .keep_all = TRUE)
+
 message("Writing sample barcode assignments")
 write_tsv(df_assign, combined_edited)
 message("Writing summary assignments")
