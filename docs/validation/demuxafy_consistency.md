@@ -78,9 +78,9 @@ to a configuration difference, not an algorithmic one (next section).
 ### souporcell 0.2%
 souporcell's clustering is random-restart EM, so run-to-run assignments wobble for
 cells near the singlet/doublet boundary — a ~0.2% jitter is squarely that noise.
-A second, smaller contributor: our default souporcell is a leaner mode than
-Neavin's tutorial (it vartrix-es the donor panel with `skip_remap: true`, whereas
-her tutorial uses `--common_variants` + the minimap2 remap). Per sc_pileup's own
+A second, smaller contributor: our default souporcell runs a leaner mode than the
+Demuxafy tutorial (it vartrix-es the donor panel with `skip_remap: true`, whereas
+the tutorial uses `--common_variants` + the minimap2 remap). Per sc_pileup's own
 benchmarking the remap is effectively a no-op here (~1% of total ALT reads, 98.7%
 of per-cell calls unchanged), so it is not the driver. Not a discrepancy to chase.
 
