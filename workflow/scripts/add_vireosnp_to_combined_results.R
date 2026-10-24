@@ -77,7 +77,7 @@ df_vireosnp_assignments <- read.delim(file_vireosnp_assignments, sep = "\t", hea
 
 # check if demuxafy and vireosnp have same number of cells
 # We'd expect these to be the same, unless some additional filtering has taken place
-# TODO: In the mixed_pool12 - Mixed_1 results, there is one barcode "TGCGGGTAGACGTCCC-1" in vireosnp but not demuxafy, why, what causes this difference?
+# TODO: in some runs a small number of barcodes appear in the vireosnp output but not the demuxafy combined output (or vice versa); investigate which filtering step causes this.
 barcode_differences <- dplyr::symdiff(df_demuxafy_assignments$Barcode, df_vireosnp_assignments$barcode)
 if(length(barcode_differences) > 0) {
     warning("WARNING: The following ", length(barcode_differences), " cell barcodes are present in only one of vireosnp or demuxafy combined: ", paste(barcode_differences))
