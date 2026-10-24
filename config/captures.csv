@@ -1,2 +1,2 @@
 capture_id,pool_id,barcodes,bam,cells_captured,possible_live_cells
-Mixed_1,Mixed_1,test/data/cellranger/Mixed_1/barcodes.tsv.gz,test/data/cellranger/Mixed_1/possorted_genome_bam.bam,15000,12000
+onek1k,onek1k,test/data/barcodes.tsv.gz,,1400,1400

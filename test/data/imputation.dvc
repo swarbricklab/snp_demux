@@ -1,13 +1,6 @@
-md5: 371fee4112933abdf138e58af23c3369
-frozen: true
-deps:
-- path: test/results/imputation/
-  repo:
-    url: git@github.com:swarbricklab/imputation.git
-    rev_lock: 7bf63cfb62d802c38b322d016b4509e1ce1efc40
 outs:
-- md5: 450e6029ab506297ead1c6e146a29abe.dir
-  size: 24890961
+- md5: 0d6dd9349329279e3c37284dc9d4323a.dir
+  size: 10502025
   nfiles: 3
   hash: md5
   path: imputation

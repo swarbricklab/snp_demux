@@ -1,5 +1,6 @@
 /souporcell
 /imputed_filtered.hg38.vcf.gz
 /imputed_filtered.hg38.vcf.gz.csi
+/pileup
+/barcodes.tsv.gz
 /imputation
-/cellranger

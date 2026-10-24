@@ -4,7 +4,6 @@
       - modules/snp_demux/run_mod.sh
       - modules/snp_demux/workflow
       - config/snp_demux
-      - resources/Demuxafy.sif
       - data/sc/cellranger
       - data/snp/imputation
     outs:

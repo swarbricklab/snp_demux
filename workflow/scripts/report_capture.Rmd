@@ -138,7 +138,10 @@ long <- lapply(methods, function(m) {
   )
 }) %>% bind_rows() %>%
   mutate(call = if_else(dtype == "singlet" & !is.na(ind) & !ind %in% c("doublet", "unassigned"),
-                        ind, dtype))
+                        ind, dtype)) %>%
+  # Demuxafy can emit duplicate per-barcode rows (join artifact); keep one row per
+  # (Barcode, method) so the per-barcode pivot below doesn't produce list-columns.
+  distinct(Barcode, method, .keep_all = TRUE)
 
 cons <- tibble(
   Barcode = assign_tbl$Barcode,
@@ -146,7 +149,8 @@ cons <- tibble(
   ind     = assign_tbl[[paste0(consensus, "_Individual_Assignment")]]
 ) %>%
   mutate(call = if_else(dtype == "singlet" & !is.na(ind) & !ind %in% c("doublet", "unassigned"),
-                        ind, dtype))
+                        ind, dtype)) %>%
+  distinct(Barcode, .keep_all = TRUE)
 ```
 
 ### Calls by method

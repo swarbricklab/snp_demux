@@ -353,3 +353,13 @@ does not affect any donor assignment. See
 [`docs/reproducibility.md`](docs/reproducibility.md) for the container pins, the
 full list of what is / isn't reproducible, and how the container split was
 verified against the `Demuxafy.sif` baseline.
+
+## Validation
+
+Reproducibility (above) proves **determinism**; separately the pipeline is validated
+for **correctness**. On the *full* OneK1K pool, `sc_pileup → snp_demux` reproduces the
+per-method demultiplexing numbers Neavin et al. publish for Demuxafy: freemuxlet and
+souporcell match at default settings, and vireo matches once cellSNP thresholds are
+matched to theirs. The comparison tables, methodology, and the one-off full-depth run
+configs (`config/test_config.full{,_neavin}.yaml`) are in
+[`docs/validation/demuxafy_consistency.md`](docs/validation/demuxafy_consistency.md).
