@@ -1,9 +1,9 @@
 deps:
   samples: config/samples.full.csv
   captures: config/captures.full.csv
-  vcf: /scratch/a56/jr9959/demuxafy_testdata/full/fixture/donors.vcf.gz
-  pileup_root: /scratch/a56/jr9959/sc_pileup/results/full_neavin
-  panel_root: /scratch/a56/jr9959/demuxafy_testdata/full/fixture/panel
+  vcf: ../demuxafy_testdata/full/fixture/donors.vcf.gz
+  pileup_root: ../sc_pileup/results/full_neavin
+  panel_root: ../demuxafy_testdata/full/fixture/panel
   default_platform: short
 outs:
   root: test/results_full_neavin
