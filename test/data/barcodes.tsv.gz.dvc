@@ -1,0 +1,5 @@
+outs:
+- md5: 9359cca21be835d377d8361c881776a0
+  size: 7844
+  hash: md5
+  path: barcodes.tsv.gz
