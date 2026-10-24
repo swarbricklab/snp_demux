@@ -3,4 +3,4 @@ outs:
   size: 80924484
   nfiles: 48
   hash: md5
-  path: results
+  path: golden

@@ -1,0 +1,77 @@
+name: PR Validation
+
+# Reproducibility CI for snp_demux. Runs on the self-hosted NCI qxub-runner
+# (the demux toolchain lives in singularity images that only exist on NCI):
+#   1. clone      — clone the PR branch to NCI scratch + wire up DVC (qxub-checkout)
+#   2. reproduce  — dvc pull the fixture + golden, run all four demux methods +
+#                   the Demuxafy consensus on the OneK1K fixture, and
+#                   content-compare the fresh output to the golden
+#                   (run_test.sh --check)
+#   3. cleanup    — remove the per-PR scratch clone
+#
+# Gated on fork == false: forks cannot use the self-hosted runner or the NCI creds.
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  clone:
+    if: ${{ github.event.pull_request.head.repo.fork == false }}
+    runs-on: qxub-runner
+    permissions:
+      contents: read
+      pull-requests: write
+    outputs:
+      clone-dir: ${{ steps.checkout.outputs.clone-dir }}
+    steps:
+      - name: Checkout on NCI (DVC-aware)
+        id: checkout
+        uses: swarbricklab/ci/qxub-checkout@main
+        with:
+          nci-user: ${{ secrets.USER_NAME }}
+          repository: ${{ github.event.repository.name }}
+          pr-number: ${{ github.event.pull_request.number }}
+          run-id: ${{ github.run_id }}
+          branch-ref: ${{ github.head_ref }}
+          dvc-mod: dt
+          github-token: ${{ github.token }}
+
+  reproduce:
+    needs: clone
+    if: ${{ github.event.pull_request.head.repo.fork == false }}
+    runs-on: qxub-runner
+    permissions:
+      pull-requests: write
+    env:
+      # Same path scheme qxub-checkout / qxub-check-repro use (nci-project a56,
+      # pr-/run- workspace). Reconstructed here rather than passed as an output.
+      CLONE: /scratch/a56/${{ secrets.USER_NAME }}/ci/${{ github.event.repository.name }}/pr-${{ github.event.pull_request.number }}/run-${{ github.run_id }}
+    steps:
+      - name: Pull fixture + golden
+        shell: bash
+        run: |
+          set -euo pipefail
+          qxub exec -v --queue copyq --mod dt --execdir "$CLONE" \
+            -- dt pull --network -v
+
+      - name: Run all demux methods and compare to golden
+        shell: bash
+        run: |
+          set -euo pipefail
+          # --mod singularity loads singularity on the compute node; run_test.sh
+          # sources conda itself (CONDA_PROFILE default) and activates snakemake.
+          qxub exec -v --queue normal --mem 48GB --cpus 8 --mod singularity --var CORES=8 --execdir "$CLONE" \
+            -- ./run_test.sh --check
+
+  cleanup:
+    needs: [clone, reproduce]
+    if: ${{ always() && github.event.pull_request.head.repo.fork == false }}
+    runs-on: qxub-runner
+    steps:
+      - name: Remove per-PR scratch clone
+        uses: swarbricklab/ci/qxub-cleanup@main
+        with:
+          nci-user: ${{ secrets.USER_NAME }}
+          repository: ${{ github.event.repository.name }}
+          pr-number: ${{ github.event.pull_request.number }}
