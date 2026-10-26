@@ -39,9 +39,11 @@ given the same frozen pileups + panel:
   `cell_assignment.tsv`, `all_cells_stats.tsv`, `all_singlets_stats.tsv`,
   `all_*_stats_full.tsv`).
 
-souporcell is deterministic because it seeds its RNG from a fixed default
-(`--seed` defaults to 4) and derives each restart's seed from it; given the same
-inputs and thread count it reproduces exactly.
+souporcell seeds its RNG from a fixed default (`--seed` defaults to 4) and derives
+each restart's seed from it, so its **clustering** is deterministic — `clusters.tsv`
+reproduces exactly given the same inputs and thread count. Its per-cluster
+**genotype inference** is not bit-stable, though (see below); that affects only
+`cluster_genotypes.vcf`, never the cluster assignments or anything downstream.
 
 ## What is **not** bit-reproducible
 
@@ -60,6 +62,19 @@ It does **not** affect any donor assignment — the hard calls are argmax-stable
 figures as approximate QC, not as reproducible quantities. (This is a property of
 vireo, not of the container split: it was equally non-reproducible in the original
 `Demuxafy.sif` workflow.)
+
+souporcell is **genotype-free** and its per-cluster inference is likewise not
+bit-reproducible (same non-associative parallel float reductions). This affects:
+
+- `souporcell/<capture>/ambient_rna.txt` — an ambient estimate, not a call;
+- `souporcell/<capture>/cluster_genotypes.vcf` — the inferred genotypes of the
+  clusters; the per-cluster genotype *values* wobble run to run.
+
+It does **not** affect the cluster *assignments* (`clusters.tsv`), their named
+annotation (`clusters_annotated.tsv`) or any downstream donor assignment: the
+annotation step re-matches clusters to the **known** donor genotypes, which is
+robust to this wobble. As with vireo, this is a property of souporcell, not of the
+container split.
 
 ## How the container split was verified
 
