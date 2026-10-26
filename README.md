@@ -5,6 +5,7 @@
 [![Snakemake](https://img.shields.io/badge/snakemake-%E2%89%A57.32.4-brightgreen.svg)](https://snakemake.github.io)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Code style: snakefmt](https://img.shields.io/badge/code%20style-snakefmt-000000.svg)](https://github.com/snakemake/snakefmt)
+[![WorkflowHub](https://img.shields.io/badge/WorkflowHub-2362-14b8a6.svg)](https://workflowhub.eu/workflows/2362)
 
 This workflow demultiplexes "pooled captures".
 A "pooled capture" is when multiple tissues samples are dissociated into single cells together in the same test tube, and then captured together using the 10X Chromium platform to generate scRNA-seq libraries.
