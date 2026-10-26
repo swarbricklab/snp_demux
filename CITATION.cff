@@ -3,7 +3,7 @@
 cff-version: 1.2.0
 message: "If you use this workflow, please cite it using the metadata below."
 version: "1.0.0"
-date-released: "2026-10-18"
+date-released: "2026-10-26"
 title: "snp_demux: a Snakemake workflow for SNP-based single-cell demultiplexing"
 abstract: >-
   A Snakemake workflow that demultiplexes genetically-pooled single-cell RNA-seq
