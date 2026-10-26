@@ -14,6 +14,17 @@ name: PR Validation
 on:
   pull_request:
     branches: [main]
+    # Skip the (slow, self-hosted) full reproduce when a PR touches only
+    # documentation / metadata — those can't change workflow outputs. Any change
+    # to the pipeline, tests, configs, envs or this workflow still triggers it.
+    # (pr-validation is not a required status check, so a skipped run does not
+    # block merge; if it is ever made required, switch to the twin-workflow
+    # pattern so the check still reports success on docs-only PRs.)
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - 'CITATION.cff'
+      - 'LICENSE'
 
 jobs:
   clone:
