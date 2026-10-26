@@ -19,6 +19,12 @@ Deliberately NOT compared (non-deterministic or non-call QC; see
     float reductions, so these wobble run-to-run. The donor assignments
     (``donor_ids.tsv``) and everything downstream are byte-stable.
   * souporcell's ``ambient_rna.txt`` — likewise an ambient estimate, not a call.
+  * souporcell's ``cluster_genotypes.vcf`` — the inferred genotypes of souporcell's
+    genotype-free clusters. The per-cluster genotype values wobble run-to-run (same
+    non-associative parallel float reductions), but the cluster *assignments*
+    (``clusters.tsv``), their named annotation (``clusters_annotated.tsv``) and every
+    downstream donor assignment are stable and stay compared — the annotation step
+    re-matches clusters to the *known* donor genotypes, so it is robust to this wobble.
   * index files (``.bai``/``.csi``/``.tbi``/``.fai``).
 
 Exits non-zero (and lists them) if any golden file is missing from the fresh
@@ -39,6 +45,7 @@ IGNORE_NAMES = frozenset(
         "ambient_summary.csv",
         "ambient_stats.csv",
         "ambient_rna.txt",
+        "cluster_genotypes.vcf",
     }
 )
 # Whole subtrees excluded by relative-path prefix. The report/ tree is rendered

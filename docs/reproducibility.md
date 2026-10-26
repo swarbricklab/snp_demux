@@ -61,6 +61,19 @@ figures as approximate QC, not as reproducible quantities. (This is a property o
 vireo, not of the container split: it was equally non-reproducible in the original
 `Demuxafy.sif` workflow.)
 
+souporcell is **genotype-free** and its per-cluster inference is likewise not
+bit-reproducible (same non-associative parallel float reductions). This affects:
+
+- `souporcell/<capture>/ambient_rna.txt` — an ambient estimate, not a call;
+- `souporcell/<capture>/cluster_genotypes.vcf` — the inferred genotypes of the
+  clusters; the per-cluster genotype *values* wobble run to run.
+
+It does **not** affect the cluster *assignments* (`clusters.tsv`), their named
+annotation (`clusters_annotated.tsv`) or any downstream donor assignment: the
+annotation step re-matches clusters to the **known** donor genotypes, which is
+robust to this wobble. As with vireo, this is a property of souporcell, not of the
+container split.
+
 ## How the container split was verified
 
 The focused containers replaced the monolithic `Demuxafy.sif` with no change to
