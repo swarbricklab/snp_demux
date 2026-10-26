@@ -39,9 +39,11 @@ given the same frozen pileups + panel:
   `cell_assignment.tsv`, `all_cells_stats.tsv`, `all_singlets_stats.tsv`,
   `all_*_stats_full.tsv`).
 
-souporcell is deterministic because it seeds its RNG from a fixed default
-(`--seed` defaults to 4) and derives each restart's seed from it; given the same
-inputs and thread count it reproduces exactly.
+souporcell seeds its RNG from a fixed default (`--seed` defaults to 4) and derives
+each restart's seed from it, so its **clustering** is deterministic — `clusters.tsv`
+reproduces exactly given the same inputs and thread count. Its per-cluster
+**genotype inference** is not bit-stable, though (see below); that affects only
+`cluster_genotypes.vcf`, never the cluster assignments or anything downstream.
 
 ## What is **not** bit-reproducible
 
