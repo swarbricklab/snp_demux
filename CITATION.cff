@@ -44,6 +44,10 @@ authors:
 repository-code: "https://github.com/swarbricklab/snp_demux"
 url: "https://github.com/swarbricklab/snp_demux"
 license: MIT
+identifiers:
+  - type: doi
+    value: "10.5281/zenodo.23657537"
+    description: "Concept DOI (resolves to the latest version)"
 keywords:
   - single-cell
   - scRNA-seq

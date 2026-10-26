@@ -1,5 +1,6 @@
 # SNP Demux
 
+[![DOI](https://zenodo.org/badge/934015429.svg)](https://doi.org/10.5281/zenodo.23657537)
 [![CI](https://github.com/swarbricklab/snp_demux/actions/workflows/ci.yml/badge.svg)](https://github.com/swarbricklab/snp_demux/actions/workflows/ci.yml)
 [![Snakemake](https://img.shields.io/badge/snakemake-%E2%89%A57.32.4-brightgreen.svg)](https://snakemake.github.io)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
