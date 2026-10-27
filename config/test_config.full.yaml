@@ -6,8 +6,8 @@ deps:
   panel_root: ../demuxafy_testdata/full/fixture/panel
   default_platform: short
 outs:
-  root: test/results_full
-  logs: test/logs_full
+  root: .tests/integration/results_full
+  logs: .tests/integration/logs_full
 params:
   cellsnp_lite: {minMAF: 0.1, minCOUNT: 20}
   demuxlet: {coeff: 1.0, offset: 0.05}

@@ -10,8 +10,8 @@
 #     config/test_config.yaml (NCI-resident; cached in the shared prefix)
 #
 # Usage:
-#   ./run_test.sh            # run all methods into test/results
-#   ./run_test.sh --check    # run, then content-compare test/results to test/golden
+#   ./run_test.sh            # run all methods into .tests/integration/results
+#   ./run_test.sh --check    # run, then content-compare .tests/integration/results to .tests/integration/golden
 #   ./run_test.sh -n         # dry run
 #   CORES=8 ./run_test.sh    # more local cores
 set -euo pipefail
@@ -54,6 +54,6 @@ snakemake \
     ${sm_args[@]+"${sm_args[@]}"}
 
 if [[ "$check" == true ]]; then
-    echo "=== comparing test/results to the golden (test/golden) ==="
-    python3 "$HERE/test/compare_golden.py" "$HERE/test/golden" "$HERE/test/results"
+    echo "=== comparing .tests/integration/results to the golden (.tests/integration/golden) ==="
+    python3 "$HERE/.tests/integration/compare_golden.py" "$HERE/.tests/integration/golden" "$HERE/.tests/integration/results"
 fi

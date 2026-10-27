@@ -15,7 +15,7 @@ Rplots.pdf
 *.pyc
 stan_consensus.pickle
 .dt/
-/test/results_full/
-/test/results_full_neavin/
-/test/logs_full/
-/test/logs_full_neavin/
+/.tests/integration/results_full/
+/.tests/integration/results_full_neavin/
+/.tests/integration/logs_full/
+/.tests/integration/logs_full_neavin/
