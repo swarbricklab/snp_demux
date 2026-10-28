@@ -1,2 +1,2 @@
 capture_id,pool_id,barcodes,bam,cells_captured,possible_live_cells
-onek1k,onek1k,test/data/barcodes.tsv.gz,,1400,1400
+onek1k,onek1k,.tests/integration/data/barcodes.tsv.gz,,1400,1400

@@ -26,6 +26,9 @@ Deliberately NOT compared (non-deterministic or non-call QC; see
     downstream donor assignment are stable and stay compared — the annotation step
     re-matches clusters to the *known* donor genotypes, so it is robust to this wobble.
   * index files (``.bai``/``.csi``/``.tbi``/``.fai``).
+  * the aggregate ``all.done`` sentinels — they record the configured output paths
+    as text, so they differ by design when the output dir is relocated; the outputs
+    they list are themselves compared.
 
 Exits non-zero (and lists them) if any golden file is missing from the fresh
 output or differs in content.
@@ -38,7 +41,11 @@ import sys
 from pathlib import Path
 
 IGNORE_SUFFIXES = (".bai", ".csi", ".tbi", ".fai", ".png", ".html", ".pdf")
-# Non-deterministic QC outputs excluded by basename (see module docstring).
+# Excluded by basename. Most are non-deterministic QC (see module docstring); the
+# aggregate ``all.done`` sentinels are different — they record the configured output
+# paths *as text*, so they differ by design when the test output dir is relocated
+# (e.g. test/ -> .tests/integration/). The outputs each sentinel lists are themselves
+# compared, so skipping the sentinel loses no coverage.
 IGNORE_NAMES = frozenset(
     {
         "prop_ambient.tsv",
@@ -46,6 +53,7 @@ IGNORE_NAMES = frozenset(
         "ambient_stats.csv",
         "ambient_rna.txt",
         "cluster_genotypes.vcf",
+        "all.done",
     }
 )
 # Whole subtrees excluded by relative-path prefix. The report/ tree is rendered

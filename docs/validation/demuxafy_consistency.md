@@ -5,7 +5,7 @@ questions:
 
 | | What it proves | Where |
 |---|---|---|
-| **CI fixture + golden** (`config/test_config.yaml`, DVC-tracked `test/`) | The pipeline is **deterministic / reproducible** — a fresh run reproduces the frozen output byte-for-byte (content). Fast, runs in CI. | `run_test.sh --check` |
+| **CI fixture + golden** (`config/test_config.yaml`, DVC-tracked `.tests/integration/`) | The pipeline is **deterministic / reproducible** — a fresh run reproduces the frozen output byte-for-byte (content). Fast, runs in CI. | `run_test.sh --check` |
 | **This document** | The pipeline is **correct** — it reproduces the *published* results of the reference implementation (Demuxafy) on that tool's own canonical dataset. Heavy, one-off, not CI. | below |
 
 The CI fixture is a 10%-downsampled subset chosen for speed; it cannot be compared
@@ -142,7 +142,7 @@ snakemake --snakefile workflow/Snakefile --configfile config/test_config.full.ya
   --workflow-profile profiles/workflow --use-singularity \
   --singularity-prefix /g/data/a56/software/singularity/images --cores 48
 #    Neavin-matched vireo branch only:
-snakemake ... --configfile config/test_config.full_neavin.yaml test/results_full_neavin/vireo/all.done
+snakemake ... --configfile config/test_config.full_neavin.yaml .tests/integration/results_full_neavin/vireo/all.done
 ```
 
 The full-depth inputs are not DVC-tracked (39 GB, external); the configs above are

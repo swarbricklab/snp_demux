@@ -2,13 +2,13 @@
 deps:
   samples: config/samples.csv
   captures: config/captures.csv
-  vcf: test/data/imputation/imputed_filtered.hg38.vcf.gz
-  pileup_root: test/data/pileup
+  vcf: .tests/integration/data/imputation/imputed_filtered.hg38.vcf.gz
+  pileup_root: .tests/integration/data/pileup
   default_platform: short
 
 outs:
-  root: test/results
-  logs: test/logs
+  root: .tests/integration/results
+  logs: .tests/integration/logs
 
 params:
   cellsnp_lite:
