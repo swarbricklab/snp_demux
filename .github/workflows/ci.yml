@@ -29,6 +29,7 @@ jobs:
             snakefmt=2.1.0
             go-shfmt=3.14.1
             pandas
+            pytest
             jsonschema
           condarc: |
             channels:
@@ -49,3 +50,6 @@ jobs:
 
       - name: snakefmt check
         run: snakefmt --check workflow/
+
+      - name: Unit tests (workflow/scripts/*.py)
+        run: pytest -q .tests/unit
