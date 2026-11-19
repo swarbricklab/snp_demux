@@ -23,10 +23,29 @@ Per-capture columns (one row):
     sample_props
         "sample:p;sample:p;..." in samples.csv order
 
+Expected doublet rates (all LOWER BOUNDS: genotype methods miss some
+cross-donor doublets, and same-sample aggregates from incomplete dissociation
+are always within-donor, so neither is counted here):
+    rate_per_1k          loading-curve doublet rate per 1,000 cells for the
+                         capture's chip (params.doublet.rate_per_1k)
+    d_total              f_x_hard / (1 - sum_p_sq): expected total doublet rate
+    d_total_sd           binomial SE of f_x_hard, propagated:
+                         sqrt(f_x_hard * (1 - f_x_hard) / n_barcodes) / (1 - sum_p_sq)
+                         (sum_p_sq treated as fixed)
+    d_within             d_total - f_x_hard: expected within-donor (genotype-
+                         invisible) doublet rate
+    d_loading            n_barcodes / 1000 * rate_per_1k: what the chip's
+                         loading curve predicts
+    d_ratio              d_total / d_loading. QC: well above 1 suggests
+                         overloading, clumping or a demux problem
+    d_fallback           why d_total/d_within are NA, else empty:
+                         single_sample | no_singlets | one_sample_only
+
 Rule `combine_doublet_summary` concatenates the per-capture files.
 
 Full column definitions: docs/data_dictionary.md (keep the two in step).
 """
+import math
 import sys
 
 import pandas as pd
@@ -43,6 +62,13 @@ COLUMNS = [
     "n_samples",
     "same_donor_pair_prob",
     "sample_props",
+    "rate_per_1k",
+    "d_total",
+    "d_total_sd",
+    "d_within",
+    "d_loading",
+    "d_ratio",
+    "d_fallback",
 ]
 
 NA_VALUES = ["NA", ""]
@@ -110,6 +136,44 @@ def summarise(posteriors, samples, capture_id):
     }
 
 
+def expected_rates(row, rate_per_1k):
+    """Expected doublet rates from a summarise() row (see module docstring)."""
+    nan = float("nan")
+    n = row["n_barcodes"]
+    f_x = row["f_x_hard"]
+    sum_p_sq = row["sum_p_sq"]
+    d_loading = n / 1000 * rate_per_1k
+
+    if row["n_samples"] < 2:
+        fallback = "single_sample"
+    elif math.isnan(sum_p_sq):
+        fallback = "no_singlets"
+    elif 1 - sum_p_sq <= 0:
+        # every singlet came from one sample, so no doublet is expected to be
+        # cross-donor and f_x carries no information about d_total
+        fallback = "one_sample_only"
+    else:
+        fallback = ""
+
+    if fallback or n == 0:
+        d_total = d_total_sd = d_within = nan
+    else:
+        cross = 1 - sum_p_sq
+        d_total = f_x / cross
+        d_total_sd = math.sqrt(f_x * (1 - f_x) / n) / cross
+        d_within = d_total - f_x
+
+    return {
+        "rate_per_1k": rate_per_1k,
+        "d_total": d_total,
+        "d_total_sd": d_total_sd,
+        "d_within": d_within,
+        "d_loading": d_loading,
+        "d_ratio": _ratio(d_total, d_loading),
+        "d_fallback": fallback,
+    }
+
+
 def to_frame(row, columns=COLUMNS):
     df = pd.DataFrame([row])[columns]
     return df.round(DIGITS)
@@ -144,6 +208,7 @@ def main_capture(sm):
         read_str_table(sm.input.assignments, sep="\t"),
     )
     row = summarise(posteriors, samples, capture_id)
+    row.update(expected_rates(row, float(sm.params.rate_per_1k)))
     print(row, file=sys.stderr)
     write_csv(to_frame(row), sm.output.csv)
 
