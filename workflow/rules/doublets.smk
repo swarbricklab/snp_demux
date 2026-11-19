@@ -21,8 +21,9 @@ rule doublet_posteriors:
         "../scripts/doublet_posteriors.py"
 
 
-# One-row per-capture summary: cross-donor doublet fraction (hard and posterior)
-# and every declared sample's share of singlets (sum_p_sq).
+# One-row per-capture summary: cross-donor doublet fraction (hard and posterior),
+# every declared sample's share of singlets (sum_p_sq), and the expected total /
+# within-donor doublet rates derived from them.
 rule doublet_summary:
     input:
         samples=config["deps"]["samples"],
@@ -33,6 +34,8 @@ rule doublet_summary:
         logs / "assignment/{capture_id}/doublet_summary.log",
     container:
         config["containers"]["vireosnp"]
+    params:
+        rate_per_1k=get_doublet_rate_per_1k,
     script:
         "../scripts/doublet_summary.py"
 
