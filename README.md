@@ -300,10 +300,12 @@ After `snakemake` finishes, `run_mod.sh` does two clean-up steps:
     cell_assignment.tsv
     all_cells_stats.tsv             cells per sample, including doublet and unassigned
     all_singlets_stats.tsv          cells per sample, singlets only
+    doublet_summary.csv             one row: cross-donor doublet fraction + sample proportions
   assignment/report/
     combined_results.tsv            all captures, stamped with capture_id
     all_cells_stats_full.tsv
     all_singlets_stats_full.tsv
+    doublet_summary.csv             all captures' doublet_summary.csv rows
 ```
 
 `sample_barcode_assignments.tsv` is the main result.
@@ -343,6 +345,14 @@ exactly when `Souporcell_doublet_posterior >= 0.9`.
 
 souporcell's values reproduce exactly: the rule starts every cluster from the
 donor genotypes (`--known_genotypes`), which draws no random numbers.
+
+`doublet_summary.csv` records, per capture, the observed cross-donor doublet
+fraction (`f_x_hard = n_doublet_hard / n_barcodes`, and `f_x_posterior` from the
+summed vireo posteriors) together with every declared sample's share of the
+consensus singlets, `p_i` (`sample_props`, as `sample:p;...`, passengers
+included), and `sum_p_sq = Σp_i²`. Under random pairing a fraction
+`1 − Σp_i²` of doublets is cross-donor, which is what turns `f_x` into an
+expected total doublet rate. A single-sample capture has `sum_p_sq = 1`.
 
 > Note on reading these files: sample ids are frequently bare digits, so a TSV
 > reader left to infer types will read `sample_id` as numeric for some captures
