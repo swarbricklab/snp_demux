@@ -4,7 +4,12 @@
       - modules/snp_demux/run_mod.sh
       - modules/snp_demux/workflow
       - config/snp_demux
-      - data/sc/cellranger
+      # Per-cell pileups from sc_pileup (deps.pileup_root): cellsnp/, popscle/,
+      # souporcell/. snp_demux no longer reads cellranger BAMs.
+      - data/snp/pileup
+      # Per-pool informative donor-genotype panels (deps.panel_root).
+      - data/snp/vcf/panel
+      # Reference (imputed) donor VCF the panels are built from.
       - data/snp/imputation
     outs:
       - data/snp/demux
