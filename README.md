@@ -166,6 +166,7 @@ See [`config/template_config.yaml`](config/template_config.yaml) for a starting 
 | `params.cellsnp_lite` | Legacy pileup thresholds; the pileup is now done upstream in sc_pileup, so these are unused here |
 | `params.demuxlet` | `coeff` and `offset` for the demuxlet doublet prior |
 | `params.demuxafy` | Correlation limits for matching souporcell and freemuxlet clusters to donors, and the agreement threshold for the consensus |
+| `params.imputation` | Optional. Demux-side imputation-quality cut on the donor panel: `min_r2` (default `0.8`; imputed sites below it are dropped, genotyped sites always kept; `0` disables), `min_maf` (default `0`, off), and `sweep_r2` (thresholds for the `r2_sweep` benchmark). See [Imputation R² threshold](#imputation-r²-threshold) |
 | `ref.souporcell.genome_fasta` | Reference genome FASTA, matching the transcriptome used by `cellranger` |
 | `containers.*` | Per-tool container images (replaces the old monolithic Demuxafy.sif): `bcftools`, `popscle` (demuxlet/freemuxlet), `vireo` (demux CLI), `vireosnp` (souporcell-genotyping + cell counts), `souporcell`, `r` (all R/Rmd rules), `demuxafy` (consensus/summary/assign scripts). See `config/template_config.yaml` and the recipes under [`containers/`](containers) |
 
@@ -282,6 +283,38 @@ After `snakemake` finishes, `run_mod.sh` does two clean-up steps:
 
 1. Deletes the empty placeholder PNGs that `relabel_vireo` creates to trigger downstream rules when a capture has no unknown genotypes.
 2. Appends the per-rule logs to `<outs.logs>.tar.gz` and removes the directory. This workflow produces tens of thousands of small log files, which is a real problem on a shared filesystem with an inode quota. The archive is appended to, not recreated, so an incremental run keeps the logs of every capture run previously.
+
+### Imputation R² threshold
+
+Upstream imputation is permissive (it keeps sites down to R² ≥ 0.3 and carries
+`INFO/R2` through). The threshold that suits demultiplexing is set here,
+because only here can its effect on the calls be measured. Before any demux
+tool sees the panel, `filter_panel` drops **imputed** sites with
+`INFO/R2 < params.imputation.min_r2`.
+
+- The default, `0.8`, favours precision over recall: a wrong genotype at a
+  discriminating site can mis-assign a cell.
+- Directly genotyped sites are always kept (trust measured sites; add only
+  high-confidence imputed ones). A site counts as imputed if Minimac's
+  `IMPUTED` flag is set, or if the header declares only `TYPED` and the site
+  lacks it. With neither flag declared, every site is treated as imputed.
+- The cut is non-destructive: the upstream panel is untouched, so trying
+  another threshold is a re-filter, not a re-imputation.
+
+R² runs systematically lower for under-represented ancestries, so a strict cut
+can thin some donors' discriminating sites more than others'. To see the
+spread, run the opt-in benchmark:
+
+```bash
+snakemake r2_sweep --workflow-profile profiles/workflow --configfile <config> ...
+```
+
+It writes `<outs.root>/benchmark/r2_sweep.tsv`: for each capture, threshold
+(`params.imputation.sweep_r2`) and donor, the number of sites kept, how many of
+those are imputed, and how many discriminate that donor from at least one
+other pool donor. To see how assignment confidence moves with the threshold,
+run the workflow at two `min_r2` values into separate `outs.root`s and compare
+`assignment/`.
 
 ## Outputs
 

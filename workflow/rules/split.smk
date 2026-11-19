@@ -6,9 +6,10 @@
 rule known_genotypes:
     input:
         # Per-pool informative panel from sc_pileup (donor GTs, already pool-subset
-        # + informative-filtered). The --samples step below is now a consistency
+        # + informative-filtered), after the demux-side R2/MAF cut
+        # (rules/panel.smk). The --samples step below is now a consistency
         # guard / donor-ordering enforcement rather than the primary subset.
-        vcf=panel_path("informative.vcf.gz"),
+        vcf=rules.filter_panel.output.vcf,
     output:
         vcf=out_dir / "souporcell/annotation/{capture_id}/known_genotypes.vcf",
     log:
