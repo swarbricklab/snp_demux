@@ -300,6 +300,7 @@ After `snakemake` finishes, `run_mod.sh` does two clean-up steps:
     cell_assignment.tsv
     all_cells_stats.tsv             cells per sample, including doublet and unassigned
     all_singlets_stats.tsv          cells per sample, singlets only
+    doublet_posteriors.csv          one row per barcode: consensus call + vireo doublet posteriors
   assignment/report/
     combined_results.tsv            all captures, stamped with capture_id
     all_cells_stats_full.tsv
@@ -307,6 +308,15 @@ After `snakemake` finishes, `run_mod.sh` does two clean-up steps:
 ```
 
 `sample_barcode_assignments.tsv` is the main result.
+
+`doublet_posteriors.csv` feeds expression-based doublet detection downstream
+(e.g. scDblFinder `knownDoublets`). Columns: `capture_id, barcode,
+consensus_status, consensus_assignment, vireo_prob_doublet, vireo_prob_max,
+vireo_best_singlet`. `consensus_*` come from the consensus in force
+(AtLeastHalfSinglet); `vireo_best_singlet` is translated to this capture's
+`sample_id`. Hard doublet calls undercount cross-donor doublets (low-UMI
+barcodes, donor pairs with few informative SNPs), which is why the posteriors
+are exported alongside them.
 
 > Note on reading these files: sample ids are frequently bare digits, so a TSV
 > reader left to infer types will read `sample_id` as numeric for some captures
