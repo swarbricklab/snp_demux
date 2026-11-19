@@ -47,6 +47,51 @@ if (!is.null(log_file) && nzchar(log_file)) {
 }
 
 # -------------------------------------------------
+# Helpers
+
+# Look up donor IDs in relabel_map (defined below), dropping the names that
+# indexing a named vector attaches.
+relabel_donors <- function(x) unname(relabel_map[x])
+
+# Copy a vireo TSV (plain or gzipped) to out_path, rewriting only its header.
+# prob_doublet, prob_singlet and prop_ambient carry donor IDs in their column
+# names but not in their bodies, so the body is streamed through unchanged.
+# relabel_fields maps the split header fields to the new ones.
+relabel_header <- function(in_path, out_path, relabel_fields, gzip = FALSE) {
+    header_line <- readLines(in_path, n = 1)
+    header_fields <- strsplit(header_line, "\t")[[1]]
+    new_header <- paste(relabel_fields(header_fields), collapse = "\t")
+
+    input_con <- file(in_path, open = "rt")
+    output_con <- if (gzip) gzfile(out_path, open = "wt") else file(out_path, open = "wt")
+    on.exit({
+        close(input_con)
+        close(output_con)
+    }, add = TRUE)
+    writeLines(new_header, output_con)
+    # Stream in chunks rather than line by line: these matrices have one row
+    # per barcode, and per-line readLines() is slow on large captures.
+    while (length(chunk <- readLines(input_con, n = 10000)) > 0) {
+        writeLines(chunk[!startsWith(chunk, header_line)], output_con)  # drop original header
+    }
+    invisible(out_path)
+}
+
+# Render page 1 of a vireo PDF figure as PNG. vireo only draws some figures
+# (e.g. the input-genotype distance plot needs unknown donors), and the vireo
+# rule touches empty placeholders for the rest; those become empty PNGs.
+convert_pdf_to_png <- function(src, dst) {
+    if (file.size(src) == 0) {
+        message("Skipping empty PDF: ", src)
+        file.create(dst)
+        return(invisible(dst))
+    }
+    message("Converting ", src, " to ", dst)
+    pdf_convert(pdf = src, format = "png", pages = 1, dpi = 300, filenames = dst)
+    invisible(dst)
+}
+
+# -------------------------------------------------
 
 # Create a map between the donor IDs in the Vireo results and the actual donor IDs from the samples CSV file
 # Use this map to relabel the Vireo results and save both the map and the relabelled outputs
@@ -85,17 +130,8 @@ if (!any(str_starts(vireo_donors, "donor"))) {
     file.copy(prob_doub_tsv, prob_doublet_out)
     file.copy(prob_sing_tsv, prob_singlet_out)
     file.copy(ambient_tsv, ambient_out)
-    # Convert PDFs to PNGs (handle empty placeholders)
-    for (pair in list(
-        list(src = est_dist_pdf, dst = est_dist_png),
-        list(src = input_dist_pdf, dst = input_dist_png)
-    )) {
-        if (file.size(pair$src) == 0) {
-            file.create(pair$dst)
-        } else {
-            pdf_convert(pair$src, format = "png", pages = 1, dpi = 300, filenames = pair$dst)
-        }
-    }
+    convert_pdf_to_png(est_dist_pdf, est_dist_png)
+    convert_pdf_to_png(input_dist_pdf, input_dist_png)
     file.copy(summary_file, summary_out)
     # Exit the script early
     quit("no", status = 0)
@@ -161,110 +197,34 @@ write_tsv(vireo_relabelled, vireo_out)
 
 # -------------------------------------------------
 
-# Relabel the column names in the doublet probabilities TSV file, and save to a new file
+# Relabel the donor IDs in the column names of the per-cell probability
+# matrices. The bodies are numeric and are copied unchanged.
 
-# Read and relabel only the header of the doublet probabilities TSV file
-message("Reading header from ", prob_doub_tsv)
-header_line <- readLines(prob_doub_tsv, n = 1)
-header_fields <- strsplit(header_line, "\t")[[1]]
-
-# Relabel doublet columns (skip "cell")
-columns <- sapply(header_fields[-1], function(x) {
-    donors <- strsplit(x, ",")[[1]]
-    paste(relabel_map[donors[1]], relabel_map[donors[2]], sep = ",")
+# prob_doublet: "cell" + one column per donor pair, "<donorA>,<donorB>".
+message("Saving relabelled doublet probabilities to ", prob_doublet_out)
+relabel_header(prob_doub_tsv, prob_doublet_out, gzip = TRUE, function(fields) {
+    pairs <- strsplit(fields[-1], ",")
+    c("cell", vapply(pairs, function(d) paste(relabel_donors(d[1:2]), collapse = ","), character(1)))
 })
 
-new_header <-  paste(c("cell", columns), collapse = "\t")
+# prob_singlet: "cell" + one column per donor.
+message("Saving relabelled singlet probabilities to ", prob_singlet_out)
+relabel_header(prob_sing_tsv, prob_singlet_out, gzip = TRUE, function(fields) {
+    c("cell", relabel_donors(fields[-1]))
+})
 
-# Write the relabelled header and the rest of the file to the output (gzipped)
-message("Saving relabelled doublet probabilities to ", prob_doublet_out)
-input_con <- file(prob_doub_tsv, open = "rt")
-output_con <- gzfile(prob_doublet_out, open = "wt")
-writeLines(new_header, output_con)
-while (length(line <- readLines(input_con, n = 1)) > 0) {
-    if (startsWith(line, header_line)) next  # skip original header
-    writeLines(line, output_con)
-}
-close(input_con)
-close(output_con)
-
-# -------------------------------------------------
-
-# Relabel donor column names in the singlet probabilities TSV file, and save to a new file
-
-# Relabel donor column names in the singlet probabilities TSV file, and save to a new file
-
-message("Relabelling singlet probabilities column names.")
-header_line <- readLines(prob_sing_tsv, n = 1)
-header_fields <- strsplit(header_line, "\t")[[1]]
-
-# Relabel donor columns (skip "cell")
-columns <- sapply(header_fields[-1], function(x) relabel_map[x])
-
-new_header <- paste(c("cell", columns), collapse = "\t")
-
-input_con <- file(prob_sing_tsv, open = "rt")
-output_con <- gzfile(prob_singlet_out, open = "wt")
-writeLines(new_header, output_con)
-while (length(line <- readLines(input_con, n = 1)) > 0) {
-    if (startsWith(line, header_line)) next  # skip original header
-    writeLines(line, output_con)
-}
-close(input_con)
-close(output_con)
-
-# -------------------------------------------------
-
-# Relabel column names in the ambient proportions TSV file, and save to a new file
-
-message("Relabelling ambient proportions column names.")
-header_line <- readLines(ambient_tsv, n = 1)
-header_fields <- strsplit(header_line, "\t")[[1]]
-
-# Relabel donor columns (skip "cell" and "logLik_ratio")
-columns <- c(
-    header_fields[1],  # "cell"
-    sapply(header_fields[-c(1, length(header_fields))], function(x) relabel_map[x]),
-    header_fields[length(header_fields)]  # "logLik_ratio"
-)
-
-new_header <- paste(columns, collapse = "\t")
-
-input_con <- file(ambient_tsv, open = "rt")
-output_con <- file(ambient_out, open = "wt")
-writeLines(new_header, output_con)
-while (length(line <- readLines(input_con, n = 1)) > 0) {
-    if (startsWith(line, header_line)) next  # skip original header
-    writeLines(line, output_con)
-}
-close(input_con)
-close(output_con)
+# prop_ambient: "cell", one column per donor, then "logLik_ratio".
+message("Saving relabelled ambient proportions to ", ambient_out)
+relabel_header(ambient_tsv, ambient_out, function(fields) {
+    n <- length(fields)
+    c(fields[1], relabel_donors(fields[-c(1, n)]), fields[n])
+})
 
 # -------------------------------------------
 
-# Convert PDF files to PNG
 message("Converting PDF figures to PNG format.")
-images <- setNames(
-    c(input_dist_png, est_dist_png),
-    c(input_dist_pdf, est_dist_pdf)
-)
-for (source_image in names(images)) {
-    target_image <- images[[source_image]]
-    # Skip empty placeholder PDFs (vireo touches these when not produced)
-    if (file.size(source_image) == 0) {
-        message("Skipping empty PDF: ", source_image)
-        file.create(target_image)
-        next
-    }
-    message("Converting ", source_image, " to ", target_image)
-    pdf_convert(
-        pdf      = source_image,
-        format   = "png",
-        pages    = 1,
-        dpi      = 300,
-        filenames = target_image
-    )
-}
+convert_pdf_to_png(input_dist_pdf, input_dist_png)
+convert_pdf_to_png(est_dist_pdf, est_dist_png)
 
 
 # -------------------------------------------
