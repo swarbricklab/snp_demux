@@ -28,10 +28,15 @@ rule souporcell_cluster:
         restarts=config["params"]["souporcell"]["restarts"],
         min_ref=config["params"]["souporcell"]["min_ref"],
         min_alt=config["params"]["souporcell"]["min_alt"],
+    # The profile reserves 16 cores for this step; pass them to the binary too
+    # (souporcell defaults to --threads 1, so the reservation was idle).
+    resources:
+        threads=16,
     shell:
         """
         names=$(echo {params.donors} | tr ',' ' ')
         /opt/souporcell/souporcell/target/release/souporcell -k {params.k} -a {input.alt} -r {input.ref} -b {input.barcodes} \
+            --threads {resources.threads} \
             --restarts {params.restarts} --min_ref {params.min_ref} --min_alt {params.min_alt} \
             --known_genotypes {input.variants} --known_genotypes_sample_names $names \
             >{output.clusters_tmp} 2>{log}
