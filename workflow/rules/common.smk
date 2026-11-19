@@ -116,3 +116,25 @@ def get_pool_for_capture(wildcards):
     if pool is None or (isinstance(pool, float) and pd.isna(pool)):
         return ""
     return str(pool)
+
+
+# Concordance gate on the by-elimination missing-donor assignment
+# (rules/elimination_gate.smk). action: flag (warn + record) | withhold (also
+# report that donor's cells as unassigned in cell_assignment.tsv).
+_ELIMINATION_GATE_DEFAULTS = {
+    "min_concordance": 0.8,
+    "max_drop": 0.1,
+    "min_sites": 100,
+    "action": "flag",
+}
+
+
+def elimination_gate_param(key):
+    """
+    Return params.elimination_gate.<key>, falling back to _ELIMINATION_GATE_DEFAULTS.
+    """
+    return (
+        config["params"]
+        .get("elimination_gate", {})
+        .get(key, _ELIMINATION_GATE_DEFAULTS[key])
+    )

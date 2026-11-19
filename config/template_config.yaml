@@ -43,6 +43,16 @@ params:
     min_ref: 10     # souporcell default
     min_alt: 10     # souporcell default
     ploidy: 2       # souporcell default
+  # Gate on the by-elimination assignment of a pool donor with no reference
+  # genotype: its vireo-learned genotype must agree with the souporcell cluster
+  # it was given (>= min_concordance, and within max_drop of what the pool's
+  # known donors achieve). action: flag (warn + record) | withhold (also report
+  # its cells as unassigned in cell_assignment.tsv).
+  elimination_gate:
+    min_concordance: 0.8
+    max_drop: 0.1
+    min_sites: 100
+    action: flag
 
 ref:
   souporcell:
