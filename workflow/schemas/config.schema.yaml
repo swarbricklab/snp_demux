@@ -70,6 +70,20 @@ properties:
           min_alt: {type: integer}
           ploidy: {type: integer}
         required: [restarts, min_ref, min_alt]
+      doublet:
+        type: object
+        description: >-
+          Optional. Expected-doublet-rate inputs for doublet_summary.csv.
+          Defaults: rate_per_1k {standard: 0.008, HT: 0.004}, default_chip standard.
+        properties:
+          rate_per_1k:
+            type: object
+            description: Doublet rate per 1,000 cells loaded, keyed by chip (case-insensitive).
+            additionalProperties: {type: number, minimum: 0}
+          default_chip:
+            type: string
+            description: Chip used for captures with no `chip` column value.
+        additionalProperties: false
     required: [demuxlet, demuxafy, souporcell]
   ref:
     type: object
