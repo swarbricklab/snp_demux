@@ -365,3 +365,22 @@ souporcell match at default settings, and vireo matches once cellSNP thresholds 
 matched to theirs. The comparison tables, methodology, and the one-off full-depth run
 configs (`config/test_config.full{,_neavin}.yaml`) are in
 [`docs/validation/demuxafy_consistency.md`](docs/validation/demuxafy_consistency.md).
+
+### Missing-genotype scenarios
+
+The golden fixture has a reference genotype for every donor, so on its own it
+never exercises the by-elimination path. Two derived scenarios do. Each one
+drops donors from the OneK1K panel (by default the donors with the most golden
+singlets; override with `MISSING_DONORS=a,b`):
+
+```bash
+./run_test.sh --scenario missing1   # one donor ungenotyped: must complete and recover it
+./run_test.sh --scenario missing2   # two donors ungenotyped: must fail with the explicit error
+```
+
+`missing1` compares `cell_assignment.tsv` with the golden
+(`.tests/integration/compare_missing.py`). The dropped donor's recall must be
+≥ `MIN_RECALL` and overall agreement ≥ `MIN_AGREEMENT`. One limitation:
+souporcell's `--known_genotypes` comes from sc_pileup's `variants.vcf`, which
+still holds every donor, so these scenarios test the vireo and annotation sides
+of the by-elimination path, not souporcell's own clustering without a genotype.
