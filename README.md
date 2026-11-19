@@ -166,6 +166,7 @@ See [`config/template_config.yaml`](config/template_config.yaml) for a starting 
 | `params.cellsnp_lite` | Legacy pileup thresholds; the pileup is now done upstream in sc_pileup, so these are unused here |
 | `params.demuxlet` | `coeff` and `offset` for the demuxlet doublet prior |
 | `params.demuxafy` | Correlation limits for matching souporcell and freemuxlet clusters to donors, and the agreement threshold for the consensus |
+| `params.doublet` | Optional. `rate_per_1k` (doublet rate per 1,000 cells loaded, keyed by chip; default `standard: 0.008`, `HT: 0.004`) and `default_chip` (default `standard`). Used for `d_loading` in `doublet_summary.csv` |
 | `ref.souporcell.genome_fasta` | Reference genome FASTA, matching the transcriptome used by `cellranger` |
 | `containers.*` | Per-tool container images (replaces the old monolithic Demuxafy.sif): `bcftools`, `popscle` (demuxlet/freemuxlet), `vireo` (demux CLI), `vireosnp` (souporcell-genotyping + cell counts), `souporcell`, `r` (all R/Rmd rules), `demuxafy` (consensus/summary/assign scripts). See `config/template_config.yaml` and the recipes under [`containers/`](containers) |
 
@@ -191,6 +192,7 @@ Mixed_1,Mixed_1,path/to/barcodes.tsv.gz,path/to/possorted_genome_bam.bam,15000,1
 `pool_id` is optional and is used only to group captures in the reports.
 Leave it blank if the captures are not organised into named pools.
 `cells_captured` and `possible_live_cells` are carried for provenance and are not read by the workflow.
+An optional `chip` column (e.g. `standard`, `HT`) selects the capture's loading-curve doublet rate from `params.doublet.rate_per_1k`; blank uses `params.doublet.default_chip`.
 
 `samples.csv` — one row per sample per capture:
 
@@ -351,6 +353,22 @@ rate (`doublet_rate_cross_donor`, `doublet_rate_cross_donor_posterior`) and
 every declared sample's share of the consensus singlets (`sample_props`,
 `same_donor_pair_prob`): the inputs for an expected total doublet rate. Every column is defined in the
 [data dictionary](docs/data_dictionary.md#doublet_summarycsv).
+
+The same file carries the expected rates that `mkobj` passes to scDblFinder as
+`dbr` / `dbr.sd`:
+
+| column | definition |
+| --- | --- |
+| `d_total` | `f_x_hard / (1 − sum_p_sq)`, expected total doublet rate |
+| `d_total_sd` | binomial SE of `f_x_hard` scaled by `1 / (1 − sum_p_sq)` (`sum_p_sq` treated as fixed) |
+| `d_within` | `d_total − f_x_hard`, expected within-donor (genotype-invisible) rate |
+| `d_loading` | `n_barcodes / 1000 × rate_per_1k`, what the chip's loading curve predicts |
+| `d_ratio` | `d_total / d_loading`; well above 1 flags overloading, clumping or a demux problem |
+| `d_fallback` | why `d_total`/`d_within` are NA: `single_sample`, `no_singlets`, or `one_sample_only` (every singlet from one sample) |
+
+Both `d_total` and `d_within` are **lower bounds**: genotype methods miss some
+cross-donor doublets, and same-sample aggregates from incomplete dissociation
+are always within-donor, so neither shows up in `f_x`.
 
 > Note on reading these files: sample ids are frequently bare digits, so a TSV
 > reader left to infer types will read `sample_id` as numeric for some captures

@@ -116,3 +116,36 @@ def get_pool_for_capture(wildcards):
     if pool is None or (isinstance(pool, float) and pd.isna(pool)):
         return ""
     return str(pool)
+
+
+# Doublet rate per 1,000 cells loaded, by chip, from the 10x loading curves.
+# Overridable via params.doublet.rate_per_1k; a capture picks its chip from an
+# optional `chip` column in captures.csv (matched case-insensitively).
+_DOUBLET_RATE_DEFAULTS = {"standard": 0.008, "ht": 0.004}
+
+
+def get_doublet_rate_per_1k(wildcards):
+    """
+    Return the expected doublet rate per 1,000 cells for wildcards.capture_id's chip.
+    """
+    cfg = config["params"].get("doublet", {})
+    rates = {
+        str(k).lower(): float(v)
+        for k, v in cfg.get("rate_per_1k", _DOUBLET_RATE_DEFAULTS).items()
+    }
+    chip = str(cfg.get("default_chip", "standard"))
+    if "chip" in captures.columns:
+        v = captures.loc[wildcards.capture_id, "chip"]
+        if isinstance(v, str) and v and v.lower() != "nan":
+            chip = v
+    if chip.lower() not in rates:
+        raise ValueError(
+            "capture "
+            + wildcards.capture_id
+            + ": chip '"
+            + chip
+            + "' has no params.doublet.rate_per_1k entry (known: "
+            + ", ".join(sorted(rates))
+            + ")"
+        )
+    return rates[chip.lower()]

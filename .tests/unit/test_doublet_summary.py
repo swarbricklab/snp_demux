@@ -67,10 +67,11 @@ def test_assignments_outside_declared_samples_ignored_for_props():
 
 def test_csv_columns_and_combine(tmp_path):
     a = ["S1", "S2"]
-    rows = [
-        ds.to_frame(ds.summarise(_posteriors(a, ["singlet"] * 2, [0, 0]), a, cid))
-        for cid in ("007", "cap2")
-    ]
+    rows = []
+    for cid in ("007", "cap2"):
+        row = ds.summarise(_posteriors(a, ["singlet"] * 2, [0, 0]), a, cid)
+        row.update(ds.expected_rates(row, 0.008))
+        rows.append(ds.to_frame(row))
     paths = []
     for i, df in enumerate(rows):
         paths.append(tmp_path / f"{i}.csv")
@@ -111,3 +112,64 @@ def test_read_calls_joins_consensus_and_vireo_posterior():
     assert calls["consensus_assignment"].tolist()[0] == "007"
     assert calls["vireo_prob_doublet"].tolist()[:2] == ["1.2e-05", "0.97"]
     assert pd.isna(calls["vireo_prob_doublet"].tolist()[2])
+
+
+def _equal_four_donor_capture(f_x=0.06, n=10000):
+    """4 samples in equal proportion; n barcodes, a fraction f_x hard doublets."""
+    n_doublet = round(n * f_x)
+    per_sample = (n - n_doublet) // 4
+    a = [s for s in ("A", "B", "C", "D") for _ in range(per_sample)]
+    statuses = ["singlet"] * len(a) + ["doublet"] * n_doublet
+    a += [None] * n_doublet
+    return _posteriors(a, statuses, [0] * len(statuses)), ["A", "B", "C", "D"]
+
+
+def test_expected_rates_equal_four_donor():
+    post, samples = _equal_four_donor_capture()
+    row = ds.summarise(post, samples, "cap1")
+    assert row["sum_p_sq"] == pytest.approx(0.25)
+    r = ds.expected_rates(row, 0.008)
+    assert r["d_total"] == pytest.approx(0.08)
+    assert r["d_within"] == pytest.approx(0.02)
+    assert r["d_loading"] == pytest.approx(0.08)  # 10k cells * 0.008 / 1k
+    assert r["d_ratio"] == pytest.approx(1.0)
+    # binomial SE of f_x, scaled by 1 / (1 - sum_p_sq)
+    assert r["d_total_sd"] == pytest.approx(math.sqrt(0.06 * 0.94 / 10000) / 0.75)
+    assert r["d_fallback"] == ""
+
+
+def test_ht_rate_halves_loading_and_doubles_ratio():
+    post, samples = _equal_four_donor_capture()
+    row = ds.summarise(post, samples, "cap1")
+    r = ds.expected_rates(row, 0.004)
+    assert r["d_loading"] == pytest.approx(0.04)
+    assert r["d_ratio"] == pytest.approx(2.0)
+
+
+@pytest.mark.parametrize(
+    "assignments,statuses,samples,reason",
+    [
+        (["S1"] * 3, ["singlet"] * 3, ["S1"], "single_sample"),
+        ([None, None], ["doublet", "unassigned"], ["S1", "S2"], "no_singlets"),
+        (["S1", "S1", None], ["singlet", "singlet", "doublet"], ["S1", "S2"], "one_sample_only"),
+    ],
+)
+def test_fallbacks_give_na_rates(assignments, statuses, samples, reason):
+    post = _posteriors(assignments, statuses, [0] * len(statuses))
+    row = ds.summarise(post, samples, "cap1")
+    r = ds.expected_rates(row, 0.008)
+    assert r["d_fallback"] == reason
+    for k in ("d_total", "d_total_sd", "d_within", "d_ratio"):
+        assert math.isnan(r[k])
+    assert r["d_loading"] == pytest.approx(len(statuses) / 1000 * 0.008)
+
+
+def test_written_row_has_all_columns(tmp_path):
+    post, samples = _equal_four_donor_capture()
+    row = ds.summarise(post, samples, "cap1")
+    row.update(ds.expected_rates(row, 0.008))
+    ds.write_csv(ds.to_frame(row), tmp_path / "s.csv")
+    back = ds.read_str_table(tmp_path / "s.csv")
+    assert list(back.columns) == ds.COLUMNS
+    assert back.loc[0, "d_total"] == "0.08"
+    assert pd.isna(back.loc[0, "d_fallback"])  # empty -> NA on read

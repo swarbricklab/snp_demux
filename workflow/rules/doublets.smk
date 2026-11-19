@@ -7,8 +7,9 @@
 # ==================================
 
 
-# One-row per-capture summary: cross-donor doublet fraction (hard and posterior)
-# and every declared sample's share of singlets (same_donor_pair_prob).
+# One-row per-capture summary: cross-donor doublet rate (hard and posterior),
+# every declared sample's share of singlets (same_donor_pair_prob), and the
+# expected total / within-donor doublet rates derived from them.
 rule doublet_summary:
     input:
         samples=config["deps"]["samples"],
@@ -20,6 +21,8 @@ rule doublet_summary:
         logs / "assignment/{capture_id}/doublet_summary.log",
     container:
         config["containers"]["vireosnp"]
+    params:
+        rate_per_1k=get_doublet_rate_per_1k,
     script:
         "../scripts/doublet_summary.py"
 
