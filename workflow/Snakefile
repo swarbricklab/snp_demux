@@ -42,4 +42,5 @@ rule all:
             out_dir / "assignment/{capture_id}/doublet_posteriors.csv",
             capture_id=captures.index.tolist(),
         ),
+        out_dir / "assignment/report/doublet_summary.csv",
         report_dir / "index.html",
