@@ -70,6 +70,28 @@ properties:
           min_alt: {type: integer}
           ploidy: {type: integer}
         required: [restarts, min_ref, min_alt]
+      imputation:
+        type: object
+        description: >-
+          Optional. Demux-side imputation-quality cut applied to the donor panel
+          before demultiplexing. Defaults: min_r2 0.8, min_maf 0 (off),
+          sweep_r2 [0.3, 0.5, 0.7, 0.8, 0.9].
+        properties:
+          min_r2:
+            type: number
+            minimum: 0
+            maximum: 1
+            description: Drop imputed sites with INFO/R2 below this; genotyped sites are always kept. 0 disables.
+          min_maf:
+            type: number
+            minimum: 0
+            maximum: 0.5
+            description: Drop sites with INFO/MAF below this. 0 disables.
+          sweep_r2:
+            type: array
+            items: {type: number, minimum: 0, maximum: 1}
+            description: Thresholds evaluated by the opt-in r2_sweep benchmark.
+        additionalProperties: false
     required: [demuxlet, demuxafy, souporcell]
   ref:
     type: object

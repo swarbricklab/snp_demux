@@ -43,6 +43,14 @@ params:
     min_ref: 10     # souporcell default
     min_alt: 10     # souporcell default
     ploidy: 2       # souporcell default
+  # Demux-side imputation-quality cut on the donor panel. Imputation upstream is
+  # permissive (R2 >= 0.3, INFO/R2 kept); the strict cut for demux lives here.
+  # Genotyped sites are always kept; only imputed additions must pass min_r2.
+  # `snakemake r2_sweep` reports per-donor discriminating sites at sweep_r2.
+  imputation:
+    min_r2: 0.8
+    min_maf: 0       # off
+    sweep_r2: [0.3, 0.5, 0.7, 0.8, 0.9]
 
 ref:
   souporcell:
