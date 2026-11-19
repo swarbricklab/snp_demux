@@ -70,6 +70,34 @@ properties:
           min_alt: {type: integer}
           ploidy: {type: integer}
         required: [restarts, min_ref, min_alt]
+      elimination_gate:
+        type: object
+        description: >-
+          Optional. Concordance gate on the by-elimination assignment of a pool
+          donor with no reference genotype. Defaults: min_concordance 0.8,
+          max_drop 0.1, min_sites 100, action flag.
+        properties:
+          min_concordance:
+            type: number
+            minimum: 0
+            maximum: 1
+            description: Minimum vireo-learned vs souporcell-de-novo genotype agreement.
+          max_drop:
+            type: number
+            minimum: 0
+            maximum: 1
+            description: Maximum shortfall below the pool's known-donor agreement (ceiling).
+          min_sites:
+            type: integer
+            minimum: 1
+            description: Minimum shared called sites for the comparison to count.
+          action:
+            type: string
+            enum: [flag, withhold]
+            description: >-
+              flag = warn loudly and record in elimination_gate.tsv; withhold = also
+              report the donor's cells as unassigned in cell_assignment.tsv.
+        additionalProperties: false
     required: [demuxlet, demuxafy, souporcell]
   ref:
     type: object

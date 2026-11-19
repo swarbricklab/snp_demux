@@ -166,6 +166,7 @@ See [`config/template_config.yaml`](config/template_config.yaml) for a starting 
 | `params.cellsnp_lite` | Legacy pileup thresholds; the pileup is now done upstream in sc_pileup, so these are unused here |
 | `params.demuxlet` | `coeff` and `offset` for the demuxlet doublet prior |
 | `params.demuxafy` | Correlation limits for matching souporcell and freemuxlet clusters to donors, and the agreement threshold for the consensus |
+| `params.elimination_gate` | Optional. Gate on the by-elimination assignment of a donor with no reference genotype: `min_concordance` (default `0.8`), `max_drop` (default `0.1`), `min_sites` (default `100`), `action` (`flag`, the default, or `withhold`). See [Donors without a reference genotype](#donors-without-a-reference-genotype) |
 | `ref.souporcell.genome_fasta` | Reference genome FASTA, matching the transcriptome used by `cellranger` |
 | `containers.*` | Per-tool container images (replaces the old monolithic Demuxafy.sif): `bcftools`, `popscle` (demuxlet/freemuxlet), `vireo` (demux CLI), `vireosnp` (souporcell-genotyping + cell counts), `souporcell`, `r` (all R/Rmd rules), `demuxafy` (consensus/summary/assign scripts). See `config/template_config.yaml` and the recipes under [`containers/`](containers) |
 
@@ -283,6 +284,37 @@ After `snakemake` finishes, `run_mod.sh` does two clean-up steps:
 1. Deletes the empty placeholder PNGs that `relabel_vireo` creates to trigger downstream rules when a capture has no unknown genotypes.
 2. Appends the per-rule logs to `<outs.logs>.tar.gz` and removes the directory. This workflow produces tens of thousands of small log files, which is a real problem on a shared filesystem with an inode quota. The archive is appended to, not recreated, so an incremental run keeps the logs of every capture run previously.
 
+### Donors without a reference genotype
+
+If one donor in a pool has no reference genotype, vireo learns its genotype and
+the souporcell annotation gives it the one cluster no known donor claimed. Both
+steps work purely by elimination. This is reliable for easy pools, but on hard
+ones (e.g. 8-plex) the leftover cluster can be noise, and the donor would still
+be labelled confidently.
+
+`elimination_gate` checks the assignment before it is trusted. It compares the
+leftover donor's vireo-learned genotype with its souporcell cluster's de-novo
+genotype (agreement in alt-allele dosage over shared called sites). The
+assignment passes only if all three hold:
+
+- agreement ≥ `min_concordance`;
+- agreement is no more than `max_drop` below the **ceiling**, the median
+  agreement the pool's known donors reach with their own clusters;
+- the comparison covers at least `min_sites` sites.
+
+The result is written to `assignment/<capture>/elimination_gate.tsv`: `PASS`,
+`FAIL`, or `NOT_APPLICABLE` (every donor genotyped). A `FAIL` is printed as a
+banner on the console and in the log.
+
+- With `action: withhold`, the donor's cells are also reported as `unassigned`
+  in `cell_assignment.tsv`.
+- `sample_barcode_assignments.tsv` keeps every method's raw calls either way.
+
+The cohort roll-up `assignment/report/elimination_gate.tsv` adds
+`cross_capture_min_concordance` for donors missing in several captures: the
+lowest agreement between that donor's learned genotypes across captures. A
+genotype that is not stable across captures is not really being learned.
+
 ## Outputs
 
 ```
@@ -300,10 +332,12 @@ After `snakemake` finishes, `run_mod.sh` does two clean-up steps:
     cell_assignment.tsv
     all_cells_stats.tsv             cells per sample, including doublet and unassigned
     all_singlets_stats.tsv          cells per sample, singlets only
+    elimination_gate.tsv            check on a by-elimination (no-genotype) donor assignment
   assignment/report/
     combined_results.tsv            all captures, stamped with capture_id
     all_cells_stats_full.tsv
     all_singlets_stats_full.tsv
+    elimination_gate.tsv            all captures, plus cross-capture stability
 ```
 
 `sample_barcode_assignments.tsv` is the main result.

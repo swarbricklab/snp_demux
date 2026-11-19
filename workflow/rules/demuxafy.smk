@@ -105,6 +105,9 @@ rule wrangle_demuxafy_assignments:
         sample_map=config["deps"]["samples"],
         #vcf=config["deps"]["vcf"],
         demuxafy_assignments=rules.add_vireosnp_to_combined_results.output.assignments_with_vireosnp,
+        # With params.elimination_gate.action: withhold, a FAILed by-elimination
+        # donor's cells are reported as unassigned in cell_assignment.tsv.
+        elimination_gate=rules.elimination_gate.output.tsv,
     output:
         sample_barcode_assignments=out_dir
         / "assignment/{capture_id}/sample_barcode_assignments.tsv",
