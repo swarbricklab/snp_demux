@@ -90,6 +90,29 @@ df_summary <- df_assign %>%
     )
   )
 
+# Concordance gate on the by-elimination missing-donor assignment
+# (scripts/elimination_gate.py). Under action "withhold", a donor whose leftover
+# souporcell cluster failed the gate is not trusted: report its cells as
+# unassigned. Under "flag" (default) the assignment is left as is; the failure
+# is recorded in elimination_gate.tsv and shouted in the log.
+gate <- read_tsv(snakemake@input[["elimination_gate"]], col_types = cols(.default = col_character()))
+if (nrow(gate) == 1 && gate$status == "FAIL" && gate$action == "withhold") {
+  withheld <- df_map %>%
+    dplyr::filter(capture_id == capture, donor_id %in% strsplit(gate$missing_donor, ",")[[1]]) %>%
+    dplyr::pull(sample_id)
+  n_withheld <- sum(df_summary$assignment %in% withheld)
+  warning(
+    "Capture ", capture, ": elimination gate FAILED for donor ", gate$missing_donor,
+    " (", gate$reason, "); withholding ", n_withheld, " cells of sample(s) ",
+    paste(withheld, collapse = ", "), " as unassigned"
+  )
+  df_summary <- df_summary %>%
+    dplyr::mutate(
+      status = if_else(!is.na(assignment) & assignment %in% withheld, "unassigned", status),
+      assignment = if_else(!is.na(assignment) & assignment %in% withheld, NA_character_, assignment)
+    )
+}
+
 # Demuxafy's combine step can emit duplicate per-barcode rows (a join artifact
 # with relaxed thresholds on sparse data) — mostly identical, occasionally
 # conflicting. Keep exactly one row per barcode (first wins) so every downstream

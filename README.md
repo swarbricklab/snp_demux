@@ -180,6 +180,7 @@ See [`config/template_config.yaml`](config/template_config.yaml) for a starting 
 | `params.demuxafy` | `pct_agreement`: with `cluster_naming: vireo_agreement`, the share of a souporcell/freemuxlet cluster's barcodes that must agree with one vireo donor for the cluster to take that donor. `freemuxlet_correlation_limit` and `souporcell_correlation_limit` are not used |
 | `params.consensus` | Optional. `method` (`informative_majority`, the default, or `at_least_half_singlet`), `min_informative` (default 2), `cluster_naming` (`genotype`, the default, or `vireo_agreement`) `min_genotype_margin` (default 0.1) and `recover_from` (default `[souporcell, vireo]`). See [Method](#method) |
 | `params.doublet` | Optional. `rate_per_1k` (doublet rate per 1,000 cells recovered, here barcodes demultiplexed, keyed by chip, from 10x's multiplet-rate table; default `standard: 0.008`, `HT: 0.004`) and `default_chip` (default `standard`). Used for `doublet_rate_loading` in `doublet_summary.csv` |
+| `params.elimination_gate` | Optional. Gate on the by-elimination assignment of a donor with no reference genotype: `min_concordance` (default `0.8`), `max_drop` (default `0.1`), `min_sites` (default `100`), `action` (`flag`, the default, or `withhold`). See [Donors without a reference genotype](#donors-without-a-reference-genotype) |
 | `ref.souporcell.genome_fasta` | Reference genome FASTA, matching the transcriptome used by `cellranger` |
 | `containers.*` | Per-tool container images (replaces the old monolithic Demuxafy.sif): `bcftools`, `popscle` (demuxlet/freemuxlet), `vireo` (demux CLI), `vireosnp` (souporcell-genotyping + cell counts), `souporcell`, `r` (all R/Rmd rules), `demuxafy` (Demuxafy's summary and freemuxlet genotype-assignment scripts). See `config/template_config.yaml` and the recipes under [`containers/`](containers) |
 
@@ -298,6 +299,37 @@ After `snakemake` finishes, `run_mod.sh` does two clean-up steps:
 1. Deletes the empty placeholder PNGs that `relabel_vireo` creates to trigger downstream rules when a capture has no unknown genotypes.
 2. Appends the per-rule logs to `<outs.logs>.tar.gz` and removes the directory. This workflow produces tens of thousands of small log files, which is a real problem on a shared filesystem with an inode quota. The archive is appended to, not recreated, so an incremental run keeps the logs of every capture run previously.
 
+### Donors without a reference genotype
+
+If one donor in a pool has no reference genotype, vireo learns its genotype and
+the souporcell annotation gives it the one cluster no known donor claimed. Both
+steps work purely by elimination. This is reliable for easy pools, but on hard
+ones (e.g. 8-plex) the leftover cluster can be noise, and the donor would still
+be labelled confidently.
+
+`elimination_gate` checks the assignment before it is trusted. It compares the
+leftover donor's vireo-learned genotype with its souporcell cluster's de-novo
+genotype (agreement in alt-allele dosage over shared called sites). The
+assignment passes only if all three hold:
+
+- agreement ≥ `min_concordance`;
+- agreement is no more than `max_drop` below the **ceiling**, the median
+  agreement the pool's known donors reach with their own clusters;
+- the comparison covers at least `min_sites` sites.
+
+The result is written to `assignment/<capture>/elimination_gate.tsv`: `PASS`,
+`FAIL`, or `NOT_APPLICABLE` (every donor genotyped). A `FAIL` is printed as a
+banner on the console and in the log.
+
+- With `action: withhold`, the donor's cells are also reported as `unassigned`
+  in `cell_assignment.tsv`.
+- `sample_barcode_assignments.tsv` keeps every method's raw calls either way.
+
+The cohort roll-up `assignment/report/elimination_gate.tsv` adds
+`cross_capture_min_concordance` for donors missing in several captures: the
+lowest agreement between that donor's learned genotypes across captures. A
+genotype that is not stable across captures is not really being learned.
+
 ## Outputs
 
 ```
@@ -316,11 +348,13 @@ After `snakemake` finishes, `run_mod.sh` does two clean-up steps:
     all_cells_stats.tsv             cells per sample, including doublet and unassigned
     all_singlets_stats.tsv          cells per sample, singlets only
     doublet_summary.csv             one row: cross-donor doublet fraction + sample proportions
+    elimination_gate.tsv            check on a by-elimination (no-genotype) donor assignment
   assignment/report/
     combined_results.tsv            all captures, stamped with capture_id
     all_cells_stats_full.tsv
     all_singlets_stats_full.tsv
     doublet_summary.csv             all captures' doublet_summary.csv rows
+    elimination_gate.tsv            all captures, plus cross-capture stability
 ```
 
 `sample_barcode_assignments.tsv` is the main result. The consensus is in
