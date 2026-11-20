@@ -13,3 +13,4 @@ CI. Run them from inside the repo.
 | `make_doublet_captures.py OUTDIR` | simulates pooled captures with a known doublet rate `d` and donor proportions `p`, by random pairing; only cross-donor doublets are visible. Writes `cell_assignment.tsv` (current + legacy NA-status format) and vireo-like `donor_ids.tsv` | python3 stdlib |
 | `doublet_stack_check.py WORKTREE [--reps N]` | runs `doublet_posteriors.py` + `doublet_summary.py` (#59–#61) via their `main()` on N simulated replicates; reports f_x, d_total bias and 95% coverage of `d_total_sd` against the truth | pandas (env `snakemake_7.32.4`) |
 | `compare_calls.py GOLDEN FRESH [capture]` | per-method and consensus call agreement between two result dirs (for PRs expected to DIFFER from the golden) | pandas |
+| `bcftools_shims.sh DIR` | PATH shims running the cached bcftools image, for bcftools-backed unit tests (#62) and offline `scenario.sh` runs (#64) | singularity |
