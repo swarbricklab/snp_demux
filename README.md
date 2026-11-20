@@ -53,8 +53,13 @@ The four methods are
 
 See the links above for details on the algorithms used by each of these methods.
 
-The results of each method are combined with Demuxafy's [AtLeastHalfSinglet](https://demultiplexing-doublet-detecting-docs.readthedocs.io/en/latest/CombineResults.html) rule.
-The combining step ([`workflow/scripts/consensus.py`](workflow/scripts/consensus.py)) is a port of Demuxafy's `Combine_Results.R` for the four methods used here, verified to give identical output; it no longer runs `Combine_Results.R` itself.
+The results of each method are combined by [`workflow/scripts/consensus.py`](workflow/scripts/consensus.py), which replaces Demuxafy's `Combine_Results.R`:
+
+- Each method's own call (`singlet`, `doublet` or `unassigned`) is kept. A souporcell or freemuxlet singlet takes the donor its cluster is named after (below); a singlet in a cluster that no donor accounts for is `unassigned`.
+- **Consensus** (`params.consensus.method`, default `informative_majority`): a method that returns `unassigned` abstains. With fewer than `params.consensus.min_informative` (default 2) singlet/doublet calls, or a singlet/doublet tie, the barcode is `unassigned`; otherwise it takes the majority. A singlet is assigned to the donor most methods name (a tie is `unassigned`).
+- Demuxafy's [AtLeastHalfSinglet](https://demultiplexing-doublet-detecting-docs.readthedocs.io/en/latest/CombineResults.html) rule (`singlet` if at least half the methods call a singlet, otherwise `doublet`) is available as `method: at_least_half_singlet` and is always written alongside, as `AtLeastHalfSinglet_*`.
+
+Under AtLeastHalfSinglet a barcode most methods could not call becomes a doublet, and `Combine_Results.R` also turned souporcell/freemuxlet `unassigned` calls into doublets, together inflating the doublet count by about 2× on low-coverage captures ([#65](https://github.com/swarbricklab/snp_demux/issues/65)).
 
 ### souporcell cluster annotation
 
@@ -65,7 +70,7 @@ The workflow maps those clusters onto the known donor genotypes twice, by two in
 2. [vireoSNP](https://vireosnp.readthedocs.io/en/latest/), which scores each cluster against each donor genotype and is run separately.
 
 The vireoSNP annotation is appended to the combined results as an additional assignment column *after* the consensus has been called, so it does not influence it.
-The barcode-level output therefore carries five assignments per cell — `Demuxlet`, `Freemuxlet`, `Souporcell`, `Vireo` and `Souporcell_vireosnp` — plus the `AtLeastHalfSinglet` consensus over the first four.
+The barcode-level output therefore carries five assignments per cell — `Demuxlet`, `Freemuxlet`, `Souporcell`, `Vireo` and `Souporcell_vireosnp` — plus the consensus over the first four.
 Treating vireoSNP as a fifth opinion is useful when reviewing a capture: it is the only assignment derived from a genotype-free clustering that was named after the fact.
 
 ### Ambient RNA
@@ -89,7 +94,7 @@ flowchart TB
     FM --> DX
     SO --> DX
 
-    DX["<b>consensus</b><br/>names the genotype-free clusters<br/>by agreement with vireo, then calls the<br/>AtLeastHalfSinglet consensus"]
+    DX["<b>consensus</b><br/>names the genotype-free clusters<br/>by agreement with vireo, then calls the consensus"]
 
     SO --> VS["<b>vireoSNP</b><br/>names souporcell's clusters<br/>independently"]
 
@@ -167,6 +172,7 @@ See [`config/template_config.yaml`](config/template_config.yaml) for a starting 
 | `params.cellsnp_lite` | Legacy pileup thresholds; the pileup is now done upstream in sc_pileup, so these are unused here |
 | `params.demuxlet` | `coeff` and `offset` for the demuxlet doublet prior |
 | `params.demuxafy` | `pct_agreement`: the share of a souporcell/freemuxlet cluster's barcodes that must agree with one vireo donor for the cluster to take that donor in the consensus. `freemuxlet_correlation_limit` and `souporcell_correlation_limit` are not used |
+| `params.consensus` | Optional. `method` (`informative_majority`, the default, or `at_least_half_singlet`) and `min_informative` (default 2). See [Method](#method) |
 | `params.doublet` | Optional. `rate_per_1k` (doublet rate per 1,000 cells recovered, here barcodes demultiplexed, keyed by chip, from 10x's multiplet-rate table; default `standard: 0.008`, `HT: 0.004`) and `default_chip` (default `standard`). Used for `doublet_rate_loading` in `doublet_summary.csv` |
 | `ref.souporcell.genome_fasta` | Reference genome FASTA, matching the transcriptome used by `cellranger` |
 | `containers.*` | Per-tool container images (replaces the old monolithic Demuxafy.sif): `bcftools`, `popscle` (demuxlet/freemuxlet), `vireo` (demux CLI), `vireosnp` (souporcell-genotyping + cell counts), `souporcell`, `r` (all R/Rmd rules), `demuxafy` (Demuxafy's summary and freemuxlet genotype-assignment scripts). See `config/template_config.yaml` and the recipes under [`containers/`](containers) |
@@ -311,7 +317,10 @@ After `snakemake` finishes, `run_mod.sh` does two clean-up steps:
     doublet_summary.csv             all captures' doublet_summary.csv rows
 ```
 
-`sample_barcode_assignments.tsv` is the main result.
+`sample_barcode_assignments.tsv` is the main result. The consensus is in
+`Consensus_DropletType` / `Consensus_Individual_Assignment`, with the votes behind
+it in `Consensus_n_singlet`, `Consensus_n_doublet` and `Consensus_n_informative`;
+`cell_assignment.tsv` is the same consensus as `barcode, assignment, status`.
 
 It also carries vireo's and souporcell's per-barcode posteriors, for
 expression-based doublet detection downstream (e.g. scDblFinder
