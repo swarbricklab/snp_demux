@@ -42,9 +42,9 @@ all_singlets <- read_tsv(snakemake@input[["all_singlets"]], col_types = ID)
 amb_stats  <- read_csv(snakemake@input[["ambient_stats"]], show_col_types = FALSE)
 
 # The five callers, each contributing a DropletType and an Individual_Assignment
-# column, plus the demuxafy consensus.
+# column, plus the consensus (params.consensus.method).
 methods   <- c("Demuxlet", "Freemuxlet", "Souporcell", "Vireo", "Souporcell_vireosnp")
-consensus <- "AtLeastHalfSinglet"
+consensus <- "Consensus"
 
 n_cells   <- mx$n_barcodes
 n_singlet <- mx$n_singlet
@@ -155,7 +155,7 @@ cons <- tibble(
 
 ### Calls by method
 
-Rows are the callers, the bottom row the demuxafy consensus. A sample missed by
+Rows are the callers, the bottom row the consensus. A sample missed by
 one method shows as a gap in an otherwise populated column.
 
 ```{r method-matrix, fig.height=3.4}
