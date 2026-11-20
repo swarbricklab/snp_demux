@@ -144,3 +144,92 @@ def test_build_rejects_unknown_method():
     import pytest
     with pytest.raises(ValueError):
         c.build([], [], [], [], [], 0.7, method="MajoritySinglet")
+
+
+# ------------------------------------------------------ genotype naming ----
+def gpb(matrix):
+    """{cluster: {donor: score}} -> rows of a GPb_diff table."""
+    donors = sorted({d for row in matrix.values() for d in row})
+    return [dict({"known genotype": d}, **{"snp_cluster_" + cl: str(row.get(d, "NA")) for cl, row in matrix.items()})
+            for d in donors]
+
+
+def test_read_scores_drops_na():
+    s = c.read_scores(gpb({"0": {"d1": 0.1, "d2": 0.4}, "1": {"d1": "NA", "d2": 0.2}}))
+    assert s == {"0": {"d1": 0.1, "d2": 0.4}, "1": {"d2": 0.2}}
+
+
+def test_genotype_map_names_clear_matches_only():
+    bcs = list("ABCD")
+    clusters = dict(zip(bcs, ["0", "1", "2", "2"]))
+    scores = {
+        "0": {"d1": 0.10, "d2": 0.40, "d3": 0.40},  # clear -> d1
+        "1": {"d1": 0.38, "d2": 0.40, "d3": 0.41},  # 5% margin -> unnamed
+        "2": {"d1": 0.40, "d2": 0.40, "d3": 0.15},  # clear -> d3
+    }
+    m, report = c.genotype_map(bcs, clusters, scores, 0.1)
+    assert m == {"0": "d1", "2": "d3"}
+    assert {r[0]: r[4] for r in report} == {"0": "d1", "1": "unnamed", "2": "d3"}
+
+
+def test_genotype_map_requires_a_mutual_best_match():
+    # cluster 1 (e.g. a doublet cluster, or the smaller half of a split donor) is
+    # nearest d1, but d1 is nearer cluster 0: only cluster 0 takes d1's name
+    clusters = {"A": "0", "B": "1"}
+    scores = {"0": {"d1": 0.1, "d2": 0.4}, "1": {"d1": 0.15, "d2": 0.4}}
+    m, report = c.genotype_map(list("AB"), clusters, scores, 0.1)
+    assert m == {"0": "d1"}
+    assert dict((r[0], r[4]) for r in report)["1"].startswith("unnamed (d1 is closer to cluster 0")
+
+
+def test_genotype_map_ungenotyped_donor_named_by_vireo_agreement():
+    # cluster 2 is donor x, who has no genotype: it sits nearest d1 (not mutual)
+    clusters = {"A": "0", "B": "1", "C": "2"}
+    scores = {"0": {"d1": 0.1, "d2": 0.4}, "1": {"d1": 0.4, "d2": 0.1}, "2": {"d1": 0.2, "d2": 0.4}}
+    m, report = c.genotype_map(list("ABC"), clusters, scores, 0.1, ungenotyped={"2": "x"})
+    assert m == {"0": "d1", "1": "d2", "2": "x"}
+    assert "no genotype" in dict((r[0], r[4]) for r in report)["2"]
+    # without vireo's say-so, the leftover cluster is not named by elimination
+    assert c.genotype_map(list("ABC"), clusters, scores, 0.1)[0] == {"0": "d1", "1": "d2"}
+
+
+def test_build_genotype_naming_uses_vireo_for_ungenotyped_donors():
+    bcs = list("ABCD")
+    dem = popscle([(b, "AMB", "d1,d2,0.00") for b in bcs])
+    fmx = popscle([])
+    sop = soup([("A", "singlet", "0"), ("B", "singlet", "0"), ("C", "singlet", "1"), ("D", "singlet", "1")])
+    vir = vireo([("A", "d1"), ("B", "d1"), ("C", "x"), ("D", "x")])
+    scores = {"Freemuxlet": [], "Souporcell": gpb({"0": {"d1": 0.1, "d2": 0.4}, "1": {"d1": 0.2, "d2": 0.4}})}
+    out = c.build(dem, fmx, sop, vir, [], 0.7, cluster_naming="genotype", scores=scores, ungenotyped=["x"])
+    assert [r["Souporcell_Individual_Assignment"] for r in out] == ["d1", "d1", "x", "x"]
+    assert [r["Consensus_Individual_Assignment"] for r in out] == ["d1", "d1", "x", "x"]
+
+
+def test_genotype_map_needs_two_candidates():
+    assert c.genotype_map(["A"], {"A": "0"}, {"0": {"d1": 0.1}}, 0.1)[0] == {}
+
+
+def test_build_with_genotype_naming():
+    dem = popscle([("A", "SNG", "d1,d1,0.00"), ("B", "SNG", "d2,d2,0.00")])
+    fmx = popscle([("A", "SNG", "0,0"), ("B", "SNG", "1,1")])
+    sop = soup([("A", "singlet", "5"), ("B", "singlet", "6")])
+    vir = vireo([("A", "unassigned"), ("B", "unassigned")])  # agreement could name nothing
+    snp = soup([])
+    scores = {
+        "Freemuxlet": gpb({"0": {"d1": 0.1, "d2": 0.4}, "1": {"d1": 0.4, "d2": 0.1}}),
+        "Souporcell": gpb({"5": {"d1": 0.1, "d2": 0.4}, "6": {"d1": 0.3, "d2": 0.31}}),
+    }
+    out = c.build(dem, fmx, sop, vir, snp, 0.7, cluster_naming="genotype", scores=scores)
+    a, b = out
+    assert (a["Freemuxlet_Individual_Assignment"], a["Souporcell_Individual_Assignment"]) == ("d1", "d1")
+    assert a["Consensus_Individual_Assignment"] == "d1"
+    assert b["Souporcell_DropletType"] == "unassigned"  # cluster 6 unnamed: abstains
+    assert (b["Consensus_DropletType"], b["Consensus_Individual_Assignment"]) == ("singlet", "d2")
+    agree = c.build(dem, fmx, sop, vir, snp, 0.7, cluster_naming="vireo_agreement")
+    assert agree[0]["Souporcell_DropletType"] == "unassigned"
+
+
+def test_build_rejects_unknown_naming():
+    import pytest
+    with pytest.raises(ValueError):
+        c.build([], [], [], [], [], 0.7, cluster_naming="correlation")

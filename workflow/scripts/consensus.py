@@ -7,13 +7,21 @@ Steps
      ``<M>_DropletType`` in {singlet, doublet, unassigned}, plus a donor
      (Demuxlet, Vireo) or a cluster id (Freemuxlet, Souporcell). A method's own
      ``unassigned`` / ``doublet`` call is kept as it is.
-  2. Name Freemuxlet / Souporcell clusters by agreement with Vireo: a cluster
-     takes the Vireo donor shared by at least ``pct_agreement`` of its barcodes.
-     Only real clusters are named (not the ``doublet`` / ``unassigned`` calls),
-     only after donors (not Vireo's ``doublet`` / ``unassigned``), and only when
-     exactly one donor qualifies. A singlet in an unnamed cluster abstains
-     (``unassigned``): a cluster no donor accounts for is as likely to be
-     doublets or noise as a donor, so its singlet call is not evidence.
+  2. Name Freemuxlet / Souporcell clusters after donors, by ``cluster_naming``:
+       genotype (default)
+         From the vireoSNP GPb_diff between each cluster's genotype and each
+         donor's known genotype: a cluster and a donor that are each other's
+         closest match, with the cluster clearly closer to that donor than to
+         the next (``min_genotype_margin``). This keeps the cluster methods
+         independent of Vireo. See ``genotype_map``.
+       vireo_agreement
+         Demuxafy's method: a cluster takes the Vireo donor shared by at least
+         ``pct_agreement`` of its barcodes. Only real clusters are named (not
+         the ``doublet`` / ``unassigned`` calls), only after donors, and only
+         when exactly one donor qualifies. See ``cluster_map``.
+     Either way, a singlet in an unnamed cluster abstains (``unassigned``): a
+     cluster no donor accounts for is as likely to be doublets or noise as a
+     donor, so its singlet call is not evidence.
   3. Consensus (``Consensus_*``), by ``method``:
        informative_majority (default)
          Votes are the methods' droplet types; ``unassigned`` abstains.
@@ -78,6 +86,7 @@ COLUMNS = [
     "Consensus_n_informative",
 ]
 RULES = ("informative_majority", "at_least_half_singlet")
+NAMINGS = ("genotype", "vireo_agreement")
 
 
 # ---------------------------------------------------------------- reading ----
@@ -163,6 +172,78 @@ def cluster_map(barcodes, clusters, reference, pct_agreement):
     return mapping, report
 
 
+def read_scores(rows):
+    """GPb_diff matrix (``known genotype`` + ``snp_cluster_<id>`` columns) ->
+    {cluster: {donor: score}}; lower is a closer match; NA scores are dropped."""
+    scores = OrderedDict()
+    for r in rows:
+        for col, value in r.items():
+            if not col.startswith("snp_cluster_"):
+                continue
+            try:
+                score = float(value)
+            except (TypeError, ValueError):
+                continue
+            if score == score:
+                scores.setdefault(col[len("snp_cluster_"):], {})[r["known genotype"]] = score
+    return scores
+
+
+def genotype_map(barcodes, clusters, scores, min_margin, ungenotyped=None):
+    """Name clusters by genotype: a cluster and a donor that clearly match each other.
+
+    ``scores`` is {cluster: {donor: GPb_diff}}, lower is closer. A cluster is
+    named after its closest donor when
+      - the relative margin, (second - best) / second, is at least ``min_margin``,
+        so the cluster is clearly closer to that donor than to any other; and
+      - the cluster is also that donor's closest cluster (a mutual best match).
+    The second condition keeps a doublet cluster, whose genotype is a mixture and
+    so lies nearest one of its donors, from taking that donor's name; the cost is
+    that the smaller half of a donor split over two clusters stays unnamed.
+    Unnamed clusters' singlets abstain (see ``assign_clusters``).
+
+    A pool donor with no known genotype cannot be matched, and its cluster
+    tends to sit nearest some genotyped donor instead. Vireo is the only method
+    that learns such a donor, so ``ungenotyped`` maps a cluster to an
+    ungenotyped donor when Vireo agreement names it so (see ``cluster_map``);
+    that name replaces the genotype one. (Naming the one leftover cluster "by
+    elimination", as annotate.py does, mislabels a split donor's second cluster.)
+
+    Returns (mapping cluster -> donor, report rows) like ``cluster_map``.
+    """
+    sizes = Counter()
+    for bc in barcodes:
+        cl = clusters.get(bc, MISSING)
+        if cl is not MISSING and cl not in SENTINELS:
+            sizes[cl] += 1
+    closest_cluster = {}
+    for cl, row in scores.items():
+        for donor, score in row.items():
+            if donor not in closest_cluster or score < scores[closest_cluster[donor]][donor]:
+                closest_cluster[donor] = cl
+    mapping, report = {}, []
+    for cl in sorted(set(sizes) | set(scores), key=lambda x: (-sizes[x], x)):
+        ranked = sorted(scores.get(cl, {}).items(), key=lambda kv: (kv[1], kv[0]))
+        if len(ranked) < 2 or ranked[1][1] <= 0:
+            report.append([cl, sizes[cl], ranked[0][0] if ranked else None, float("nan"), "unnamed"])
+            continue
+        (best, b), (_, second) = ranked[0], ranked[1]
+        margin = (second - b) / second
+        if margin < min_margin:
+            named = "unnamed"
+        elif closest_cluster[best] != cl:
+            named = "unnamed (%s is closer to cluster %s)" % (best, closest_cluster[best])
+        else:
+            mapping[cl] = named = best
+        report.append([cl, sizes[cl], best, margin, named])
+    for r in report:
+        donor = (ungenotyped or {}).get(r[0])
+        if donor is not None:
+            mapping[r[0]] = donor
+            r[4] = "%s (no genotype; named by vireo agreement)" % donor
+    return mapping, [tuple(r) for r in report]
+
+
 def assign_clusters(calls, mapping):
     """Give each singlet of a cluster method the donor its cluster is named after.
 
@@ -218,10 +299,18 @@ def at_least_half_singlet(row):
 
 # ------------------------------------------------------------------ build ----
 def build(demuxlet, freemuxlet, souporcell, vireo, vireosnp, pct_agreement,
-          method="informative_majority", min_informative=2, log=None):
-    """Inputs are the parsed tables (lists of dicts); returns output rows."""
+          method="informative_majority", min_informative=2, log=None,
+          cluster_naming="vireo_agreement", scores=None, min_genotype_margin=0.1,
+          ungenotyped=()):
+    """Inputs are the parsed tables (lists of dicts); returns output rows.
+
+    ``scores`` maps each cluster method to its parsed GPb_diff matrix (rows of
+    dicts); it is required when ``cluster_naming`` is ``genotype``.
+    """
     if method not in RULES:
         raise ValueError("consensus method must be one of %s, not %r" % (RULES, method))
+    if cluster_naming not in NAMINGS:
+        raise ValueError("cluster_naming must be one of %s, not %r" % (NAMINGS, cluster_naming))
     calls = {
         "Demuxlet": read_popscle(demuxlet, "Individual_Assignment"),
         "Freemuxlet": read_popscle(freemuxlet, "Cluster"),
@@ -232,12 +321,20 @@ def build(demuxlet, freemuxlet, souporcell, vireo, vireosnp, pct_agreement,
     vireo_ref = {bc: c["Individual_Assignment"] for bc, c in calls["Vireo"].items()}
     for m in CLUSTER_METHODS:
         clusters = {bc: c["Cluster"] for bc, c in calls[m].items()}
-        mapping, report = cluster_map(barcodes, clusters, vireo_ref, pct_agreement)
+        if cluster_naming == "genotype":
+            agreement = cluster_map(barcodes, clusters, vireo_ref, pct_agreement)[0]
+            no_genotype = {cl: d for cl, d in agreement.items() if d in ungenotyped}
+            mapping, report = genotype_map(barcodes, clusters, read_scores(scores[m]),
+                                           min_genotype_margin, no_genotype)
+            how = "by genotype (relative GPb_diff margin >= %s)" % min_genotype_margin
+        else:
+            mapping, report = cluster_map(barcodes, clusters, vireo_ref, pct_agreement)
+            how = "by agreement with vireo (pct_agreement %s)" % pct_agreement
         assign_clusters(calls[m], mapping)
         if log:
-            print("%s clusters named by agreement with vireo (pct_agreement %s):" % (m, pct_agreement), file=log)
-            for cl, n, best, frac, named in report:
-                print("  cluster %-6s n=%-6d best=%s (%.2f) -> %s" % (cl, n, best, frac, named), file=log)
+            print("%s clusters named %s:" % (m, how), file=log)
+            for cl, n, best, value, named in report:
+                print("  cluster %-6s n=%-6d best=%s (%.3f) -> %s" % (cl, n, best, value, named), file=log)
 
     snp = {r["barcode"]: r for r in vireosnp}
     out = []
@@ -281,8 +378,20 @@ def write_tsv(rows, path):
 def main(sm):
     log = open(sm.log[0], "w")
     tables = {k: read_table(sm.input[k]) for k in ("demuxlet", "freemuxlet", "souporcell", "vireo", "vireosnp")}
+    scores = {
+        "Freemuxlet": read_table(sm.input.freemuxlet_scores),
+        "Souporcell": read_table(sm.input.souporcell_scores),
+    }
+    genotyped = {line.strip() for line in open(sm.input.genotyped_donors) if line.strip()}
+    pool = [d for d in str(sm.params.pool_donors).split(",") if d]
+    ungenotyped = [d for d in pool if d not in genotyped]
+    if ungenotyped:
+        print("pool donors without a genotype: %s" % ", ".join(ungenotyped), file=log)
     rows = build(pct_agreement=float(sm.params.pct_agreement), method=sm.params.method,
-                 min_informative=int(sm.params.min_informative), log=log, **tables)
+                 min_informative=int(sm.params.min_informative), log=log,
+                 cluster_naming=sm.params.cluster_naming, scores=scores,
+                 min_genotype_margin=float(sm.params.min_genotype_margin),
+                 ungenotyped=ungenotyped, **tables)
     write_tsv(rows, sm.output.calls)
 
     only = {r["Barcode"] for r in rows} ^ {r["barcode"] for r in tables["vireosnp"]}

@@ -81,6 +81,24 @@ properties:
             minimum: 1
             default: 2
             description: informative_majority only. Fewer singlet/doublet calls than this -> unassigned.
+          cluster_naming:
+            type: string
+            enum: [genotype, vireo_agreement]
+            default: genotype
+            description: >-
+              How freemuxlet / souporcell clusters are given donor names.
+              genotype: the donor whose known genotype is clearly closest to the
+              cluster genotype (vireoSNP GPb_diff; see min_genotype_margin).
+              vireo_agreement: the vireo donor shared by at least
+              demuxafy.pct_agreement of the cluster's barcodes (Demuxafy's method).
+          min_genotype_margin:
+            type: number
+            minimum: 0
+            maximum: 1
+            default: 0.1
+            description: >-
+              cluster_naming genotype only. A cluster is named after its closest donor
+              when (second-best - best) / second-best GPb_diff is at least this.
         additionalProperties: false
       souporcell:
         type: object
