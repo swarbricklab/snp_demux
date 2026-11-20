@@ -64,11 +64,13 @@ missing   <- if (is.na(mx$missing_samples) || !nzchar(mx$missing_samples)) {
 ```{r summary}
 tibble(
   Field = c("Capture", "Pool", "Barcodes", "Singlets", "Doublets",
-            "Unassigned", "Samples declared", "Samples recovered",
+            "Recovered (one method)", "Unassigned", "Samples declared", "Samples recovered",
             "Ambient RNA (souporcell)"),
   Value = c(capture, pool_disp, comma(n_cells),
             sprintf("%s (%s)", comma(n_singlet), percent(n_singlet / n_cells, 0.1)),
             sprintf("%s (%s)", comma(n_doublet), percent(n_doublet / n_cells, 0.1)),
+            sprintf("%s (%s)", comma(mx$n_recovered_barcodes),
+                    percent(mx$n_recovered_barcodes / n_cells, 0.1)),
             sprintf("%s (%s)", comma(n_unassig), percent(n_unassig / n_cells, 0.1)),
             mx$n_declared, mx$n_recovered,
             if (is.na(mx$ambient_souporcell)) "n/a"
@@ -148,7 +150,9 @@ cons <- tibble(
   dtype   = assign_tbl[[paste0(consensus, "_DropletType")]],
   ind     = assign_tbl[[paste0(consensus, "_Individual_Assignment")]]
 ) %>%
-  mutate(call = if_else(dtype == "singlet" & !is.na(ind) & !ind %in% c("doublet", "unassigned"),
+  # a recovered barcode's call is its sample, like a singlet's; dtype keeps the tier
+  mutate(call = if_else(dtype %in% c("singlet", "recovered") & !is.na(ind) &
+                          !ind %in% c("doublet", "unassigned"),
                         ind, dtype)) %>%
   distinct(Barcode, .keep_all = TRUE)
 ```
@@ -178,19 +182,20 @@ ggplot(mat, aes(x = call, y = method, fill = n)) +
 
 ```{r agreement, fig.height=3}
 agree <- long %>%
-  left_join(cons %>% select(Barcode, cons_call = call), by = "Barcode") %>%
+  left_join(cons %>% select(Barcode, cons_call = call, cons_dtype = dtype), by = "Barcode") %>%
   group_by(Barcode) %>%
   summarise(n_agree = sum(call == cons_call, na.rm = TRUE),
-            cons_call = first(cons_call), .groups = "drop") %>%
+            cons_call = first(cons_call), cons_dtype = first(cons_dtype), .groups = "drop") %>%
   mutate(cons_type = case_when(cons_call == "doublet" ~ "doublet",
                                cons_call == "unassigned" ~ "unassigned",
+                               cons_dtype == "recovered" ~ "recovered",
                                TRUE ~ "singlet"))
 
 ggplot(agree, aes(x = factor(n_agree, levels = 0:length(methods)), fill = cons_type)) +
   geom_bar() +
   scale_y_continuous(labels = comma) +
-  scale_fill_manual(values = c(singlet = "#2c6fa8", doublet = "#c0504d",
-                               unassigned = "#9e9e9e")) +
+  scale_fill_manual(values = c(singlet = "#2c6fa8", recovered = "#8fb3d9",
+                               doublet = "#c0504d", unassigned = "#9e9e9e")) +
   labs(x = sprintf("Methods agreeing with the consensus (of %d)", length(methods)),
        y = "Barcodes", fill = "Consensus") +
   theme_classic()

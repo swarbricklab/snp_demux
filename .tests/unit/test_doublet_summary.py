@@ -150,3 +150,11 @@ def test_written_row_has_all_columns(tmp_path):
     assert list(back.columns) == ds.COLUMNS
     assert back.loc[0, "d_total"] == "0.08"
     assert pd.isna(back.loc[0, "d_fallback"])  # empty -> NA on read
+
+
+def test_recovered_barcodes_counted_apart_and_left_out_of_p_i():
+    a = ["S1", "S2", "S2", None]
+    s = ["singlet", "singlet", "recovered", "unassigned"]
+    row = ds.summarise(_posteriors(a, s, [0.0, 0.0, 0.0, 0.0]), ["S1", "S2"], "cap1")
+    assert (row["n_singlet"], row["n_recovered"], row["n_unassigned"]) == (2, 1, 1)
+    assert row["sample_props"] == "S1:0.5;S2:0.5"  # the recovered S2 is not a singlet

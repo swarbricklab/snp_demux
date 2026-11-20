@@ -1,6 +1,6 @@
 outs:
-- md5: 012d8109368329bd0effe3327fc8f51a.dir
-  size: 81014170
+- md5: 4d6dba71ba0e7387d798615cbe63c661.dir
+  size: 81022942
   nfiles: 49
   hash: md5
   path: golden

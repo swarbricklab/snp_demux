@@ -7,7 +7,9 @@ doublet fraction f_x together with every p_i, so a downstream step can turn
 f_x into an expected total doublet rate.
 
 Per-capture columns (one row):
-    capture_id, n_barcodes, n_singlet, n_doublet_hard, n_unassigned,
+    capture_id, n_barcodes, n_singlet, n_doublet_hard, n_recovered, n_unassigned,
+                         (n_recovered: one method's lone singlet call; see
+                         params.consensus.recover_from)
     sum_prob_doublet     sum of vireo P(doublet) over the capture's barcodes
     f_x_hard             n_doublet_hard / n_barcodes
     f_x_posterior        sum_prob_doublet / n_barcodes
@@ -46,6 +48,7 @@ COLUMNS = [
     "n_barcodes",
     "n_singlet",
     "n_doublet_hard",
+    "n_recovered",
     "n_unassigned",
     "sum_prob_doublet",
     "f_x_hard",
@@ -83,7 +86,8 @@ def sample_proportions(posteriors, samples):
     Returns an ordered dict-like Series (index = declared samples), or None if
     the capture has no singlets assigned to a declared sample.
     """
-    assigned = posteriors["consensus_assignment"]
+    singlet = posteriors["consensus_status"] == "singlet"  # not recovered barcodes
+    assigned = posteriors["consensus_assignment"][singlet]
     counts = assigned[assigned.isin(samples)].value_counts()
     counts = counts.reindex(samples, fill_value=0)
     total = counts.sum()
@@ -117,6 +121,7 @@ def summarise(posteriors, samples, capture_id):
         "n_barcodes": n_barcodes,
         "n_singlet": int((status == "singlet").sum()),
         "n_doublet_hard": n_doublet,
+        "n_recovered": int((status == "recovered").sum()),
         "n_unassigned": int((status == "unassigned").sum()),
         "sum_prob_doublet": sum_prob_doublet,
         "f_x_hard": _ratio(n_doublet, n_barcodes),

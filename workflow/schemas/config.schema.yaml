@@ -99,6 +99,18 @@ properties:
             description: >-
               cluster_naming genotype only. A cluster is named after its closest donor
               when (second-best - best) / second-best GPb_diff is at least this.
+          recover_from:
+            type: array
+            items:
+              type: string
+              enum: [demuxlet, freemuxlet, souporcell, vireo]
+            uniqueItems: true
+            default: [souporcell, vireo]
+            description: >-
+              informative_majority only. A barcode that exactly one method calls, as a
+              singlet of a named donor, gets status "recovered" (with that donor) instead
+              of "unassigned" when that method is listed here. [] turns this off.
+              Recovered barcodes are reported separately from singlets.
         additionalProperties: false
       souporcell:
         type: object

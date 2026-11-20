@@ -28,6 +28,13 @@ Steps
          Fewer than ``min_informative`` singlet/doublet votes -> unassigned;
          otherwise the majority of singlet vs doublet, a tie -> unassigned.
          A singlet takes the donor most methods name; a tie -> unassigned.
+         ``recover_from`` (default souporcell and vireo): a barcode that
+         exactly one method calls, as a singlet of a named donor, is
+         ``recovered`` with that donor rather than ``unassigned`` when that
+         method is listed; ``Consensus_recovered_by`` names it. On bcarc, lone
+         souporcell / vireo calls matched an independent call's donor ~85-88%
+         of the time, freemuxlet ~72%, demuxlet ~42%. A lone doublet call
+         stays ``unassigned``.
        at_least_half_singlet
          Demuxafy's AtLeastHalfSinglet (below).
      Vote counts are written as ``Consensus_n_singlet``, ``Consensus_n_doublet``
@@ -84,6 +91,7 @@ COLUMNS = [
     "Consensus_n_singlet",
     "Consensus_n_doublet",
     "Consensus_n_informative",
+    "Consensus_recovered_by",
 ]
 RULES = ("informative_majority", "at_least_half_singlet")
 NAMINGS = ("genotype", "vireo_agreement")
@@ -277,9 +285,18 @@ def votes(row):
     return types.count("singlet"), types.count("doublet")
 
 
-def informative_majority(row, min_informative=2):
-    """Majority of the methods that made a call -> (droplet type, assignment)."""
+def informative_majority(row, min_informative=2, recover_from=()):
+    """Majority of the methods that made a call -> (droplet type, assignment).
+
+    A barcode whose only call is a singlet from a method in ``recover_from``
+    (below ``min_informative``) is ``recovered`` with that donor.
+    """
     n_singlet, n_doublet = votes(row)
+    if n_singlet == 1 and n_doublet == 0 and min_informative > 1:
+        lone = next(m for m in METHODS if row[m + "_DropletType"] == "singlet")
+        donor = row[lone + "_Individual_Assignment"]
+        if lone in recover_from and donor not in SENTINELS:
+            return "recovered", donor
     if n_singlet + n_doublet < min_informative or n_singlet == n_doublet:
         return "unassigned", "unassigned"
     if n_doublet > n_singlet:
@@ -301,7 +318,7 @@ def at_least_half_singlet(row):
 def build(demuxlet, freemuxlet, souporcell, vireo, vireosnp, pct_agreement,
           method="informative_majority", min_informative=2, log=None,
           cluster_naming="vireo_agreement", scores=None, min_genotype_margin=0.1,
-          ungenotyped=()):
+          ungenotyped=(), recover_from=()):
     """Inputs are the parsed tables (lists of dicts); returns output rows.
 
     ``scores`` maps each cluster method to its parsed GPb_diff matrix (rows of
@@ -350,7 +367,7 @@ def build(demuxlet, freemuxlet, souporcell, vireo, vireosnp, pct_agreement,
             at_least_half_singlet(row)
         )
         if method == "informative_majority":
-            dtype, donor = informative_majority(row, min_informative)
+            dtype, donor = informative_majority(row, min_informative, recover_from)
         else:
             dtype, donor = row[CONSENSUS + "_DropletType"], row[CONSENSUS + "_Individual_Assignment"]
         n_singlet, n_doublet = votes(row)
@@ -360,6 +377,9 @@ def build(demuxlet, freemuxlet, souporcell, vireo, vireosnp, pct_agreement,
             "Consensus_n_singlet": n_singlet,
             "Consensus_n_doublet": n_doublet,
             "Consensus_n_informative": n_singlet + n_doublet,
+            "Consensus_recovered_by": next(
+                (m for m in METHODS if row[m + "_DropletType"] == "singlet"), "NA"
+            ) if dtype == "recovered" else "NA",
         })
         s = snp.get(bc)
         row[VIREOSNP + "_DropletType"] = s["status"] if s else "NA"
@@ -391,7 +411,8 @@ def main(sm):
                  min_informative=int(sm.params.min_informative), log=log,
                  cluster_naming=sm.params.cluster_naming, scores=scores,
                  min_genotype_margin=float(sm.params.min_genotype_margin),
-                 ungenotyped=ungenotyped, **tables)
+                 ungenotyped=ungenotyped,
+                 recover_from=[m.capitalize() for m in sm.params.recover_from], **tables)
     write_tsv(rows, sm.output.calls)
 
     only = {r["Barcode"] for r in rows} ^ {r["barcode"] for r in tables["vireosnp"]}
@@ -400,6 +421,9 @@ def main(sm):
     for m in METHODS + (CONSENSUS, "Consensus"):
         counts = Counter(r[m + "_DropletType"] for r in rows)
         print("%-20s %s" % (m, dict(sorted(counts.items()))), file=log)
+    by = Counter(r["Consensus_recovered_by"] for r in rows if r["Consensus_DropletType"] == "recovered")
+    if by:
+        print("%-20s %s" % ("recovered by", dict(sorted(by.items()))), file=log)
     log.close()
 
 

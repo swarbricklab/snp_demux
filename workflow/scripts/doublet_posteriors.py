@@ -8,7 +8,7 @@ calls miss.
 
 Columns:
     capture_id, barcode,
-    consensus_status        singlet | doublet | unassigned (from the consensus in force)
+    consensus_status        singlet | recovered | doublet | unassigned (from the consensus in force)
     consensus_assignment    sample_id for singlets, NA otherwise
     vireo_prob_doublet      vireo posterior P(doublet)
     vireo_prob_max          vireo posterior of the best singlet donor
