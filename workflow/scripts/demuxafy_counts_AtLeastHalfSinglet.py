@@ -60,14 +60,14 @@ log.info("----------------------------------")
 
 plot_clusters_annotated = pd.read_table(plot_clusters_annotated)
 
-clusters_count = plot_clusters_annotated["AtLeastHalfSinglet_Individual_Assignment"].value_counts().rename_axis('sampleID').reset_index(name='cell_counts')
+clusters_count = plot_clusters_annotated["Consensus_Individual_Assignment"].value_counts().rename_axis('sampleID').reset_index(name='cell_counts')
 clusters_count = clusters_count.astype({'sampleID':'string'})
 print(clusters_count)
  
-#clusters_count = table["AtLeastHalfSinglet_Individual_Assignment"].value_counts().rename_axis('sampleID').reset_index(name='cell_counts')
+#clusters_count = table["Consensus_Individual_Assignment"].value_counts().rename_axis('sampleID').reset_index(name='cell_counts')
 
 # save tabel with cell counts per sample (with doublets and unassigned)
-table_clusters_count = plot_clusters_annotated.groupby(['AtLeastHalfSinglet_Individual_Assignment']).size()
+table_clusters_count = plot_clusters_annotated.groupby(['Consensus_Individual_Assignment']).size()
 table_clusters_count.to_csv(table_cell_counts, sep='\t')
 
 # --------------

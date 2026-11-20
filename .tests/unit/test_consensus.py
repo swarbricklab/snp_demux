@@ -1,8 +1,4 @@
-"""Unit tests for workflow/scripts/consensus.py (the Demuxafy-equivalent port).
-
-Output-level equivalence with Demuxafy is checked by the golden comparison and
-by .tests/synthetic/consensus_vs_demuxafy.py; these pin the individual rules.
-"""
+"""Unit tests for workflow/scripts/consensus.py."""
 from conftest import load_script
 
 c = load_script("consensus")
@@ -44,33 +40,47 @@ def test_cluster_map_majority_and_threshold():
     bcs = list("ABCDE")
     clusters = dict(zip(bcs, ["0", "0", "0", "1", "1"]))
     ref = dict(zip(bcs, ["d1", "d1", "d2", "d2", "d3"]))
-    m = c.cluster_map(bcs, clusters, ref, 0.6)
-    assert m == {"0": "d1"}  # cluster 1 splits 50/50 -> below 0.6, unmapped
+    mapping, report = c.cluster_map(bcs, clusters, ref, 0.6)
+    assert mapping == {"0": "d1"}  # cluster 1 splits 50/50 -> below 0.6, unnamed
+    assert [r[-1] for r in report] == ["d1", "unnamed"]
 
 
-def test_cluster_map_tie_goes_to_pair_seen_last():
-    # At pct 0.5 cluster 1 has two candidates with equal counts; Demuxafy's
-    # rev(order(Count)) puts the later-seen pair first and downstream kept it.
+def test_cluster_map_tie_is_ambiguous_not_first_wins():
     bcs = list("ABCD")
-    clusters = dict(zip(bcs, ["1", "1", "1", "1"]))
+    clusters = dict(zip(bcs, ["1"] * 4))
     ref = dict(zip(bcs, ["d2", "d3", "d3", "d2"]))
-    assert c.cluster_map(bcs, clusters, ref, 0.5) == {"1": "d3"}
+    mapping, report = c.cluster_map(bcs, clusters, ref, 0.5)
+    assert mapping == {}
+    assert report[0][-1] == "ambiguous"
 
 
-def test_cluster_map_counts_missing_reference_as_a_value():
+def test_cluster_map_never_names_after_reference_sentinels():
+    bcs = list("ABCD")
+    clusters = dict(zip(bcs, ["0"] * 4))
+    ref = {"A": "unassigned", "B": "unassigned", "C": "unassigned", "D": "d1"}
+    assert c.cluster_map(bcs, clusters, ref, 0.7)[0] == {}
+    # the denominator still counts them: 1 of 4 is not agreement
+    ref = {"A": "doublet", "B": "d1", "C": "d1", "D": "d1"}
+    assert c.cluster_map(bcs, clusters, ref, 0.7)[0] == {"0": "d1"}
+
+
+def test_cluster_map_ignores_pseudo_clusters():
     bcs = list("ABC")
-    clusters = {"A": "0", "B": "0", "C": "0"}
-    ref = {"C": "d1"}  # A and B absent from vireo
-    assert c.cluster_map(bcs, clusters, ref, 0.6) == {"0": None}
+    clusters = {"A": "unassigned", "B": "unassigned", "C": "doublet"}
+    ref = {"A": "d1", "B": "d1", "C": "d1"}
+    assert c.cluster_map(bcs, clusters, ref, 0.5) == ({}, [])
 
 
-def test_unmapped_cluster_becomes_doublet():
-    calls = c.read_souporcell(soup([("A", "singlet", "0"), ("B", "unassigned", "1"), ("C", "singlet", "2")]))
-    c.assign_clusters(calls, {"0": "d1", "2": None})
+def test_assign_clusters_keeps_the_methods_own_call():
+    calls = c.read_souporcell(soup([("A", "singlet", "0"), ("B", "unassigned", "1"),
+                                    ("C", "singlet", "2"), ("D", "doublet", "0/2")]))
+    c.assign_clusters(calls, {"0": "d1"})
     assert calls["A"] == {"DropletType": "singlet", "Cluster": "0", "Individual_Assignment": "d1"}
-    # Demuxafy behaviour preserved here; see #65 for why this is wrong.
-    assert calls["B"]["DropletType"] == calls["B"]["Individual_Assignment"] == "doublet"
-    assert calls["C"]["DropletType"] == "doublet"
+    # #65: Demuxafy made both of these doublets
+    assert calls["B"]["DropletType"] == calls["B"]["Individual_Assignment"] == "unassigned"
+    # a singlet in an unnamed cluster abstains (Demuxafy: doublet)
+    assert calls["C"] == {"DropletType": "unassigned", "Cluster": "2", "Individual_Assignment": "unassigned"}
+    assert calls["D"]["DropletType"] == calls["D"]["Individual_Assignment"] == "doublet"
 
 
 def test_plurality():
@@ -84,6 +94,20 @@ def row(types, donors):
     for m, t, d in zip(c.METHODS, types, donors):
         r[m + "_DropletType"], r[m + "_Individual_Assignment"] = t, d
     return r
+
+
+def test_informative_majority():
+    S, D, U = "singlet", "doublet", "unassigned"
+    im = c.informative_majority
+    assert im(row([S, S, D, U], ["a", "a", D, U])) == (S, "a")
+    assert im(row([S, D, D, U], ["a", D, D, U])) == (D, D)
+    assert im(row([S, S, D, D], ["a", "a", D, D])) == (U, U)  # tie
+    assert im(row([D, U, U, U], [D, U, U, U])) == (U, U)  # one informative call
+    assert im(row([D, U, U, U], [D, U, U, U]), min_informative=1) == (D, D)
+    assert im(row([U, U, U, U], [U, U, U, U])) == (U, U)
+    assert im(row([S, S, U, U], ["a", "b", U, U])) == (U, U)  # identity tie
+    # the #65 pattern: one doublet vote among unassigned + one singlet
+    assert im(row([U, S, D, U], [U, "a", D, U])) == (U, U)
 
 
 def test_at_least_half_singlet():
@@ -103,12 +127,20 @@ def test_build_end_to_end():
     assert [r["Barcode"] for r in out] == ["A", "B", "C"]
     assert set(out[0]) == set(c.COLUMNS)
     a, b, cc = out
-    assert a["AtLeastHalfSinglet_Individual_Assignment"] == "d1"
+    assert (a["Consensus_DropletType"], a["Consensus_Individual_Assignment"]) == ("singlet", "d1")
+    assert (a["Consensus_n_singlet"], a["Consensus_n_doublet"], a["Consensus_n_informative"]) == (4, 0, 4)
     assert b["Freemuxlet_Individual_Assignment"] == "d2"
     assert cc["Freemuxlet_DropletType"] == "unassigned"  # missing barcode
-    # Demuxafy treats the pseudo-cluster "unassigned" like any cluster: here all
-    # of its barcodes are vireo d1, so it "maps" to d1 (droplet type unchanged).
-    assert cc["Souporcell_DropletType"] == "unassigned"
-    assert cc["Souporcell_Individual_Assignment"] == "d1"
+    assert cc["Souporcell_DropletType"] == cc["Souporcell_Individual_Assignment"] == "unassigned"
+    # only vireo calls C: AtLeastHalfSinglet says doublet, the consensus abstains
     assert cc["AtLeastHalfSinglet_DropletType"] == "doublet"
+    assert cc["Consensus_DropletType"] == "unassigned"
     assert cc["Souporcell_vireosnp_DropletType"] == "NA"
+    legacy = c.build(dem, fmx, sop, vir, snp, pct_agreement=0.7, method="at_least_half_singlet")
+    assert [r["Consensus_DropletType"] for r in legacy] == [r["AtLeastHalfSinglet_DropletType"] for r in legacy]
+
+
+def test_build_rejects_unknown_method():
+    import pytest
+    with pytest.raises(ValueError):
+        c.build([], [], [], [], [], 0.7, method="MajoritySinglet")
