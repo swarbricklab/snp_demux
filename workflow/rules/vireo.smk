@@ -132,7 +132,12 @@ rule reheader_vireo_vcf:
     shell:
         """
         if [ -s {input.vcf} ]; then
-            bcftools reheader -s {input.sample_map} {input.vcf} -o {output.vcf} >{log} 2>&1
+            # vireo writes plain gzip, which bcftools reheader rejects ("cannot
+            # reheader gzip-compressed files"): recompress to BGZF first.
+            bgzf={output.vcf}.bgzf.tmp
+            bcftools view -Oz -o $bgzf {input.vcf} >{log} 2>&1
+            bcftools reheader -s {input.sample_map} -o {output.vcf} $bgzf >>{log} 2>&1
+            rm -f $bgzf
         else
             echo "No donor vcf file produced by vireo" >{output.vcf}
         fi
