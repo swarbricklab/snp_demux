@@ -38,6 +38,7 @@ where `p_i` is sample *i*'s share of the capture's cells. Σ p_i² is the chance
 | `n_barcodes` | integer | Number of barcodes in the capture's `cell_assignment.tsv`, i.e. every barcode the demultiplexers were run on. This is the denominator of both `doublet_rate_cross_donor*` columns. |
 | `n_singlet` | integer | Barcodes whose consensus `status` is `singlet`. |
 | `n_doublet_hard` | integer | Barcodes whose consensus `status` is `doublet`: the hard (thresholded) doublet calls. |
+| `n_recovered` | integer | Barcodes whose consensus `status` is `recovered`: exactly one method called them, as a singlet of a named donor, and that method is in `params.consensus.recover_from`. They are not counted in `n_singlet` and do not contribute to `p_i`. |
 | `n_unassigned` | integer | Barcodes whose consensus `status` is `unassigned`: the consensus couldn't call them. This includes a singlet call that couldn't be resolved to a sample of this capture. |
 | `sum_prob_doublet` | float | Sum of `Vireo_prob_doublet` over the capture's barcodes, skipping barcodes vireo didn't score (`NA`). |
 | `doublet_rate_cross_donor` | float in [0, 1] | `n_doublet_hard / n_barcodes`: the observed cross-donor doublet rate from the hard calls (*f_x*). |
@@ -56,8 +57,8 @@ where `p_i` is sample *i*'s share of the capture's cells. Σ p_i² is the chance
 ### Rules behind the columns
 
 - **The consensus is whichever one is in force.** `status` and `assignment` come from `cell_assignment.tsv`, so the counts follow the consensus that produced it.
-- **The status counts don't have to add up to `n_barcodes`.** `n_singlet + n_doublet_hard + n_unassigned` equals `n_barcodes` only when every barcode has one of those three statuses. A missing `status` is counted in `n_barcodes` but in none of the three.
-- **`p_i` uses singlets only.** Doublets and unassigned barcodes have no single sample. Singlets assigned to a sample *not* declared for the capture are ignored, so `p_i` always sums to 1 over the declared samples. A sample whose cells are more often left unassigned or called doublets is under-counted, which raises `same_donor_pair_prob`. This can be the case for a sample without a genotype. For example, two samples of 500 cells each give 0.5; if half of one sample's cells are left unassigned, the singlets are 500 and 250, `same_donor_pair_prob` is 0.556, and the factor 1 / (1 − Σ p_i²) rises from 2.0 to 2.25.
+- **The status counts don't have to add up to `n_barcodes`.** `n_singlet + n_doublet_hard + n_recovered + n_unassigned` equals `n_barcodes` only when every barcode has one of those four statuses. A missing `status` is counted in `n_barcodes` but in none of the four.
+- **`p_i` uses singlets only.** Doublets and unassigned barcodes have no single sample, and recovered barcodes rest on one method's call. Singlets assigned to a sample *not* declared for the capture are ignored, so `p_i` always sums to 1 over the declared samples. A sample whose cells are more often left unassigned or called doublets is under-counted, which raises `same_donor_pair_prob`. This can be the case for a sample without a genotype. For example, two samples of 500 cells each give 0.5; if half of one sample's cells are left unassigned, the singlets are 500 and 250, `same_donor_pair_prob` is 0.556, and the factor 1 / (1 − Σ p_i²) rises from 2.0 to 2.25.
 - **Passengers stay in `n_samples` and `same_donor_pair_prob`.** A declared sample with no cells contributes `p_i = 0`. Keeping it in `sample_props` makes the dropout visible.
 - **`doublet_rate_cross_donor_posterior` is not a bound in either direction.** vireo's `prob_doublet` is the posterior of the single most likely donor **pair**, not the sum over all pairs. Where several pairs are plausible, a barcode's total doublet probability is higher than its `prob_doublet`. On the other hand, the posterior counts partial doublet probability on many barcodes that no hard call includes. On the OneK1K test fixture, `doublet_rate_cross_donor_posterior` is 0.071 and vireo's own hard doublets are 0.065 of barcodes. `doublet_rate_cross_donor` is not directly comparable: it counts the consensus of four methods, while the posterior column is vireo alone. It depends on the consensus in force: 0.047 on the fixture under the informative-majority consensus (the default), 0.126 under `at_least_half_singlet`. The posterior also inherits vireo's doublet prior, which is the number of barcodes ÷ 100,000 (capped at 0.5), so it moves with the size of the barcode list.
 - **A false cross-donor doublet is scaled up like a true one.** `n_doublet_hard` includes any singlet wrongly called a doublet, for example one carrying ambient RNA from another donor, which from allele counts alone can look like an unequal doublet. Dividing by `1 − same_donor_pair_prob` to reach a total rate multiplies those as well: by 1.14 for eight equal samples (two points of false doublets add 2.3 points) and by 5.56 for two samples at 90 and 10 per cent (11.1 points).
@@ -71,7 +72,7 @@ Take a capture with 4 declared samples, A–D, and 10,000 barcodes:
 - 2,350 singlets from each sample.
 
 Then:
-- `n_barcodes = 10000`, `n_singlet = 9400`, `n_doublet_hard = 600`, `n_unassigned = 0`.
+- `n_barcodes = 10000`, `n_singlet = 9400`, `n_doublet_hard = 600`, `n_recovered = 0`, `n_unassigned = 0`.
 - `doublet_rate_cross_donor = 600 / 10000 = 0.06`.
 - `p_A = p_B = p_C = p_D = 2350 / 9400 = 0.25`, so `same_donor_pair_prob = 4 × 0.25² = 0.25`.
 - `sample_props = A:0.25;B:0.25;C:0.25;D:0.25`.

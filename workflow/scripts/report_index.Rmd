@@ -96,10 +96,11 @@ metrics %>%
     barcodes = n_barcodes,
     singlet = n_singlet,
     doublet = n_doublet,
+    `recovered (1 method)` = n_recovered_barcodes,
     unassigned = n_unassigned,
     `singlet %` = round(100 * frac_singlet, 1),
     declared = n_declared,
-    recovered = n_recovered,
+    `samples found` = n_recovered,
     `ambient % (soup)` = round(100 * ambient_souporcell, 2),
     `mean methods agreeing` = round(mean_methods_agreeing, 2)
   ) %>%

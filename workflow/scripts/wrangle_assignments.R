@@ -7,7 +7,7 @@ suppressPackageStartupMessages({
 # Demuxafy writes these sentinel values into the *_Individual_Assignment
 # columns when it cannot resolve a droplet to a single individual.
 # They are not donor IDs, so they must survive the donor -> sample recoding.
-demuxafy_sentinels <- c("singlet", "doublet", "unassigned")
+demuxafy_sentinels <- c("singlet", "doublet", "unassigned", "recovered")
 
 # Get input, output, log and wildcard from snakemake
 file_sample_map                <- snakemake@input[["sample_map"]]
@@ -81,10 +81,10 @@ df_summary <- df_assign %>%
     # Only real sample IDs belong in the assignment column; the sentinels are
     # reported via 'status'.
     assignment = if_else(assignment %in% sample_ids, assignment, NA_character_),
-    # A droplet demuxafy called a singlet but that could not be resolved to a
-    # sample in this capture is reported as "unassigned" rather than "singlet".
+    # A droplet called a singlet (or recovered) but that could not be resolved
+    # to a sample in this capture is reported as "unassigned".
     status = if_else(
-        !is.na(status) & status == "singlet" & is.na(assignment),
+        !is.na(status) & status %in% c("singlet", "recovered") & is.na(assignment),
         "unassigned",
         status
     )

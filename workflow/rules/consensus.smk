@@ -11,6 +11,7 @@ CONSENSUS = {
     "min_informative": 2,
     "cluster_naming": "genotype",
     "min_genotype_margin": 0.1,
+    "recover_from": ["souporcell", "vireo"],
     **config["params"].get("consensus", {}),
 }
 
@@ -37,6 +38,7 @@ rule consensus:
         min_informative=CONSENSUS["min_informative"],
         cluster_naming=CONSENSUS["cluster_naming"],
         min_genotype_margin=CONSENSUS["min_genotype_margin"],
+        recover_from=CONSENSUS["recover_from"],
         pool_donors=get_donors_in_capture,
     script:
         "../scripts/consensus.py"
@@ -99,6 +101,7 @@ rule wrangle_stats:
         config["containers"]["r"]
     params:
         assignment_column="Consensus_Individual_Assignment",
+        droplettype_column="Consensus_DropletType",
     script:
         "../scripts/wrangle_stats.R"
 
