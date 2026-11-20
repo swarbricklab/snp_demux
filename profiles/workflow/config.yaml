@@ -28,7 +28,7 @@ set-resources:
   freemuxlet_summary:
     mem: "2GB"
     runtime: 5
-  demuxafy:
+  consensus:
     mem: "2GB"
     runtime: 60
   # souporcell resumes from sc_pileup's ref/alt.mtx: cluster is the heavy step;
