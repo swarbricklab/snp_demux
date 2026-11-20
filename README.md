@@ -57,6 +57,7 @@ The results of each method are combined by [`workflow/scripts/consensus.py`](wor
 
 - Each method's own call (`singlet`, `doublet` or `unassigned`) is kept. A souporcell or freemuxlet singlet takes the donor its cluster is named after (below); a singlet in a cluster that no donor accounts for is `unassigned`.
 - **Consensus** (`params.consensus.method`, default `informative_majority`): a method that returns `unassigned` abstains. With fewer than `params.consensus.min_informative` (default 2) singlet/doublet calls, or a singlet/doublet tie, the barcode is `unassigned`; otherwise it takes the majority. A singlet is assigned to the donor most methods name (a tie is `unassigned`).
+- **Recovered** (`params.consensus.recover_from`, default `[souporcell, vireo]`): a barcode that exactly one of the listed methods calls, as a singlet of a named donor, with no other method making a call, is `recovered` with that donor instead of `unassigned` (e.g. a low-UMI cell that only souporcell places in a named cluster). On bcarc, lone souporcell and vireo calls matched an independent call's donor about 85–88% of the time, lone freemuxlet calls about 72% and lone demuxlet calls about 42%, so the default leaves the last two out; `[]` turns recovery off. `Consensus_recovered_by` names the method. Recovered barcodes are reported separately from singlets throughout (`cell_assignment.tsv` status, the stats, the report and `doublet_summary.csv`), so a consumer can include or exclude them. A lone doublet call stays `unassigned`.
 - Demuxafy's [AtLeastHalfSinglet](https://demultiplexing-doublet-detecting-docs.readthedocs.io/en/latest/CombineResults.html) rule (`singlet` if at least half the methods call a singlet, otherwise `doublet`) is available as `method: at_least_half_singlet` and is always written alongside, as `AtLeastHalfSinglet_*`.
 
 Under AtLeastHalfSinglet a barcode most methods could not call becomes a doublet, and `Combine_Results.R` also turned souporcell/freemuxlet `unassigned` calls into doublets, together inflating the doublet count by about 2× on low-coverage captures ([#65](https://github.com/swarbricklab/snp_demux/issues/65)).
@@ -177,7 +178,7 @@ See [`config/template_config.yaml`](config/template_config.yaml) for a starting 
 | `params.cellsnp_lite` | Legacy pileup thresholds; the pileup is now done upstream in sc_pileup, so these are unused here |
 | `params.demuxlet` | `coeff` and `offset` for the demuxlet doublet prior |
 | `params.demuxafy` | `pct_agreement`: with `cluster_naming: vireo_agreement`, the share of a souporcell/freemuxlet cluster's barcodes that must agree with one vireo donor for the cluster to take that donor. `freemuxlet_correlation_limit` and `souporcell_correlation_limit` are not used |
-| `params.consensus` | Optional. `method` (`informative_majority`, the default, or `at_least_half_singlet`), `min_informative` (default 2), `cluster_naming` (`genotype`, the default, or `vireo_agreement`) and `min_genotype_margin` (default 0.1). See [Method](#method) |
+| `params.consensus` | Optional. `method` (`informative_majority`, the default, or `at_least_half_singlet`), `min_informative` (default 2), `cluster_naming` (`genotype`, the default, or `vireo_agreement`) `min_genotype_margin` (default 0.1) and `recover_from` (default `[souporcell, vireo]`). See [Method](#method) |
 | `params.doublet` | Optional. `rate_per_1k` (doublet rate per 1,000 cells loaded, keyed by chip; default `standard: 0.008`, `HT: 0.004`) and `default_chip` (default `standard`). Used for `d_loading` in `doublet_summary.csv` |
 | `ref.souporcell.genome_fasta` | Reference genome FASTA, matching the transcriptome used by `cellranger` |
 | `containers.*` | Per-tool container images (replaces the old monolithic Demuxafy.sif): `bcftools`, `popscle` (demuxlet/freemuxlet), `vireo` (demux CLI), `vireosnp` (souporcell-genotyping + cell counts), `souporcell`, `r` (all R/Rmd rules), `demuxafy` (Demuxafy's summary and freemuxlet genotype-assignment scripts). See `config/template_config.yaml` and the recipes under [`containers/`](containers) |
@@ -325,8 +326,12 @@ After `snakemake` finishes, `run_mod.sh` does two clean-up steps:
 
 `sample_barcode_assignments.tsv` is the main result. The consensus is in
 `Consensus_DropletType` / `Consensus_Individual_Assignment`, with the votes behind
-it in `Consensus_n_singlet`, `Consensus_n_doublet` and `Consensus_n_informative`;
-`cell_assignment.tsv` is the same consensus as `barcode, assignment, status`.
+it in `Consensus_n_singlet`, `Consensus_n_doublet` and `Consensus_n_informative`
+(and, for a `recovered` barcode, the method in `Consensus_recovered_by`);
+`cell_assignment.tsv` is the same consensus as `barcode, assignment, status`, with
+`status` one of `singlet`, `recovered`, `doublet` or `unassigned` and `assignment`
+the sample for singlets and recovered barcodes. In `all_cells_stats.tsv` recovered
+barcodes are counted as one `recovered` row, not under their samples.
 
 `doublet_posteriors.csv` feeds expression-based doublet detection downstream
 (e.g. scDblFinder `knownDoublets`). Columns: `capture_id, barcode,
@@ -340,7 +345,7 @@ are exported alongside them.
 `doublet_summary.csv` records, per capture, the observed cross-donor doublet
 fraction (`f_x_hard = n_doublet_hard / n_barcodes`, and `f_x_posterior` from the
 summed vireo posteriors) together with every declared sample's share of the
-consensus singlets, `p_i` (`sample_props`, as `sample:p;...`, passengers
+consensus singlets (recovered barcodes excluded; counted in `n_recovered`), `p_i` (`sample_props`, as `sample:p;...`, passengers
 included), and `sum_p_sq = Σp_i²`. Under random pairing a fraction
 `1 − Σp_i²` of doublets is cross-donor, which is what turns `f_x` into an
 expected total doublet rate. A single-sample capture has `sum_p_sq = 1`.
