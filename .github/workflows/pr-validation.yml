@@ -4,7 +4,7 @@ name: PR Validation
 # (the demux toolchain lives in singularity images that only exist on NCI):
 #   1. clone      — clone the PR branch to NCI scratch + wire up DVC (qxub-checkout)
 #   2. reproduce  — dvc pull the fixture + golden, run all four demux methods +
-#                   the Demuxafy consensus on the OneK1K fixture, and
+#                   the consensus on the OneK1K fixture, and
 #                   content-compare the fresh output to the golden
 #                   (run_test.sh --check)
 #   3. cleanup    — remove the per-PR scratch clone

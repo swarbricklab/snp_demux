@@ -2,9 +2,9 @@
 # absconda -> GHCR, it replaces the per-rule conda envs under workflow/envs/
 # (ambient, combine_matrices, pdftools, relabel_vireo, report, report_html,
 # wrangle_demuxafy). It is the UNION of their R dependencies so every R/Rmd
-# rule resolves against one pinned image. The Demuxafy consensus (Combine_Results.R)
-# lives in the separate slimmed demuxafy image; the python vireoSNP counting
-# script runs in the vireo image.
+# rule resolves against one pinned image. The Demuxafy summary/assign scripts
+# live in the separate slimmed demuxafy image; the python consensus and vireoSNP
+# counting scripts run in the vireosnp image.
 name: snp_demux-r
 channels:
   - conda-forge
