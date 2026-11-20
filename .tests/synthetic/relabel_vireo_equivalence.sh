@@ -45,7 +45,7 @@ cat(sprintf("elapsed %.1f s\n", as.numeric(Sys.time() - t0, units = "secs")), fi
 EOF
 
 status=0
-for sc in missing1 all_known zero_cells missing2; do
+for sc in missing1 all_known zero_cells learned_zero missing2; do
     for v in old new; do
         rc=0
         singularity exec --bind "$W" "$IMG" Rscript "$W/run.R" "$W/$v.R" "$W/data/$sc" "$W/out/$v/$sc" \

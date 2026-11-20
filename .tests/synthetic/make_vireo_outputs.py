@@ -11,6 +11,8 @@ Scenarios
   zero_cells   missing1, plus a genotyped donor that receives no cells
                (it appears in the prob_* headers but not in donor_ids.tsv)
   missing2     two donors without genotype (`donor0`, `donor1`) -> script must stop()
+  learned_zero one ungenotyped donor whose learned `donor0` receives no cells
+               (in the prob_* headers, absent from donor_ids.tsv)
 
 Formats mirror real vireo 0.5.x output (see .tests/integration/golden/vireo/).
 The PDF figures are written by the driver script in R (a real one-page PDF for
@@ -95,6 +97,7 @@ def main():
     scenario(a.outdir, "missing1", m1, m1, a.cells, rng)
     scenario(a.outdir, "all_known", DONORS, DONORS, a.cells, rng)
     scenario(a.outdir, "zero_cells", m1, [x for x in m1 if x != "202_202"], a.cells, rng)
+    scenario(a.outdir, "learned_zero", m1, DONORS[:3], a.cells, rng)
     m2 = DONORS[:2] + ["donor0", "donor1"]
     scenario(a.outdir, "missing2", m2, m2, a.cells, rng)
 
