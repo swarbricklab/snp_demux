@@ -19,7 +19,7 @@ the Demuxafy toolchain are pinned to the **exact versions the retired
 | `swarbricklab/vireo_snp:0.5.6` | vireoSNP genotyping (`annotate.py`) + cell counts | the pre-split image for those rules (vireoSNP 0.5.6, pandas 1.3.0) |
 | `cumulusprod/souporcell:2.5` | souporcell | published image |
 | `ghcr.io/swarbricklab/snp_demux-r:r4.2` | all R/Rmd rules | conda env = union of the per-rule R deps |
-| `ghcr.io/swarbricklab/snp_demux-demuxafy:63fb228` | Demuxafy consensus/summary/assign scripts | R + the Demuxafy scripts pinned to repo commit `63fb228` (the sif's commit) |
+| `ghcr.io/swarbricklab/snp_demux-demuxafy:63fb228` | Demuxafy summary and freemuxlet-assign scripts | R + the Demuxafy scripts pinned to repo commit `63fb228` (the sif's commit) |
 
 The image recipes live under [`containers/`](../containers). The per-rule conda
 envs under [`workflow/envs/`](../workflow/envs) are retained and referenced as
@@ -34,7 +34,7 @@ given the same frozen pileups + panel:
 - per-engine outputs — `demuxlet.best`, `freemuxlet.clust1.samples.gz`,
   `ref_clust_pearson_correlations.tsv`, vireo `donor_ids.tsv`,
   souporcell `clusters.tsv`;
-- the Demuxafy consensus (`combined_results.tsv`);
+- the consensus (`combined_results.tsv`);
 - all downstream assignment/stats tables (`sample_barcode_assignments.tsv`,
   `cell_assignment.tsv`, `all_cells_stats.tsv`, `all_singlets_stats.tsv`,
   `all_*_stats_full.tsv`).

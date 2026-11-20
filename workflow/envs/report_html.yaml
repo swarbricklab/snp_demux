@@ -1,8 +1,8 @@
 # Environment for the HTML demux reports (report_capture / report_index).
 #
 # Separate from report.yaml so that adding a reporting dependency does not
-# change the env hash of add_vireosnp_to_combined_results and re-trigger it
-# across every capture.
+# change the env hash of the other R rules that use report.yaml and re-trigger
+# them across every capture.
 name: report_html
 channels:
   - conda-forge
