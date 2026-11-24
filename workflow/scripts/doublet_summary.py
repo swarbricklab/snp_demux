@@ -17,6 +17,8 @@ Per-capture columns (one row):
     sample_props         "sample:p;sample:p;..." in samples.csv order
 
 Rule `combine_doublet_summary` concatenates the per-capture files.
+
+Full column definitions: docs/data_dictionary.md (keep the two in step).
 """
 import sys
 
