@@ -1,9 +1,11 @@
 # ==================================
 # Demux-side imputation-quality filter on the donor panel
 # ----------------------------------
-# The upstream imputation is permissive (INFO/R2 carried through); the R2 cut
-# that suits demultiplexing is owned here (params.imputation), where its effect
-# on the calls can be measured. See workflow/scripts/filter_panel.sh.
+# The R2 cut that suits demultiplexing is owned here (params.imputation), where
+# its effect on the calls can be measured. Upstream imputation is meant to be
+# permissive and carry INFO/R2 through (swarbricklab/imputation#24, not yet
+# done); today it still filters at its own post_r2 (default 0.8). See
+# workflow/scripts/filter_panel.sh.
 # ==================================
 
 

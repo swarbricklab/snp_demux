@@ -1,11 +1,13 @@
 #!/bin/bash
 # Apply the demux-side imputation-quality cut to a per-pool donor panel.
 #
-# Imputation upstream is deliberately permissive (it carries INFO/R2 through), so
-# the precision/recall trade-off for demultiplexing is made here, at read time,
+# The precision/recall trade-off for demultiplexing is made here, at read time,
 # where its effect on the demux calls can be measured. Filtering is
 # non-destructive: the upstream panel is untouched, and a different threshold is
-# just a re-filter.
+# just a re-filter. This relies on upstream imputation being permissive and
+# carrying INFO/R2 through, which is swarbricklab/imputation#24 and not yet
+# done: today upstream still filters at its own post_r2 (default 0.8), so a
+# min_r2 below that recovers nothing.
 #
 #   * imputed sites with INFO/R2 < min_r2 are dropped;
 #   * directly genotyped sites are kept unconditionally ("trust measured sites,

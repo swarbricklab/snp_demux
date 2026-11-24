@@ -286,11 +286,23 @@ After `snakemake` finishes, `run_mod.sh` does two clean-up steps:
 
 ### Imputation R² threshold
 
-Upstream imputation is permissive (it keeps sites down to R² ≥ 0.3 and carries
-`INFO/R2` through). The threshold that suits demultiplexing is set here,
-because only here can its effect on the calls be measured. Before any demux
-tool sees the panel, `filter_panel` drops **imputed** sites with
+The threshold that suits demultiplexing belongs here, because only here can
+its effect on the calls be measured. Before any demux tool sees the panel,
+`filter_panel` drops **imputed** sites with
 `INFO/R2 < params.imputation.min_r2`.
+
+> **Upstream is not permissive yet.** The
+> [imputation](https://github.com/swarbricklab/imputation) workflow still
+> filters imputed sites at `R2 > 0.8` and `MAF >= 0.05` by default (its
+> `post_r2` and `post_maf`). Making it permissive, with a floor of R² ≥ 0.3
+> and `INFO/R2` carried through to the final VCF, is
+> swarbricklab/imputation#24. Until then:
+> - the default `min_r2: 0.8` removes nothing from a panel built with
+>   imputation's defaults;
+> - a `min_r2` below 0.8 can't bring back sites that upstream already dropped.
+>
+> To test lower thresholds today, build the panel from an imputation run with
+> a lower `post_r2` (e.g. `0.3`).
 
 - The default, `0.8`, favours precision over recall: a wrong genotype at a
   discriminating site can mis-assign a cell.
@@ -312,9 +324,10 @@ snakemake r2_sweep --workflow-profile profiles/workflow --configfile <config> ..
 It writes `<outs.root>/benchmark/r2_sweep.tsv`: for each capture, threshold
 (`params.imputation.sweep_r2`) and donor, the number of sites kept, how many of
 those are imputed, and how many discriminate that donor from at least one
-other pool donor. To see how assignment confidence moves with the threshold,
-run the workflow at two `min_r2` values into separate `outs.root`s and compare
-`assignment/`.
+other pool donor. Thresholds below the upstream `post_r2` all give the same
+counts (see the note above). To see how assignment confidence moves with the
+threshold, run the workflow at two `min_r2` values into separate `outs.root`s
+and compare `assignment/`.
 
 ## Outputs
 
