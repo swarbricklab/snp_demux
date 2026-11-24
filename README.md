@@ -354,21 +354,10 @@ every declared sample's share of the consensus singlets (`sample_props`,
 `same_donor_pair_prob`): the inputs for an expected total doublet rate. Every column is defined in the
 [data dictionary](docs/data_dictionary.md#doublet_summarycsv).
 
-The same file carries the expected rates that `mkobj` passes to scDblFinder as
-`dbr` / `dbr.sd`:
-
-| column | definition |
-| --- | --- |
-| `d_total` | `f_x_hard / (1 − sum_p_sq)`, expected total doublet rate |
-| `d_total_sd` | binomial SE of `f_x_hard` scaled by `1 / (1 − sum_p_sq)` (`sum_p_sq` treated as fixed) |
-| `d_within` | `d_total − f_x_hard`, expected within-donor (genotype-invisible) rate |
-| `d_loading` | `n_barcodes / 1000 × rate_per_1k`, what the chip's loading curve predicts |
-| `d_ratio` | `d_total / d_loading`; well above 1 flags overloading, clumping or a demux problem |
-| `d_fallback` | why `d_total`/`d_within` are NA: `single_sample`, `no_singlets`, or `one_sample_only` (every singlet from one sample) |
-
-Both `d_total` and `d_within` are **lower bounds**: genotype methods miss some
-cross-donor doublets, and same-sample aggregates from incomplete dissociation
-are always within-donor, so neither shows up in `f_x`.
+It also carries the expected total and within-donor doublet rates (`d_total`,
+`d_total_sd`, `d_within`) that `mkobj` passes to scDblFinder as `dbr` / `dbr.sd`,
+and a loading-curve check (`d_loading`, `d_ratio`). The rates are lower bounds; see the
+data dictionary for definitions and fallbacks.
 
 > Note on reading these files: sample ids are frequently bare digits, so a TSV
 > reader left to infer types will read `sample_id` as numeric for some captures
