@@ -78,7 +78,7 @@ properties:
         properties:
           rate_per_1k:
             type: object
-            description: Doublet rate per 1,000 cells loaded, keyed by chip (case-insensitive).
+            description: Doublet rate per 1,000 cells recovered (here, barcodes demultiplexed), keyed by chip (case-insensitive), from 10x's multiplet-rate table.
             additionalProperties: {type: number, minimum: 0}
           default_chip:
             type: string

@@ -118,7 +118,8 @@ def get_pool_for_capture(wildcards):
     return str(pool)
 
 
-# Doublet rate per 1,000 cells loaded, by chip, from the 10x loading curves.
+# Doublet rate per 1,000 cells recovered (here, barcodes demultiplexed), by chip,
+# from 10x's multiplet-rate table.
 # Overridable via params.doublet.rate_per_1k; a capture picks its chip from an
 # optional `chip` column in captures.csv (matched case-insensitively).
 _DOUBLET_RATE_DEFAULTS = {"standard": 0.008, "ht": 0.004}

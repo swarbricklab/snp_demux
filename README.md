@@ -166,7 +166,7 @@ See [`config/template_config.yaml`](config/template_config.yaml) for a starting 
 | `params.cellsnp_lite` | Legacy pileup thresholds; the pileup is now done upstream in sc_pileup, so these are unused here |
 | `params.demuxlet` | `coeff` and `offset` for the demuxlet doublet prior |
 | `params.demuxafy` | Correlation limits for matching souporcell and freemuxlet clusters to donors, and the agreement threshold for the consensus |
-| `params.doublet` | Optional. `rate_per_1k` (doublet rate per 1,000 cells loaded, keyed by chip; default `standard: 0.008`, `HT: 0.004`) and `default_chip` (default `standard`). Used for `doublet_rate_loading` in `doublet_summary.csv` |
+| `params.doublet` | Optional. `rate_per_1k` (doublet rate per 1,000 cells recovered, here barcodes demultiplexed, keyed by chip, from 10x's multiplet-rate table; default `standard: 0.008`, `HT: 0.004`) and `default_chip` (default `standard`). Used for `doublet_rate_loading` in `doublet_summary.csv` |
 | `ref.souporcell.genome_fasta` | Reference genome FASTA, matching the transcriptome used by `cellranger` |
 | `containers.*` | Per-tool container images (replaces the old monolithic Demuxafy.sif): `bcftools`, `popscle` (demuxlet/freemuxlet), `vireo` (demux CLI), `vireosnp` (souporcell-genotyping + cell counts), `souporcell`, `r` (all R/Rmd rules), `demuxafy` (consensus/summary/assign scripts). See `config/template_config.yaml` and the recipes under [`containers/`](containers) |
 
@@ -357,9 +357,10 @@ every declared sample's share of the consensus singlets (`sample_props`,
 It also carries the expected total and within-donor doublet rates
 (`doublet_rate_total`, `doublet_rate_total_sd`, `doublet_rate_within_donor`)
 that `mkobj` passes to scDblFinder as `dbr` / `dbr.sd`, and a loading-curve
-check (`doublet_rate_loading`, `doublet_rate_vs_loading`). The rates are lower
-bounds; see the
-data dictionary for definitions and fallbacks.
+check (`doublet_rate_loading`, `doublet_rate_vs_loading`). The rates are
+biased low (missed cross-donor doublets, same-sample aggregates), except that
+false cross-donor doublets push them up; see the data dictionary for
+definitions, caveats and fallbacks.
 
 > Note on reading these files: sample ids are frequently bare digits, so a TSV
 > reader left to infer types will read `sample_id` as numeric for some captures
