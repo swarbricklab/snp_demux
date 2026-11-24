@@ -127,23 +127,23 @@ def _equal_four_donor_capture(f_x=0.06, n=10000):
 def test_expected_rates_equal_four_donor():
     post, samples = _equal_four_donor_capture()
     row = ds.summarise(post, samples, "cap1")
-    assert row["sum_p_sq"] == pytest.approx(0.25)
+    assert row["same_donor_pair_prob"] == pytest.approx(0.25)
     r = ds.expected_rates(row, 0.008)
-    assert r["d_total"] == pytest.approx(0.08)
-    assert r["d_within"] == pytest.approx(0.02)
-    assert r["d_loading"] == pytest.approx(0.08)  # 10k cells * 0.008 / 1k
-    assert r["d_ratio"] == pytest.approx(1.0)
-    # binomial SE of f_x, scaled by 1 / (1 - sum_p_sq)
-    assert r["d_total_sd"] == pytest.approx(math.sqrt(0.06 * 0.94 / 10000) / 0.75)
-    assert r["d_fallback"] == ""
+    assert r["doublet_rate_total"] == pytest.approx(0.08)
+    assert r["doublet_rate_within_donor"] == pytest.approx(0.02)
+    assert r["doublet_rate_loading"] == pytest.approx(0.08)  # 10k cells * 0.008 / 1k
+    assert r["doublet_rate_vs_loading"] == pytest.approx(1.0)
+    # binomial SE of f_x, scaled by 1 / (1 - same_donor_pair_prob)
+    assert r["doublet_rate_total_sd"] == pytest.approx(math.sqrt(0.06 * 0.94 / 10000) / 0.75)
+    assert r["doublet_rate_fallback"] == ""
 
 
 def test_ht_rate_halves_loading_and_doubles_ratio():
     post, samples = _equal_four_donor_capture()
     row = ds.summarise(post, samples, "cap1")
     r = ds.expected_rates(row, 0.004)
-    assert r["d_loading"] == pytest.approx(0.04)
-    assert r["d_ratio"] == pytest.approx(2.0)
+    assert r["doublet_rate_loading"] == pytest.approx(0.04)
+    assert r["doublet_rate_vs_loading"] == pytest.approx(2.0)
 
 
 @pytest.mark.parametrize(
@@ -158,10 +158,10 @@ def test_fallbacks_give_na_rates(assignments, statuses, samples, reason):
     post = _posteriors(assignments, statuses, [0] * len(statuses))
     row = ds.summarise(post, samples, "cap1")
     r = ds.expected_rates(row, 0.008)
-    assert r["d_fallback"] == reason
-    for k in ("d_total", "d_total_sd", "d_within", "d_ratio"):
+    assert r["doublet_rate_fallback"] == reason
+    for k in ("doublet_rate_total", "doublet_rate_total_sd", "doublet_rate_within_donor", "doublet_rate_vs_loading"):
         assert math.isnan(r[k])
-    assert r["d_loading"] == pytest.approx(len(statuses) / 1000 * 0.008)
+    assert r["doublet_rate_loading"] == pytest.approx(len(statuses) / 1000 * 0.008)
 
 
 def test_written_row_has_all_columns(tmp_path):
@@ -171,5 +171,5 @@ def test_written_row_has_all_columns(tmp_path):
     ds.write_csv(ds.to_frame(row), tmp_path / "s.csv")
     back = ds.read_str_table(tmp_path / "s.csv")
     assert list(back.columns) == ds.COLUMNS
-    assert back.loc[0, "d_total"] == "0.08"
-    assert pd.isna(back.loc[0, "d_fallback"])  # empty -> NA on read
+    assert back.loc[0, "doublet_rate_total"] == "0.08"
+    assert pd.isna(back.loc[0, "doublet_rate_fallback"])  # empty -> NA on read

@@ -166,7 +166,7 @@ See [`config/template_config.yaml`](config/template_config.yaml) for a starting 
 | `params.cellsnp_lite` | Legacy pileup thresholds; the pileup is now done upstream in sc_pileup, so these are unused here |
 | `params.demuxlet` | `coeff` and `offset` for the demuxlet doublet prior |
 | `params.demuxafy` | Correlation limits for matching souporcell and freemuxlet clusters to donors, and the agreement threshold for the consensus |
-| `params.doublet` | Optional. `rate_per_1k` (doublet rate per 1,000 cells loaded, keyed by chip; default `standard: 0.008`, `HT: 0.004`) and `default_chip` (default `standard`). Used for `d_loading` in `doublet_summary.csv` |
+| `params.doublet` | Optional. `rate_per_1k` (doublet rate per 1,000 cells loaded, keyed by chip; default `standard: 0.008`, `HT: 0.004`) and `default_chip` (default `standard`). Used for `doublet_rate_loading` in `doublet_summary.csv` |
 | `ref.souporcell.genome_fasta` | Reference genome FASTA, matching the transcriptome used by `cellranger` |
 | `containers.*` | Per-tool container images (replaces the old monolithic Demuxafy.sif): `bcftools`, `popscle` (demuxlet/freemuxlet), `vireo` (demux CLI), `vireosnp` (souporcell-genotyping + cell counts), `souporcell`, `r` (all R/Rmd rules), `demuxafy` (consensus/summary/assign scripts). See `config/template_config.yaml` and the recipes under [`containers/`](containers) |
 
@@ -354,9 +354,11 @@ every declared sample's share of the consensus singlets (`sample_props`,
 `same_donor_pair_prob`): the inputs for an expected total doublet rate. Every column is defined in the
 [data dictionary](docs/data_dictionary.md#doublet_summarycsv).
 
-It also carries the expected total and within-donor doublet rates (`d_total`,
-`d_total_sd`, `d_within`) that `mkobj` passes to scDblFinder as `dbr` / `dbr.sd`,
-and a loading-curve check (`d_loading`, `d_ratio`). The rates are lower bounds; see the
+It also carries the expected total and within-donor doublet rates
+(`doublet_rate_total`, `doublet_rate_total_sd`, `doublet_rate_within_donor`)
+that `mkobj` passes to scDblFinder as `dbr` / `dbr.sd`, and a loading-curve
+check (`doublet_rate_loading`, `doublet_rate_vs_loading`). The rates are lower
+bounds; see the
 data dictionary for definitions and fallbacks.
 
 > Note on reading these files: sample ids are frequently bare digits, so a TSV
