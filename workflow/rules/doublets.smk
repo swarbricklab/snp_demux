@@ -8,7 +8,7 @@
 
 
 # One-row per-capture summary: cross-donor doublet fraction (hard and posterior)
-# and every declared sample's share of singlets (sum_p_sq).
+# and every declared sample's share of singlets (same_donor_pair_prob).
 rule doublet_summary:
     input:
         samples=config["deps"]["samples"],
