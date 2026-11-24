@@ -16,7 +16,7 @@ rule known_genotypes:
         # name-filter guard in souporcell.smk. The omitted donor still appears in
         # the samples.csv roster annotate.py diffs against, so it becomes the "one
         # unknown" and is recovered downstream.
-        vcf=panel_path("informative.vcf.gz")
+        vcf=panel_vcf()
     output:
         vcf=out_dir/"souporcell/annotation/{capture_id}/known_genotypes.vcf"
     params:

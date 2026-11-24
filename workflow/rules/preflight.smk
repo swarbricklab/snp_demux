@@ -88,7 +88,7 @@ rule negative_test:
         # hier's `cluster` column) + the per-pool donor genotype panel. Used to tell
         # a mislabel (X==D) from a distinct relative of D at D's hom-alt sites.
         cluster_genotypes=rules.souporcell_consensus.output.cluster_genotypes,
-        panel_vcf=panel_path("informative.vcf.gz"),
+        panel_vcf=panel_vcf(),
     output:
         # Per-capture data in the DATA tree; only the aggregated summary below is
         # published under reports/.
