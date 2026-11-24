@@ -59,11 +59,12 @@ recode_donors <- function(x) {
   dplyr::coalesce(mapped, x)
 }
 
-# Recode *_Individual_Assignment columns from donors to samples
+# Recode *_Individual_Assignment and *_best_singlet (vireo / souporcell
+# posteriors, see add_posteriors.py) columns from donors to samples
 df_assign <- df_assign %>%
   dplyr::mutate(
     across(
-      ends_with("_Individual_Assignment"),
+      c(ends_with("_Individual_Assignment"), ends_with("_best_singlet")),
       recode_donors
     )
   )
