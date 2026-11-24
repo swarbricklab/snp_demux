@@ -44,8 +44,9 @@ params:
     min_alt: 10     # souporcell default
     ploidy: 2       # souporcell default
   # Expected doublet rate per 1,000 cells loaded (10x loading curves), used for
-  # d_loading / d_ratio in doublet_summary.csv. A capture picks its chip from an
-  # optional `chip` column in captures.csv; blank -> default_chip.
+  # doublet_rate_loading / doublet_rate_vs_loading in doublet_summary.csv. A
+  # capture picks its chip from an optional `chip` column in captures.csv;
+  # blank -> default_chip.
   doublet:
     rate_per_1k:
       standard: 0.008

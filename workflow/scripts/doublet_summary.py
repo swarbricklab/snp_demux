@@ -26,20 +26,28 @@ Per-capture columns (one row):
 Expected doublet rates (all LOWER BOUNDS: genotype methods miss some
 cross-donor doublets, and same-sample aggregates from incomplete dissociation
 are always within-donor, so neither is counted here):
-    rate_per_1k          loading-curve doublet rate per 1,000 cells for the
-                         capture's chip (params.doublet.rate_per_1k)
-    d_total              f_x_hard / (1 - sum_p_sq): expected total doublet rate
-    d_total_sd           binomial SE of f_x_hard, propagated:
-                         sqrt(f_x_hard * (1 - f_x_hard) / n_barcodes) / (1 - sum_p_sq)
-                         (sum_p_sq treated as fixed)
-    d_within             d_total - f_x_hard: expected within-donor (genotype-
-                         invisible) doublet rate
-    d_loading            n_barcodes / 1000 * rate_per_1k: what the chip's
-                         loading curve predicts
-    d_ratio              d_total / d_loading. QC: well above 1 suggests
-                         overloading, clumping or a demux problem
-    d_fallback           why d_total/d_within are NA, else empty:
-                         single_sample | no_singlets | one_sample_only
+    loading_rate_per_1k_cells
+        loading-curve doublet rate per 1,000 cells for the capture's chip
+        (params.doublet.rate_per_1k)
+    doublet_rate_total
+        f_x / (1 - same_donor_pair_prob): expected total doublet rate,
+        where f_x = doublet_rate_cross_donor
+    doublet_rate_total_sd
+        binomial SE of f_x, propagated (same_donor_pair_prob treated as fixed):
+        sqrt(f_x * (1 - f_x) / n_barcodes) / (1 - same_donor_pair_prob)
+    doublet_rate_within_donor
+        doublet_rate_total - f_x: expected within-donor (genotype-invisible)
+        doublet rate
+    doublet_rate_loading
+        n_barcodes / 1000 * loading_rate_per_1k_cells: what the chip's loading
+        curve predicts
+    doublet_rate_vs_loading
+        doublet_rate_total / doublet_rate_loading. QC: well above 1 suggests
+        overloading, clumping or a demux problem
+    doublet_rate_fallback
+        why doublet_rate_total, doublet_rate_total_sd and
+        doublet_rate_within_donor are NA, else empty:
+        single_sample | no_singlets | one_sample_only
 
 Rule `combine_doublet_summary` concatenates the per-capture files.
 
@@ -62,13 +70,13 @@ COLUMNS = [
     "n_samples",
     "same_donor_pair_prob",
     "sample_props",
-    "rate_per_1k",
-    "d_total",
-    "d_total_sd",
-    "d_within",
-    "d_loading",
-    "d_ratio",
-    "d_fallback",
+    "loading_rate_per_1k_cells",
+    "doublet_rate_total",
+    "doublet_rate_total_sd",
+    "doublet_rate_within_donor",
+    "doublet_rate_loading",
+    "doublet_rate_vs_loading",
+    "doublet_rate_fallback",
 ]
 
 NA_VALUES = ["NA", ""]
@@ -140,37 +148,37 @@ def expected_rates(row, rate_per_1k):
     """Expected doublet rates from a summarise() row (see module docstring)."""
     nan = float("nan")
     n = row["n_barcodes"]
-    f_x = row["f_x_hard"]
-    sum_p_sq = row["sum_p_sq"]
-    d_loading = n / 1000 * rate_per_1k
+    f_x = row["doublet_rate_cross_donor"]
+    same_donor_pair_prob = row["same_donor_pair_prob"]
+    doublet_rate_loading = n / 1000 * rate_per_1k
 
     if row["n_samples"] < 2:
         fallback = "single_sample"
-    elif math.isnan(sum_p_sq):
+    elif math.isnan(same_donor_pair_prob):
         fallback = "no_singlets"
-    elif 1 - sum_p_sq <= 0:
+    elif 1 - same_donor_pair_prob <= 0:
         # every singlet came from one sample, so no doublet is expected to be
-        # cross-donor and f_x carries no information about d_total
+        # cross-donor and f_x carries no information about doublet_rate_total
         fallback = "one_sample_only"
     else:
         fallback = ""
 
     if fallback or n == 0:
-        d_total = d_total_sd = d_within = nan
+        doublet_rate_total = doublet_rate_total_sd = doublet_rate_within_donor = nan
     else:
-        cross = 1 - sum_p_sq
-        d_total = f_x / cross
-        d_total_sd = math.sqrt(f_x * (1 - f_x) / n) / cross
-        d_within = d_total - f_x
+        cross = 1 - same_donor_pair_prob
+        doublet_rate_total = f_x / cross
+        doublet_rate_total_sd = math.sqrt(f_x * (1 - f_x) / n) / cross
+        doublet_rate_within_donor = doublet_rate_total - f_x
 
     return {
-        "rate_per_1k": rate_per_1k,
-        "d_total": d_total,
-        "d_total_sd": d_total_sd,
-        "d_within": d_within,
-        "d_loading": d_loading,
-        "d_ratio": _ratio(d_total, d_loading),
-        "d_fallback": fallback,
+        "loading_rate_per_1k_cells": rate_per_1k,
+        "doublet_rate_total": doublet_rate_total,
+        "doublet_rate_total_sd": doublet_rate_total_sd,
+        "doublet_rate_within_donor": doublet_rate_within_donor,
+        "doublet_rate_loading": doublet_rate_loading,
+        "doublet_rate_vs_loading": _ratio(doublet_rate_total, doublet_rate_loading),
+        "doublet_rate_fallback": fallback,
     }
 
 

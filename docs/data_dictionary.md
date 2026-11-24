@@ -26,30 +26,32 @@ Genotype demultiplexing only sees **cross-donor** doublets, meaning two cells fr
 
     1 − Σ p_i²
 
-where `p_i` is sample *i*'s share of the capture's cells. So the observed cross-donor doublet fraction `f_x` and the sample proportions `p_i` together determine the expected total doublet rate. This file records both.
+where `p_i` is sample *i*'s share of the capture's cells. Σ p_i² is the chance that two randomly paired cells come from the same donor, so the cross-donor share is its complement. The observed cross-donor doublet rate (written *f_x* in the formulas below) and the sample proportions `p_i` together determine the expected total doublet rate. This file records both.
+
+**Symbols used in the formulas:** *f_x* = `doublet_rate_cross_donor`; Σ p_i² = `same_donor_pair_prob`.
 
 ### Columns
 
 | column | type | definition |
 |---|---|---|
 | `capture_id` | string | The capture this row describes. |
-| `n_barcodes` | integer | Number of barcodes in the capture's `cell_assignment.tsv`, i.e. every barcode the demultiplexers were run on. This is the denominator of both `f_x` columns. |
+| `n_barcodes` | integer | Number of barcodes in the capture's `cell_assignment.tsv`, i.e. every barcode the demultiplexers were run on. This is the denominator of both `doublet_rate_cross_donor*` columns. |
 | `n_singlet` | integer | Barcodes whose consensus `status` is `singlet`. |
 | `n_doublet_hard` | integer | Barcodes whose consensus `status` is `doublet`: the hard (thresholded) doublet calls. |
 | `n_unassigned` | integer | Barcodes whose consensus `status` is `unassigned`: the consensus couldn't call them. This includes a singlet call that couldn't be resolved to a sample of this capture. |
 | `sum_prob_doublet` | float | Sum of `Vireo_prob_doublet` over the capture's barcodes, skipping barcodes vireo didn't score (`NA`). |
-| `f_x_hard` | float in [0, 1] | `n_doublet_hard / n_barcodes`: the observed cross-donor doublet fraction from the hard calls. |
-| `f_x_posterior` | float in [0, 1] | `sum_prob_doublet / n_barcodes`: the expected cross-donor doublet fraction from vireo's posteriors. It counts the uncertain barcodes that the hard calls leave out. |
+| `doublet_rate_cross_donor` | float in [0, 1] | `n_doublet_hard / n_barcodes`: the observed cross-donor doublet rate from the hard calls (*f_x*). |
+| `doublet_rate_cross_donor_posterior` | float in [0, 1] | `sum_prob_doublet / n_barcodes`: the expected cross-donor doublet rate from vireo's posteriors. It counts the uncertain barcodes that the hard calls leave out. |
 | `n_samples` | integer | Number of `sample_id`s declared for the capture in the samples sheet, **including passengers** (declared samples that contributed no cells). |
-| `sum_p_sq` | float in (0, 1] | `Σ p_i²` over all declared samples. `p_i` = consensus singlets assigned to sample *i* ÷ consensus singlets assigned to any declared sample. `1` for a single-sample capture. `NA` if the capture has no singlets assigned to a declared sample. |
-| `sample_props` | string | Every declared sample's `p_i`, as `sample:p;sample:p;…`, in samples-sheet order. Passengers appear as `sample:0.0`. `NA` when `sum_p_sq` is `NA`. |
-| `rate_per_1k` | float | Doublet rate per 1,000 cells loaded, from the 10x loading curve for the capture's chip: e.g. `0.008` means 0.8% doublets per 1,000 cells. The chip comes from an optional `chip` column in `captures.csv` (blank → `params.doublet.default_chip`), and its rate from `params.doublet.rate_per_1k`. Defaults: `standard: 0.008`, `HT: 0.004`. Chip names match case-insensitively; a chip with no rate is an error. |
-| `d_total` | float | Expected **total** doublet rate: `f_x_hard / (1 − sum_p_sq)`. This is the hard cross-donor fraction scaled up by the share of doublets that are cross-donor under random pairing. `NA` when `d_fallback` is set or `n_barcodes` is 0. |
-| `d_total_sd` | float | Standard error of `d_total`: the binomial SE of `f_x_hard`, `sqrt(f_x_hard × (1 − f_x_hard) / n_barcodes)`, divided by `(1 − sum_p_sq)`. Uncertainty in `sum_p_sq` is ignored. `NA` whenever `d_total` is. |
-| `d_within` | float | Expected **within-donor** doublet rate, invisible to genotype methods: `d_total − f_x_hard`. `NA` whenever `d_total` is. |
-| `d_loading` | float | What the chip's loading curve predicts: `n_barcodes / 1000 × rate_per_1k`. Always computed. `n_barcodes` stands in for cells recovered. |
-| `d_ratio` | float | `d_total / d_loading`, as a QC: about 1 means the genotype-based estimate agrees with the loading curve; well above 1 suggests overloading, cell clumping or a demultiplexing problem. `NA` when `d_total` is `NA` or `d_loading` is 0. |
-| `d_fallback` | string | Empty when the rates were computed. Otherwise why `d_total`, `d_total_sd` and `d_within` are `NA`: `single_sample` (`n_samples < 2`, so no doublet can be cross-donor); `no_singlets` (`sum_p_sq` is `NA`); `one_sample_only` (every singlet came from one declared sample, so `1 − sum_p_sq = 0`). Written as an empty field, which most CSV readers return as missing. |
+| `same_donor_pair_prob` | float in (0, 1] | `Σ p_i²` over all declared samples: the probability that two randomly paired cells come from the same sample. `p_i` = consensus singlets assigned to sample *i* ÷ consensus singlets assigned to any declared sample. `1` for a single-sample capture. `NA` if the capture has no singlets assigned to a declared sample. |
+| `sample_props` | string | Every declared sample's `p_i`, as `sample:p;sample:p;…`, in samples-sheet order. Passengers appear as `sample:0.0`. `NA` when `same_donor_pair_prob` is `NA`. |
+| `loading_rate_per_1k_cells` | float | Doublet rate per 1,000 cells loaded, from the 10x loading curve for the capture's chip: e.g. `0.008` means 0.8% doublets per 1,000 cells. The chip comes from an optional `chip` column in `captures.csv` (blank → `params.doublet.default_chip`), and its rate from `params.doublet.rate_per_1k`. Defaults: `standard: 0.008`, `HT: 0.004`. Chip names match case-insensitively; a chip with no rate is an error. |
+| `doublet_rate_total` | float | Expected **total** doublet rate: *f_x* / (1 − Σ p_i²), i.e. `doublet_rate_cross_donor / (1 − same_donor_pair_prob)`. This is the hard cross-donor rate scaled up by the share of doublets that are cross-donor under random pairing. `NA` when `doublet_rate_fallback` is set or `n_barcodes` is 0. |
+| `doublet_rate_total_sd` | float | Standard error of `doublet_rate_total`: the binomial SE of *f_x*, √(*f_x* (1 − *f_x*) / `n_barcodes`), divided by (1 − Σ p_i²). Uncertainty in `same_donor_pair_prob` is ignored. `NA` whenever `doublet_rate_total` is. |
+| `doublet_rate_within_donor` | float | Expected **within-donor** doublet rate, invisible to genotype methods: `doublet_rate_total − doublet_rate_cross_donor`. `NA` whenever `doublet_rate_total` is. |
+| `doublet_rate_loading` | float | What the chip's loading curve predicts: `n_barcodes / 1000 × loading_rate_per_1k_cells`. Always computed. `n_barcodes` stands in for cells recovered. |
+| `doublet_rate_vs_loading` | float | `doublet_rate_total / doublet_rate_loading`, as a QC: about 1 means the genotype-based estimate agrees with the loading curve; well above 1 suggests overloading, cell clumping or a demultiplexing problem. `NA` when `doublet_rate_total` is `NA` or `doublet_rate_loading` is 0. |
+| `doublet_rate_fallback` | string | Empty when the rates were computed. Otherwise why `doublet_rate_total`, `doublet_rate_total_sd` and `doublet_rate_within_donor` are `NA`: `single_sample` (`n_samples < 2`, so no doublet can be cross-donor); `no_singlets` (`same_donor_pair_prob` is `NA`); `one_sample_only` (every singlet came from one declared sample, so `1 − same_donor_pair_prob = 0`). Written as an empty field, which most CSV readers return as missing. |
 
 ### Rules behind the columns
 
@@ -70,11 +72,11 @@ Take a capture with 4 declared samples, A–D, and 10,000 barcodes:
 
 Then:
 - `n_barcodes = 10000`, `n_singlet = 9400`, `n_doublet_hard = 600`, `n_unassigned = 0`.
-- `f_x_hard = 600 / 10000 = 0.06`.
-- `p_A = p_B = p_C = p_D = 2350 / 9400 = 0.25`, so `sum_p_sq = 4 × 0.25² = 0.25`.
+- `doublet_rate_cross_donor = 600 / 10000 = 0.06`.
+- `p_A = p_B = p_C = p_D = 2350 / 9400 = 0.25`, so `same_donor_pair_prob = 4 × 0.25² = 0.25`.
 - `sample_props = A:0.25;B:0.25;C:0.25;D:0.25`.
 - Under random pairing, `1 − 0.25 = 0.75` of doublets are cross-donor. The 6% observed are therefore three quarters of an expected 8% total.
-- `d_total = 0.06 / 0.75 = 0.08`, and `d_within = 0.08 − 0.06 = 0.02`.
-- `d_total_sd = sqrt(0.06 × 0.94 / 10000) / 0.75 ≈ 0.003166`.
-- On a standard chip (`rate_per_1k = 0.008`): `d_loading = 10000 / 1000 × 0.008 = 0.08`, so `d_ratio = 1.0` and `d_fallback` is empty.
-- On an HT chip (`0.004`), `d_loading = 0.04` and `d_ratio = 2.0`.
+- `doublet_rate_total = 0.06 / 0.75 = 0.08`, and `doublet_rate_within_donor = 0.08 − 0.06 = 0.02`.
+- `doublet_rate_total_sd = sqrt(0.06 × 0.94 / 10000) / 0.75 ≈ 0.003166`.
+- On a standard chip (`loading_rate_per_1k_cells = 0.008`): `doublet_rate_loading = 10000 / 1000 × 0.008 = 0.08`, so `doublet_rate_vs_loading = 1.0` and `doublet_rate_fallback` is empty.
+- On an HT chip (`0.004`), `doublet_rate_loading = 0.04` and `doublet_rate_vs_loading = 2.0`.
