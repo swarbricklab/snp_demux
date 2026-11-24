@@ -347,12 +347,10 @@ souporcell's values reproduce exactly: the rule starts every cluster from the
 donor genotypes (`--known_genotypes`), which draws no random numbers.
 
 `doublet_summary.csv` records, per capture, the observed cross-donor doublet
-fraction (`f_x_hard = n_doublet_hard / n_barcodes`, and `f_x_posterior` from the
-summed vireo posteriors) together with every declared sample's share of the
-consensus singlets, `p_i` (`sample_props`, as `sample:p;...`, passengers
-included), and `sum_p_sq = Σp_i²`. Under random pairing a fraction
-`1 − Σp_i²` of doublets is cross-donor, which is what turns `f_x` into an
-expected total doublet rate. A single-sample capture has `sum_p_sq = 1`.
+fraction (`f_x_hard`, `f_x_posterior`) and every declared sample's share of the
+consensus singlets (`sample_props`, `sum_p_sq`): the inputs for an expected
+total doublet rate. Every column is defined in the
+[data dictionary](docs/data_dictionary.md#doublet_summarycsv).
 
 > Note on reading these files: sample ids are frequently bare digits, so a TSV
 > reader left to infer types will read `sample_id` as numeric for some captures
