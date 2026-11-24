@@ -8,13 +8,20 @@ f_x into an expected total doublet rate.
 
 Per-capture columns (one row):
     capture_id, n_barcodes, n_singlet, n_doublet_hard, n_unassigned,
-    sum_prob_doublet     sum of vireo P(doublet) over the capture's barcodes
-    f_x_hard             n_doublet_hard / n_barcodes
-    f_x_posterior        sum_prob_doublet / n_barcodes
-    n_samples            samples declared for the capture in samples.csv
-    sum_p_sq             sum of p_i^2; p_i from singlet counts over ALL declared
-                         samples (passengers with zero cells included)
-    sample_props         "sample:p;sample:p;..." in samples.csv order
+    sum_prob_doublet
+        sum of vireo P(doublet) over the capture's barcodes
+    doublet_rate_cross_donor
+        n_doublet_hard / n_barcodes (f_x, from the hard calls)
+    doublet_rate_cross_donor_posterior
+        sum_prob_doublet / n_barcodes (f_x, from vireo's posteriors)
+    n_samples
+        samples declared for the capture in samples.csv
+    same_donor_pair_prob
+        sum of p_i^2: the chance two randomly paired cells share a donor.
+        p_i from singlet counts over ALL declared samples (passengers with
+        zero cells included)
+    sample_props
+        "sample:p;sample:p;..." in samples.csv order
 
 Rule `combine_doublet_summary` concatenates the per-capture files.
 
@@ -31,10 +38,10 @@ COLUMNS = [
     "n_doublet_hard",
     "n_unassigned",
     "sum_prob_doublet",
-    "f_x_hard",
-    "f_x_posterior",
+    "doublet_rate_cross_donor",
+    "doublet_rate_cross_donor_posterior",
     "n_samples",
-    "sum_p_sq",
+    "same_donor_pair_prob",
     "sample_props",
 ]
 
@@ -82,10 +89,10 @@ def summarise(posteriors, samples, capture_id):
 
     props = sample_proportions(posteriors, samples)
     if props is None:
-        sum_p_sq = float("nan")
+        same_donor_pair_prob = float("nan")
         sample_props = float("nan")
     else:
-        sum_p_sq = float((props**2).sum())
+        same_donor_pair_prob = float((props**2).sum())
         sample_props = ";".join(f"{s}:{round(p, DIGITS)}" for s, p in props.items())
 
     return {
@@ -95,10 +102,10 @@ def summarise(posteriors, samples, capture_id):
         "n_doublet_hard": n_doublet,
         "n_unassigned": int((status == "unassigned").sum()),
         "sum_prob_doublet": sum_prob_doublet,
-        "f_x_hard": _ratio(n_doublet, n_barcodes),
-        "f_x_posterior": _ratio(sum_prob_doublet, n_barcodes),
+        "doublet_rate_cross_donor": _ratio(n_doublet, n_barcodes),
+        "doublet_rate_cross_donor_posterior": _ratio(sum_prob_doublet, n_barcodes),
         "n_samples": len(samples),
-        "sum_p_sq": sum_p_sq,
+        "same_donor_pair_prob": same_donor_pair_prob,
         "sample_props": sample_props,
     }
 

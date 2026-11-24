@@ -34,11 +34,11 @@ def test_hand_computed_values():
     assert row["n_doublet_hard"] == 2
     assert row["n_unassigned"] == 2
     assert row["sum_prob_doublet"] == pytest.approx(2.5)  # NA skipped
-    assert row["f_x_hard"] == pytest.approx(0.2)
-    assert row["f_x_posterior"] == pytest.approx(0.25)
+    assert row["doublet_rate_cross_donor"] == pytest.approx(0.2)
+    assert row["doublet_rate_cross_donor_posterior"] == pytest.approx(0.25)
     assert row["n_samples"] == 4  # passenger counted
     # p = 1/2, 1/3, 1/6, 0  ->  1/4 + 1/9 + 1/36 = 14/36
-    assert row["sum_p_sq"] == pytest.approx(14 / 36)
+    assert row["same_donor_pair_prob"] == pytest.approx(14 / 36)
     assert row["sample_props"] == "S1:0.5;S2:0.333333;007:0.166667;P0:0.0"
 
 
@@ -46,23 +46,23 @@ def test_single_sample_capture_has_sum_p_sq_one():
     a = ["S1"] * 5 + [None]
     s = ["singlet"] * 5 + ["unassigned"]
     row = ds.summarise(_posteriors(a, s, [0] * 6), ["S1"], "cap1")
-    assert row["sum_p_sq"] == 1.0
+    assert row["same_donor_pair_prob"] == 1.0
     assert row["n_samples"] == 1
-    assert row["f_x_hard"] == 0.0
+    assert row["doublet_rate_cross_donor"] == 0.0
 
 
 def test_no_singlets_gives_na_not_crash():
     row = ds.summarise(
         _posteriors([None, None], ["doublet", "unassigned"], [1, 0]), ["S1", "S2"], "c"
     )
-    assert math.isnan(row["sum_p_sq"])
+    assert math.isnan(row["same_donor_pair_prob"])
     assert math.isnan(row["sample_props"])
 
 
 def test_assignments_outside_declared_samples_ignored_for_props():
     a = ["S1", "S2", "ZZ"]
     row = ds.summarise(_posteriors(a, ["singlet"] * 3, [0] * 3), ["S1", "S2"], "c")
-    assert row["sum_p_sq"] == pytest.approx(0.5)
+    assert row["same_donor_pair_prob"] == pytest.approx(0.5)
 
 
 def test_csv_columns_and_combine(tmp_path):

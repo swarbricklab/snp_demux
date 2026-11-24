@@ -347,9 +347,9 @@ souporcell's values reproduce exactly: the rule starts every cluster from the
 donor genotypes (`--known_genotypes`), which draws no random numbers.
 
 `doublet_summary.csv` records, per capture, the observed cross-donor doublet
-fraction (`f_x_hard`, `f_x_posterior`) and every declared sample's share of the
-consensus singlets (`sample_props`, `sum_p_sq`): the inputs for an expected
-total doublet rate. Every column is defined in the
+rate (`doublet_rate_cross_donor`, `doublet_rate_cross_donor_posterior`) and
+every declared sample's share of the consensus singlets (`sample_props`,
+`same_donor_pair_prob`): the inputs for an expected total doublet rate. Every column is defined in the
 [data dictionary](docs/data_dictionary.md#doublet_summarycsv).
 
 > Note on reading these files: sample ids are frequently bare digits, so a TSV
