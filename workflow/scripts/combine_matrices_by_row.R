@@ -59,7 +59,10 @@ for(i in seq_along(data_files))
 {
   data_file <- data_files[[i]]
   message("FILE: ", data_file)
-  df_data <- read.delim(data_file, stringsAsFactors = F)
+  # Every column is an id, a label or a value copied verbatim, so keep the text:
+  # inferred types would turn bare-digit sample ids such as 007 into 7 and
+  # re-format floats.
+  df_data <- read.delim(data_file, stringsAsFactors = F, colClasses = "character")
   message("Number of rows: ", nrow(df_data))
 
   # Stamp the capture the rows came from. Without this the concatenation is
@@ -78,7 +81,7 @@ for(i in seq_along(data_files))
 #dfCombined$sample_id <- stringr::str_split_fixed(dfCombined$cell_ids, pattern = "_", n=Inf)[, 1]
 message("number of rows in combined results = ", nrow(dfCombined))
 message("writing combined data")
-write.table(x = dfCombined, file = file_combined, row.names = FALSE, sep = "\t")
+write.table(x = dfCombined, file = file_combined, row.names = FALSE, sep = "\t", quote = FALSE)
 
 message("--------------------------------")
 message("FINALISE") # ----
