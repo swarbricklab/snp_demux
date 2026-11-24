@@ -22,7 +22,6 @@ include: "rules/freemuxlet.smk"
 include: "rules/souporcell.smk"
 include: "rules/souporcell_genotyping.smk"
 include: "rules/demuxafy.smk"
-include: "rules/doublets.smk"
 include: "rules/prepare_data_for_report.smk"
 include: "rules/aggregate.smk"
 include: "rules/report.smk"
@@ -38,8 +37,4 @@ rule all:
         out_dir / "assignment/report/all_singlets_stats_full.tsv",
         out_dir / "assignment/report/all_cells_stats_full.tsv",
         out_dir / "assignment/report/combined_results.tsv",
-        expand(
-            out_dir / "assignment/{capture_id}/doublet_posteriors.csv",
-            capture_id=captures.index.tolist(),
-        ),
         report_dir / "index.html",

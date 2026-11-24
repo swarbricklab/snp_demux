@@ -100,11 +100,33 @@ rule add_vireosnp_to_combined_results:
         "../scripts/add_vireosnp_to_combined_results.R"
 
 
+# Append vireo's and souporcell's per-barcode posteriors (in donor space, so
+# wrangle_assignments.R recodes their best-singlet columns to sample ids with
+# the rest). See workflow/scripts/add_posteriors.py.
+rule add_posteriors:
+    input:
+        table=rules.add_vireosnp_to_combined_results.output.assignments_with_vireosnp,
+        vireo=rules.relabel_vireo.output.donor_ids,
+        souporcell=rules.souporcell_troublet.output.clusters,
+        samples=config["deps"]["samples"],
+    output:
+        table=temp(
+            out_dir
+            / "assignment/{capture_id}/combined_results_w_combined_assignments.inc_posteriors.tsv"
+        ),
+    log:
+        logs / "assignment/{capture_id}/add_posteriors.log",
+    container:
+        config["containers"]["vireosnp"]
+    script:
+        "../scripts/add_posteriors.py"
+
+
 rule wrangle_demuxafy_assignments:
     input:
         sample_map=config["deps"]["samples"],
         #vcf=config["deps"]["vcf"],
-        demuxafy_assignments=rules.add_vireosnp_to_combined_results.output.assignments_with_vireosnp,
+        demuxafy_assignments=rules.add_posteriors.output.table,
     output:
         sample_barcode_assignments=out_dir
         / "assignment/{capture_id}/sample_barcode_assignments.tsv",

@@ -300,7 +300,6 @@ After `snakemake` finishes, `run_mod.sh` does two clean-up steps:
     cell_assignment.tsv
     all_cells_stats.tsv             cells per sample, including doublet and unassigned
     all_singlets_stats.tsv          cells per sample, singlets only
-    doublet_posteriors.csv          one row per barcode: consensus call + vireo doublet posteriors
   assignment/report/
     combined_results.tsv            all captures, stamped with capture_id
     all_cells_stats_full.tsv
@@ -309,14 +308,26 @@ After `snakemake` finishes, `run_mod.sh` does two clean-up steps:
 
 `sample_barcode_assignments.tsv` is the main result.
 
-`doublet_posteriors.csv` feeds expression-based doublet detection downstream
-(e.g. scDblFinder `knownDoublets`). Columns: `capture_id, barcode,
-consensus_status, consensus_assignment, vireo_prob_doublet, vireo_prob_max,
-vireo_best_singlet`. `consensus_*` come from the consensus in force
-(AtLeastHalfSinglet); `vireo_best_singlet` is translated to this capture's
-`sample_id`. Hard doublet calls undercount cross-donor doublets (low-UMI
+It also carries vireo's and souporcell's per-barcode posteriors, for
+expression-based doublet detection downstream (e.g. scDblFinder
+`knownDoublets`). Hard doublet calls undercount cross-donor doublets (low-UMI
 barcodes, donor pairs with few informative SNPs), which is why the posteriors
-are exported alongside them.
+are exported alongside them. Each tool's values are copied verbatim, and keep
+its own names because they mean different things:
+
+| column | source | meaning |
+|---|---|---|
+| `Vireo_prob_max` | vireo `prob_max` | posterior of the best singlet donor, joint with the doublet hypotheses |
+| `Vireo_prob_doublet` | vireo `prob_doublet` | posterior of the most likely donor *pair* (vireo reports the max over pairs, not their sum) |
+| `Vireo_best_singlet` | vireo `best_singlet` | `sample_id` of the best singlet donor |
+| `Souporcell_singlet_posterior` | troublet `singlet_posterior` | posterior of the best cluster, normalised over clusters (given a singlet) |
+| `Souporcell_doublet_posterior` | troublet `doublet_posterior` | best donor pair vs best singlet, under troublet's doublet prior (0.5) |
+| `Souporcell_best_singlet` | troublet per-cluster log-probabilities | `sample_id` of the best cluster, named as the consensus names it; `NA` if the cluster is unnamed |
+
+The `*_best_singlet` columns hold `sample_id`s only, never cluster numbers or
+unrelabelled vireo donors (those are `NA`). A barcode missing from a tool's
+output is `NA` in that tool's columns. souporcell's values depend on its thread
+count, like its cluster assignments (see `docs/reproducibility.md`).
 
 > Note on reading these files: sample ids are frequently bare digits, so a TSV
 > reader left to infer types will read `sample_id` as numeric for some captures
