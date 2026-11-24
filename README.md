@@ -349,11 +349,9 @@ So compare them only after rescaling, and expect `Vireo_prob_doublet` for a
 barcode to move if the barcode list changes (a stricter cell filter upstream, or
 a subset).
 
-`Souporcell_DropletType` is not troublet's own status. The consensus step
-writes `doublet` there for a barcode troublet left `unassigned`, and for one it
-assigned to a cluster with no donor name, so `doublet` can sit beside a
-`Souporcell_doublet_posterior` below 0.9. troublet's own call is `doublet`
-exactly when `Souporcell_doublet_posterior >= 0.9`.
+`Souporcell_DropletType` keeps troublet's own call: it is `doublet` exactly
+when `Souporcell_doublet_posterior >= 0.9`. A singlet in a cluster with no donor
+name is `unassigned`.
 
 souporcell's values reproduce exactly: the rule starts every cluster from the
 donor genotypes (`--known_genotypes`), which draws no random numbers.
