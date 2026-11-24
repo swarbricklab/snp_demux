@@ -318,7 +318,7 @@ its own names because they mean different things:
 | column | source | meaning |
 |---|---|---|
 | `Vireo_prob_max` | vireo `prob_max` | posterior of the best singlet donor, joint with the doublet hypotheses |
-| `Vireo_prob_doublet` | vireo `prob_doublet` | posterior of the most likely donor *pair* (vireo reports the max over pairs, not their sum) |
+| `Vireo_prob_doublet` | vireo `prob_doublet` | posterior of the most likely donor *pair* (the max over pairs, not their sum), under vireo's doublet prior: barcodes in the capture / 100,000, capped at 0.5 and not configurable |
 | `Vireo_best_singlet` | vireo `best_singlet` | `sample_id` of the best singlet donor |
 | `Souporcell_singlet_posterior` | troublet `singlet_posterior` | posterior of the best cluster, normalised over clusters (given a singlet) |
 | `Souporcell_doublet_posterior` | troublet `doublet_posterior` | best donor pair vs best singlet, under troublet's doublet prior (0.5) |
@@ -326,8 +326,23 @@ its own names because they mean different things:
 
 The `*_best_singlet` columns hold `sample_id`s only, never cluster numbers or
 unrelabelled vireo donors (those are `NA`). A barcode missing from a tool's
-output is `NA` in that tool's columns. souporcell's values depend on its thread
-count, like its cluster assignments (see `docs/reproducibility.md`).
+output is `NA` in that tool's columns. The values are copied verbatim into both
+the per-capture table and the cohort roll-up (`assignment/report/combined_results.tsv`).
+
+The two doublet columns use different priors: troublet's is 0.5, vireo's is
+0.014 on the 1,400-barcode test fixture and 0.21 on a 21,000-barcode capture.
+So compare them only after rescaling, and expect `Vireo_prob_doublet` for a
+barcode to move if the barcode list changes (a stricter cell filter upstream, or
+a subset).
+
+`Souporcell_DropletType` is not troublet's own status. The consensus step
+writes `doublet` there for a barcode troublet left `unassigned`, and for one it
+assigned to a cluster with no donor name, so `doublet` can sit beside a
+`Souporcell_doublet_posterior` below 0.9. troublet's own call is `doublet`
+exactly when `Souporcell_doublet_posterior >= 0.9`.
+
+souporcell's values reproduce exactly: the rule starts every cluster from the
+donor genotypes (`--known_genotypes`), which draws no random numbers.
 
 > Note on reading these files: sample ids are frequently bare digits, so a TSV
 > reader left to infer types will read `sample_id` as numeric for some captures
