@@ -116,3 +116,20 @@ def get_pool_for_capture(wildcards):
     if pool is None or (isinstance(pool, float) and pd.isna(pool)):
         return ""
     return str(pool)
+
+
+# Demux-side imputation-quality cut (rules/panel.smk). Defaults: keep imputed
+# sites with R2 >= 0.8 (precision over recall for demux; genotyped sites are
+# always kept), no MAF cut, and sweep these thresholds in the r2_sweep benchmark.
+_IMPUTATION_DEFAULTS = {
+    "min_r2": 0.8,
+    "min_maf": 0.0,
+    "sweep_r2": [0.3, 0.5, 0.7, 0.8, 0.9],
+}
+
+
+def imputation_param(key):
+    """
+    Return params.imputation.<key>, falling back to _IMPUTATION_DEFAULTS.
+    """
+    return config["params"].get("imputation", {}).get(key, _IMPUTATION_DEFAULTS[key])
