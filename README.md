@@ -166,7 +166,7 @@ See [`config/template_config.yaml`](config/template_config.yaml) for a starting 
 | `params.cellsnp_lite` | Legacy pileup thresholds; the pileup is now done upstream in sc_pileup, so these are unused here |
 | `params.demuxlet` | `coeff` and `offset` for the demuxlet doublet prior |
 | `params.demuxafy` | Correlation limits for matching souporcell and freemuxlet clusters to donors, and the agreement threshold for the consensus |
-| `params.imputation` | Optional. Demux-side imputation-quality cut on the donor panel: `min_r2` (default `0.8`; imputed sites below it are dropped, genotyped sites always kept; `0` disables), `min_maf` (default `0`, off), and `sweep_r2` (thresholds for the `r2_sweep` benchmark). See [Imputation R² threshold](#imputation-r²-threshold) |
+| `params.imputation` | Optional. Demux-side imputation-quality cut on the donor panel: `min_r2` (default `0.8`; imputed sites below it are dropped, genotyped sites never removed for their R²; `0` disables), `min_maf` (default `0`, off), and `sweep_r2` (thresholds for the `r2_sweep` benchmark). See [Imputation R² threshold](#imputation-r²-threshold) |
 | `ref.souporcell.genome_fasta` | Reference genome FASTA, matching the transcriptome used by `cellranger` |
 | `containers.*` | Per-tool container images (replaces the old monolithic Demuxafy.sif): `bcftools`, `popscle` (demuxlet/freemuxlet), `vireo` (demux CLI), `vireosnp` (souporcell-genotyping + cell counts), `souporcell`, `r` (all R/Rmd rules), `demuxafy` (consensus/summary/assign scripts). See `config/template_config.yaml` and the recipes under [`containers/`](containers) |
 
@@ -287,9 +287,11 @@ After `snakemake` finishes, `run_mod.sh` does two clean-up steps:
 ### Imputation R² threshold
 
 The threshold that suits demultiplexing belongs here, because only here can
-its effect on the calls be measured. Before any demux tool sees the panel,
-`filter_panel` drops **imputed** sites with
-`INFO/R2 < params.imputation.min_r2`.
+its effect on the calls be measured. `filter_panel` drops **imputed** sites
+with `INFO/R2 < params.imputation.min_r2` before vireo, demuxlet and the
+cluster-naming steps read the panel. souporcell clusters on sc_pileup's
+`variants.vcf`, which holds every panel site with enough reads, so its
+clustering does not see this filter. Its cluster naming does.
 
 > **Upstream is not permissive yet.** The
 > [imputation](https://github.com/swarbricklab/imputation) workflow still
@@ -305,16 +307,36 @@ its effect on the calls be measured. Before any demux tool sees the panel,
 > a lower `post_r2` (e.g. `0.3`).
 
 - The default, `0.8`, favours precision over recall: a wrong genotype at a
-  discriminating site can mis-assign a cell.
-- Directly genotyped sites are always kept (trust measured sites; add only
-  high-confidence imputed ones). A site counts as imputed if Minimac's
-  `IMPUTED` flag is set, or if the header declares only `TYPED` and the site
-  lacks it. With neither flag declared, every site is treated as imputed.
+  discriminating site can mis-assign a cell. It is a judgement, not a measured
+  optimum. Published pipelines range from R² > 0.3 (OneK1K and Demuxafy;
+  Neavin et al., Genome Biology 2024) to R² > 0.9 for the demultiplexers in
+  the ambisim benchmark (Li et al., preprint 2025), and none compares
+  thresholds. Measuring genotype accuracy by R² bin would settle it.
+- Directly genotyped sites are never removed for their R²: trust measured
+  sites, add only high-confidence imputed ones. `min_maf`, when set, applies
+  to every site, genotyped or imputed (upstream's MAF cut exempts genotyped
+  sites).
+- A site counts as imputed if, in this order:
+  - Minimac4's `INFO/IMPUTED` flag is set;
+  - the header declares only `INFO/TYPED` and the site lacks it;
+  - the header declares Minimac3's `FILTER=GENOTYPED` and the site's FILTER
+    holds neither `GENOTYPED` nor `GENOTYPED_ONLY`.
+
+  With none of these declared, every site is treated as imputed.
+- The cut is per site. In a pool that mixes measured and imputed donors, a
+  site below `min_r2` is removed for every donor, including those with
+  measured genotypes there.
 - The cut is non-destructive: the upstream panel is untouched, so trying
   another threshold is a re-filter, not a re-imputation.
+- demuxlet already down-weights low-R² sites: its per-site genotype error is
+  `offset + (1 − offset) × coeff × (1 − R²)`, 0.24 at R² 0.8 and 0.715 at 0.3
+  with this workflow's `coeff: 1.0` and `offset: 0.05`. The hard cut matters
+  most for vireo, which reads hard genotypes.
+- The rule's log (`<outs.logs>/panel/<capture_id>.filter.log`) records the
+  expression used and the number of sites before and after.
 
 R² runs systematically lower for under-represented ancestries, so a strict cut
-can thin some donors' discriminating sites more than others'. To see the
+can thin some donors' separating sites more than others'. To see the
 spread, run the opt-in benchmark:
 
 ```bash
@@ -323,8 +345,10 @@ snakemake r2_sweep --workflow-profile profiles/workflow --configfile <config> ..
 
 It writes `<outs.root>/benchmark/r2_sweep.tsv`: for each capture, threshold
 (`params.imputation.sweep_r2`) and donor, the number of sites kept, how many of
-those are imputed, and how many discriminate that donor from at least one
-other pool donor. Thresholds below the upstream `post_r2` all give the same
+those are imputed, and `min_pairwise_sites`: the number of sites where that
+donor's genotype differs from its closest pool donor's (named in
+`closest_donor`). That is the number that limits how well the donor can be
+told apart from the pool. Thresholds below the upstream `post_r2` all give the same
 counts (see the note above). To see how assignment confidence moves with the
 threshold, run the workflow at two `min_r2` values into separate `outs.root`s
 and compare `assignment/`.

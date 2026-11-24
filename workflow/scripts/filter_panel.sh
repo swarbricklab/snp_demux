@@ -10,19 +10,27 @@
 # min_r2 below that recovers nothing.
 #
 #   * imputed sites with INFO/R2 < min_r2 are dropped;
-#   * directly genotyped sites are kept unconditionally ("trust measured sites,
-#     add only high-confidence imputed ones");
-#   * if min_maf > 0, sites with INFO/MAF < min_maf are dropped as well.
+#   * directly genotyped sites are never removed for their R2 ("trust measured
+#     sites, add only high-confidence imputed ones");
+#   * if min_maf > 0, sites with INFO/MAF < min_maf are dropped as well,
+#     genotyped or imputed.
 #
-# "Imputed" is read from Minimac's flags: INFO/IMPUTED set, or (if the header
-# declares only TYPED) INFO/TYPED not set. With neither flag declared every site
-# is treated as imputed. A site with no R2 value is kept. A panel without an
+# The cut is per site: in a pool that mixes measured and imputed donors, a site
+# below min_r2 is removed for every donor.
+#
+# "Imputed" is read from Minimac's flags, in this order: INFO/IMPUTED set
+# (Minimac4); else, if the header declares only INFO/TYPED, TYPED not set; else,
+# if the header declares FILTER=GENOTYPED (Minimac3), FILTER holds neither
+# GENOTYPED nor GENOTYPED_ONLY. With none of these declared every site is
+# treated as imputed. A site with no R2 value is kept. A panel without an
 # INFO/R2 header is passed through unchanged, with a warning.
 #
 # Invoked via Snakemake's `script:` (bash associative arrays), or standalone:
 #   filter_panel.sh <in.vcf.gz> <out.vcf.gz> <min_r2> <min_maf>
 set -euo pipefail
 if declare -p snakemake_input >/dev/null 2>&1; then
+    # Under Snakemake, warnings and the site counts go to the rule's log.
+    exec 2>"${snakemake_log[0]}"
     IN="${snakemake_input[vcf]}"
     OUT="${snakemake_output[vcf]}"
     MIN_R2="${snakemake_params[min_r2]}"
@@ -45,6 +53,10 @@ if positive "$MIN_R2"; then
             terms+=("(INFO/IMPUTED=1 && INFO/R2<$MIN_R2)")
         elif declares TYPED; then
             terms+=("(INFO/TYPED=0 && INFO/R2<$MIN_R2)")
+        elif grep -q '^##FILTER=<ID=GENOTYPED,' <<<"$header"; then
+            # Minimac3 marks genotyped sites in FILTER (GENOTYPED and
+            # GENOTYPED_ONLY), not in INFO.
+            terms+=("(FILTER!~\"GENOTYPED\" && FILTER!~\"GENOTYPED_ONLY\" && INFO/R2<$MIN_R2)")
         else
             terms+=("INFO/R2<$MIN_R2")
         fi

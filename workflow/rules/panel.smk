@@ -28,7 +28,8 @@ rule filter_panel:
 
 # Opt-in benchmark (not part of `rule all`):
 #   snakemake r2_sweep --workflow-profile profiles/workflow ...
-# Per capture and threshold, how many donor-discriminating sites each donor keeps.
+# Per capture and threshold, how many sites separate each donor from its closest
+# pool donor.
 rule r2_sweep_capture:
     input:
         vcf=panel_path("informative.vcf.gz"),

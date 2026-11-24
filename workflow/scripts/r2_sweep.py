@@ -1,16 +1,19 @@
-"""Benchmark the imputation-R2 threshold: donor-discriminating sites per donor.
+"""Benchmark the imputation-R2 threshold: sites separating each donor from the rest.
 
 For each threshold in params.imputation.sweep_r2, apply the same rule as
 filter_panel.sh (drop imputed sites with R2 < threshold, keep genotyped sites)
-to a capture's raw panel and count, per donor:
+to a capture's raw panel and report, per donor:
 
-    n_sites            sites retained (all donors)
-    n_imputed          of which imputed
-    n_discriminating   retained sites where this donor has a called genotype
-                       that differs from at least one other pool donor's
+    n_sites             sites retained (all donors)
+    n_imputed           of which imputed
+    min_pairwise_sites  retained sites where this donor's called genotype
+                        differs from that of its closest pool donor, i.e. the
+                        fewest sites separating it from any other pool donor
+    closest_donor       that closest pool donor
 
-R2 is systematically lower for under-represented ancestries, so an aggressive
-cut can thin some donors' discriminating sites far more than others'; the
+min_pairwise_sites is what limits how well a donor can be told apart from the
+pool. R2 is systematically lower for under-represented ancestries, so an
+aggressive cut can thin some donors' separating sites more than others'; the
 per-donor spread is what this table is for.
 
 Rule r2_sweep concatenates the per-capture tables.
@@ -24,7 +27,8 @@ COLUMNS = [
     "donor_id",
     "n_sites",
     "n_imputed",
-    "n_discriminating",
+    "min_pairwise_sites",
+    "closest_donor",
 ]
 
 
@@ -52,11 +56,15 @@ def _dosage(gt):
 def read_panel(path, donors=None):
     """Return (donors, sites); each site is (imputed, r2 or None, [dosage per donor])."""
     declared = set()
+    filters = set()
     sites = []
     with _open(path) as fh:
         for line in fh:
             if line.startswith("##INFO=<ID="):
                 declared.add(line[len("##INFO=<ID=") :].split(",", 1)[0])
+                continue
+            if line.startswith("##FILTER=<ID="):
+                filters.add(line[len("##FILTER=<ID=") :].split(",", 1)[0])
                 continue
             if line.startswith("#CHROM"):
                 header = line.rstrip("\n").split("\t")
@@ -72,6 +80,9 @@ def read_panel(path, donors=None):
                 imputed = "IMPUTED" in info
             elif "TYPED" in declared:
                 imputed = "TYPED" not in info
+            elif "GENOTYPED" in filters:
+                # Minimac3 marks genotyped sites in FILTER, not INFO
+                imputed = not {"GENOTYPED", "GENOTYPED_ONLY"} & set(f[6].split(";"))
             else:
                 imputed = True
             r2 = info.get("R2") if "R2" in declared else None
@@ -93,16 +104,20 @@ def sweep(donors, sites, thresholds, capture_id):
     for t in thresholds:
         kept = [s for s in sites if retained(s, t)]
         n_imputed = sum(1 for s in kept if s[0])
-        disc = [0] * len(donors)
+        n = len(donors)
+        diff = [[0] * n for _ in range(n)]
         for _, _, dos in kept:
-            called = [d for d in dos if d is not None]
-            if len(set(called)) < 2:
-                continue  # nobody differs from anybody here
-            for i, d in enumerate(dos):
-                if d is not None and any(o is not None and o != d for o in dos):
-                    disc[i] += 1
-        for donor, n in zip(donors, disc):
-            rows.append([capture_id, t, donor, len(kept), n_imputed, n])
+            for i in range(n):
+                if dos[i] is None:
+                    continue
+                for j in range(i + 1, n):
+                    if dos[j] is not None and dos[j] != dos[i]:
+                        diff[i][j] += 1
+                        diff[j][i] += 1
+        for i, donor in enumerate(donors):
+            others = [(diff[i][j], donors[j]) for j in range(n) if j != i]
+            sites_min, closest = min(others) if others else (0, "")
+            rows.append([capture_id, t, donor, len(kept), n_imputed, sites_min, closest])
     return rows
 
 

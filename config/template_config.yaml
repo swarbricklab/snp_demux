@@ -48,7 +48,8 @@ params:
   # (its post_r2) until swarbricklab/imputation#24 makes it permissive, so
   # values below the upstream post_r2 change nothing until then.
   # Genotyped sites are always kept; only imputed additions must pass min_r2.
-  # `snakemake r2_sweep` reports per-donor discriminating sites at sweep_r2.
+  # `snakemake r2_sweep` reports, per donor and sweep_r2 threshold, the sites
+  # separating it from its closest pool donor.
   imputation:
     min_r2: 0.8
     min_maf: 0       # off
