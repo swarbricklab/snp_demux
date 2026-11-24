@@ -16,6 +16,9 @@ deps:
   # (bcarc_chromium build_informative_panels): <panel_root>/<capture>/informative.vcf.gz.
   # Defaults to <pileup_root>/panel if omitted (standalone sc_pileup builds).
   panel_root: data/snp/vcf/panel
+  # Panel VCF filename within <panel_root>/<capture>/ (index: <file>.csi).
+  # Defaults to informative.vcf.gz; bcarc_chromium's unfiltered panels are panel.vcf.gz.
+  panel_file: informative.vcf.gz
   # Platform used when a capture row has no `platform` column (sc_pileup keys by it).
   default_platform: short
   # Per-capture sex-call CSV (columns: barcode,sex_call,confidence with

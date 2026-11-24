@@ -47,6 +47,10 @@ _pileup_root = Path(config["deps"]["pileup_root"])
 # for standalone sc_pileup runs, but is normally set to the orchestration
 # panel dir (e.g. data/snp/vcf/panel).
 _panel_root = Path(config["deps"].get("panel_root", str(_pileup_root / "panel")))
+# Per-pool panel VCF filename under <panel_root>/<capture>/. Defaults to the
+# historical informative.vcf.gz; set deps.panel_file (e.g. panel.vcf.gz) for
+# panels that aren't filtered to informative sites. The index is <file>.csi.
+_panel_file = config["deps"].get("panel_file", "informative.vcf.gz")
 _default_platform = config["deps"].get("default_platform", "short")
 
 
@@ -78,6 +82,12 @@ def panel_path(*parts):
     def _inner(wildcards):
         return str(_panel_root.joinpath(wildcards.capture_id, *parts))
     return _inner
+
+
+def panel_vcf(suffix=""):
+    """Input-function for the per-pool panel VCF (deps.panel_file), or its index
+    with suffix=".csi"."""
+    return panel_path(_panel_file + suffix)
 
 
 # Per-capture sex-call CSV (barcode,sex_call,confidence), produced upstream by
