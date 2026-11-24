@@ -23,9 +23,10 @@ Per-capture columns (one row):
     sample_props
         "sample:p;sample:p;..." in samples.csv order
 
-Expected doublet rates (all LOWER BOUNDS: genotype methods miss some
-cross-donor doublets, and same-sample aggregates from incomplete dissociation
-are always within-donor, so neither is counted here):
+Expected doublet rates (biased low: genotype methods miss some cross-donor
+doublets, and same-sample aggregates from incomplete dissociation are always
+within-donor, so neither is counted here; false cross-donor doublets push the
+other way, so they are not strict lower bounds):
     loading_rate_per_1k_cells
         loading-curve doublet rate per 1,000 cells for the capture's chip
         (params.doublet.rate_per_1k)
