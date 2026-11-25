@@ -1,0 +1,63 @@
+name: Experiment tools
+
+# Tests for tools/demux_tools in three environments. Separate from the workflow's
+# CI: it runs only for pull requests that touch the tools, on any base branch.
+on:
+  pull_request:
+    paths:
+      - "tools/**"
+      - "docs/experiment_tools.md"
+      - "docs/experiment_tools/**"
+      - ".github/workflows/tools.yml"
+
+permissions:
+  contents: read
+
+env:
+  PYTHONDONTWRITEBYTECODE: "1"
+
+jobs:
+  image-pins:
+    # The vireo image's pins (Python 3.7, numpy 1.21, pandas 1.3, scipy 1.7,
+    # vireoSNP 0.5.7), solved as a conda environment rather than run in the
+    # container. The tests that compare with vireoSNP run here against 0.5.7.
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -el {0}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-file: tools/tests/envs/image-pins.yaml
+          create-args: >-
+            pytest=7.4
+      - name: Tests
+        run: pytest -q -p no:cacheprovider -rs tools/tests
+
+  modern:
+    # numpy 2, pandas 2.2, scipy, and vireoSNP 0.5.9 (0.5.10 renames a column).
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: python -m pip install "numpy>=2,<3" "pandas>=2.2,<2.3" scipy pytest "vireoSNP==0.5.9"
+      - name: Tests
+        run: python -m pytest -q -p no:cacheprovider -rs tools/tests
+
+  pandas-only:
+    # Mirrors the workflow environment (snakemake_7.32.4): no scipy. Tests marked
+    # scipy or vireo skip; every command's --help must still run.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: python -m pip install "numpy==1.26.3" "pandas==2.1.4" "pytest==7.4.4"
+      - name: Tests
+        run: python -m pytest -q -p no:cacheprovider -rs tools/tests
