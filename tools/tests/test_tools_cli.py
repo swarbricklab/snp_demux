@@ -9,7 +9,7 @@ from demux_tools import cli
 
 # Modules whose commands may need scipy to import. Every other command's module
 # must import, and its --help run, with scipy unavailable.
-SCIPY_MODULES = {"scorer"}
+SCIPY_MODULES = set()
 
 
 def _table_lines():
@@ -92,8 +92,8 @@ def test_main_in_process(capsys):
     assert capsys.readouterr().out.startswith("demux_tools ")
 
 
-def test_non_scorer_modules_import_without_scipy(run_tools, tmp_path):
-    # Every helper module but the Scorer's imports with scipy and vireoSNP blocked.
+def test_command_modules_import_without_scipy(run_tools, tmp_path):
+    # Every command's module imports with scipy and vireoSNP blocked (but those in SCIPY_MODULES).
     modules = sorted(set(m for m, _ in cli.COMMANDS.values()) - SCIPY_MODULES
                      | {"_io", "cellsnp", "vireo_files", "synth"})
     script = tmp_path / "imports.py"
