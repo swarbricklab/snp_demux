@@ -114,4 +114,4 @@ One page per group of tools:
 
 - [Job costs](experiment_tools/job-costs.md) (available): service units per job, rule and capture from PBS logs.
 
-- [Pileup tools](experiment_tools/pileup-tools.md) (planned): compare, subset and join pileups.
+- [Pileup tools](experiment_tools/pileup-tools.md) (available): compare, subset and join pileups.
