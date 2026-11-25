@@ -62,6 +62,14 @@ Treating vireoSNP as a fifth opinion is useful when reviewing a capture: it is t
 vireo estimates the fraction of ambient RNA per barcode as a by-product of assignment.
 The workflow summarises this per capture into a distribution over bins, which is a useful first check when a capture has an unexpectedly high doublet rate or a low singlet fraction.
 
+The estimate comes from vireo's `--callAmbientRNAs`, which takes 85 to 99 per cent of vireo's CPU time; no call depends on it.
+It varies from run to run.
+With `params.vireo.seed` set and vireo on one worker it repeats: on a 2,562-cell capture, two runs on different nodes wrote byte-identical tables.
+Above one worker a seed does not make it repeat.
+To run vireo on one worker, pass a copy of `profiles/workflow` whose `vireo` entry sets `threads: 1` as `--workflow-profile`; `--set-resources` on the command line would replace the profile's whole `set-resources` list.
+Runs that need only the calls can set `params.vireo.call_ambient: false`: `prop_ambient.tsv` is then written with `NA` for every cell, the ambient summaries are empty, and the capture report says there is no vireo estimate.
+Runs whose outputs feed a cell object that reads `prop_ambient.tsv` (mkobj) keep the default: with the estimate off, mkobj's `ambient_other` and `logLik_ratio` are `NA` for every cell.
+
 At a high level of abstraction, the overall processing flow is as follows:
 
 ```mermaid
@@ -137,6 +145,7 @@ See [`config/template_config.yaml`](config/template_config.yaml) for a starting 
 | `params.demuxlet` | `coeff` and `offset` for the demuxlet doublet prior |
 | `params.demuxafy` | Correlation limits for matching souporcell and freemuxlet clusters to donors, and the agreement threshold for the consensus |
 | `params.souporcell` | `min_ref` and `min_alt` (cells, not reads) and `ploidy`. Both souporcell runs start from known genotypes and run one solve; `restarts` and `known_gt` are read by no rule (see the comments in `workflow/rules/souporcell.smk`) |
+| `params.vireo` | Optional. `call_ambient` (default `true`) passes `--callAmbientRNAs`, which writes `vireo/<capture_id>/prop_ambient.tsv`; `false` writes that file with `NA` for every cell (see Ambient RNA). `seed` (default none; 0 to 2**32 - 1) passes `--randSeed` |
 | `ref.souporcell.genome_fasta` | Reference genome FASTA, matching the transcriptome used by `cellranger` |
 | `containers.demuxafy` | Path to the Demuxafy `.sif` image |
 

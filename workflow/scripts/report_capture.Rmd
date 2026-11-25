@@ -194,8 +194,10 @@ ggplot(amb_stats, aes(x = bin, y = frac)) +
   geom_col() +
   scale_y_continuous(labels = percent) +
   labs(x = "Ambient RNA fraction", y = "Barcodes",
-       subtitle = sprintf("median per-barcode estimate: %s",
-                          percent(mx$ambient_vireo_median, 0.01))) +
+       subtitle = if (is.na(mx$ambient_vireo_median))
+                    "no vireo per-barcode estimate for this capture"
+                  else sprintf("median per-barcode estimate: %s",
+                               percent(mx$ambient_vireo_median, 0.01))) +
   theme_classic() +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
 ```
