@@ -70,17 +70,18 @@ end-to-end (both consensuses + report) without demuxlet/freemuxlet.
 
 ### B. Pipeline — souporcell twice + vireo + hierarchical consensus (ALONGSIDE Demuxafy)
 
-- **souporcell de-novo** (existing `souporcell.smk`) — the recovery backbone. Keep.
-- **souporcell known-GT** (NEW second mode) — `--known_genotypes` pointed at the real donor
-  panel, for a direct genotype assignment to compare against de-novo. Writes to a parallel
-  `souporcell/{c}/known/…` path.
+- **souporcell, first run** (existing `souporcell.smk`) — the recovery backbone. Keep.
+- **souporcell, second run** (NEW second mode) — de novo, with no genotypes, for a partition to
+  compare against the first run's. Writes to a parallel `souporcell/{c}/known/…` path.
 
-  *Implementation note.* Both souporcell rules pass `--known_genotypes`, so both
-  runs start from genotypes: the first run's `variants.vcf` carries the donor columns, so
-  that run is not de novo. A genotype start draws no random number, so one solve gives the
-  same output as 100 restarts, and both rules run one. The second run's panel records do not
-  line up with the matrix rows (souporcell pairs record i with row i), and the run feeds only
-  the `denovo_known_agree` column of `hierarchical_consensus.tsv`.
+  *Implementation note.* The first souporcell run passes `--known_genotypes` (`variants.vcf`
+  carries the donor columns), so it starts from genotypes and is not de novo. A genotype start
+  draws no random number, so one solve gives the same output as 100 restarts, and the rule runs
+  one. The second run passes no genotypes and runs de novo: `params.souporcell.restarts`, `seed`
+  and `denovo_threads` set it, and its result depends on all three. It feeds only the
+  `denovo_known_agree` column of `hierarchical_consensus.tsv`, which compares the
+  genotype-started first run with the de novo one. The run keeps the `souporcell/{c}/known/`
+  path, and the column keeps its name.
 - **vireo** genotype-based (existing) — per-cell donor + `prob_doublet`.
 - **vireosnp** cluster↔genotype matcher (existing `annotate.py`) — the `GPb_diff` margin.
 - **Demuxafy `Combine_Results.R`** — **kept, unchanged**, runs in parallel for head-to-head.

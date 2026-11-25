@@ -144,7 +144,7 @@ See [`config/template_config.yaml`](config/template_config.yaml) for a starting 
 | `params.cellsnp_lite` | `minMAF` and `minCOUNT` thresholds for pileup |
 | `params.demuxlet` | `coeff` and `offset` for the demuxlet doublet prior |
 | `params.demuxafy` | Correlation limits for matching souporcell and freemuxlet clusters to donors, and the agreement threshold for the consensus |
-| `params.souporcell` | `min_ref` and `min_alt` (cells, not reads) and `ploidy`. Both souporcell runs start from known genotypes and run one solve; `restarts` and `known_gt` are read by no rule (see the comments in `workflow/rules/souporcell.smk`) |
+| `params.souporcell` | `min_ref` and `min_alt` (cells, not reads) and `ploidy`, for both souporcell runs. The first run starts from known genotypes and runs one solve. The second (`souporcell/<capture_id>/known/`) is de novo, and its result depends on `restarts` (default 100), `seed` (default 4) and `denovo_threads` (default 10). `known_gt` is read by no rule (see the comments in `workflow/rules/souporcell.smk`) |
 | `params.vireo` | Optional. `call_ambient` (default `true`) passes `--callAmbientRNAs`, which writes `vireo/<capture_id>/prop_ambient.tsv`; `false` writes that file with `NA` for every cell (see Ambient RNA). `seed` (default none; 0 to 2**32 - 1) passes `--randSeed` |
 | `ref.souporcell.genome_fasta` | Reference genome FASTA, matching the transcriptome used by `cellranger` |
 | `containers.demuxafy` | Path to the Demuxafy `.sif` image |

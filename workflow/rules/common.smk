@@ -1,6 +1,8 @@
+import math
 import pandas as pd
 from pathlib import Path
 from snakemake.exceptions import WorkflowError
+from snakemake.logging import logger
 
 # --- selectable per-cell demux tools ---------------------------------------
 # The pipeline can run/aggregate/consensus any subset of these four per-cell
@@ -54,6 +56,40 @@ if VIREO_SEED is not None and (isinstance(VIREO_SEED, bool) or not isinstance(VI
                                or not 0 <= VIREO_SEED <= 2**32 - 1):
     raise WorkflowError(
         "params.vireo.seed must be an integer from 0 to 2**32 - 1, or null, got %r" % (VIREO_SEED,)
+    )
+
+
+# --- souporcell second run (de novo; params.souporcell) ---------------------
+# restarts (default 100; souporcell reads a u32), seed (default 4, souporcell's
+# own default; 0-255, as souporcell reads a u8) and denovo_threads (default 10,
+# so 100 restarts are exactly 100 solves: each thread runs
+# ceil(restarts/threads)). The first run passes --known_genotypes and runs one
+# solve whatever these are.
+_soup_params = config.get('params', {}).get('souporcell') or {}
+
+
+def _souporcell_int(key, default, low, high=None):
+    """params.souporcell.<key> as an integer in [low, high]; a bool, a float or
+    null is an error, as in params.vireo."""
+    value = _soup_params.get(key, default)
+    if (isinstance(value, bool) or not isinstance(value, int)
+            or value < low or (high is not None and value > high)):
+        allowed = "of at least %d" % low if high is None else "from %d to %d" % (low, high)
+        raise WorkflowError(
+            "params.souporcell.%s must be an integer %s, got %r" % (key, allowed, value)
+        )
+    return value
+
+
+SOUPORCELL_DENOVO_RESTARTS = _souporcell_int('restarts', 100, 1, 2**32 - 1)
+SOUPORCELL_SEED = _souporcell_int('seed', 4, 0, 255)
+SOUPORCELL_DENOVO_THREADS = _souporcell_int('denovo_threads', 10, 1)
+if SOUPORCELL_DENOVO_RESTARTS % SOUPORCELL_DENOVO_THREADS:
+    logger.warning(
+        "params.souporcell.restarts (%d) is not a multiple of denovo_threads (%d): "
+        "the de novo run makes %d solves"
+        % (SOUPORCELL_DENOVO_RESTARTS, SOUPORCELL_DENOVO_THREADS,
+           SOUPORCELL_DENOVO_THREADS * math.ceil(SOUPORCELL_DENOVO_RESTARTS / SOUPORCELL_DENOVO_THREADS))
     )
 
 

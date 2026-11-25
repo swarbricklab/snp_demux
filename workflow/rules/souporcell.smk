@@ -63,7 +63,7 @@ rule souporcell_cluster:
         # 112 identical solves. --threads is a literal 1, not resources.threads:
         # each thread runs ceil(restarts/threads) solves. A run WITHOUT
         # --known_genotypes needs restarts, --seed and a fixed --threads again
-        # (params.souporcell.restarts is kept for that).
+        # (souporcell_cluster_known is one).
         /opt/souporcell/souporcell/target/release/souporcell -k {params.k} -a {input.alt} -r {input.ref} -b {input.barcodes} \
             --restarts 1 --min_ref {params.min_ref} --min_alt {params.min_alt} --threads 1 \
             --known_genotypes {input.variants} --known_genotypes_sample_names $names \
@@ -123,63 +123,44 @@ rule souporcell_consensus:
 
 
 # ---------------------------------------------------------------------------
-# souporcell KNOWN-GT second run (parallel to the rules above).
+# souporcell second run, DE NOVO (parallel to the rules above).
 # ---------------------------------------------------------------------------
-# Both runs start from genotypes. The rules above pass sc_pileup's variants.vcf
-# to --known_genotypes, and it carries the donor columns, so that run is not de
-# novo. These parallel rules instead point --known_genotypes at the pool's whole
-# panel (rule known_genotypes in split.smk = the panel subset to the pool's
-# donors). Outputs live under souporcell/{c}/known/ so the first run's path is
-# untouched. NB: known_genotypes.vcf holds every site of the pool's panel, while
-# the matrices hold only the covered subset (variants.vcf). souporcell matches
-# genotype rows by record order (record i -> row i), not by position, so most
-# rows of this run start from another site's genotypes; the rule logs how many
-# line up.
+# The rules above start from genotypes: sc_pileup's variants.vcf, passed to
+# --known_genotypes, carries the donor columns. This run passes no genotypes,
+# so it clusters de novo from random starts, and hierarchical_consensus
+# compares the two partitions (denovo_known_agree, the only output it feeds).
+# Outputs keep the souporcell/{c}/known/ path, and the column keeps its name.
 rule souporcell_cluster_known:
     input:
         alt=pileup_path("souporcell", "alt.mtx"),
         ref=pileup_path("souporcell", "ref.mtx"),
         barcodes=pileup_path("souporcell", "barcodes.tsv"),
-        known_gt=rules.known_genotypes.output.vcf,
-        variants=pileup_path("souporcell", "variants.vcf"),
     output:
         clusters_tmp=temp(out_dir/"souporcell/{capture_id}/known/clusters_tmp.tsv"),
     params:
         k=get_number_of_samples_in_capture_pool,
-        donors=get_donors_in_capture,
         min_ref=config['params']['souporcell']['min_ref'],
         min_alt=config['params']['souporcell']['min_alt'],
+        restarts=SOUPORCELL_DENOVO_RESTARTS,
+        seed=SOUPORCELL_SEED,
+        threads=SOUPORCELL_DENOVO_THREADS,
+    resources:
+        threads=SOUPORCELL_DENOVO_THREADS,
     container:
         SOUPORCELL_CONTAINER
     log:
         logs/"souporcell/{capture_id}/known/cluster.log"
     shell:
         """
-        # Same guard as souporcell_cluster: only pass known-genotype names that are
-        # real samples in the panel (a donor absent from all sources is ./.-only /
-        # missing and makes souporcell panic or produce degenerate clusters).
-        # strict-mode-safe (see souporcell_cluster): || true swallows grep -m1 SIGPIPE;
-        # if/then keeps a not-found grep from aborting the loop under `set -e`.
-        avail=$( ( zcat -f {input.known_gt} 2>/dev/null || cat {input.known_gt} ) | grep -m1 '^#CHROM' | cut -f10- | tr '\t' '\n' ) || true
-        names=""
-        for d in $(echo {params.donors} | tr ',' ' '); do
-            if printf '%s\n' "$avail" | grep -qxF -- "$d"; then names="$names $d"; fi
-        done
-        # Log, do not check: known_genotypes.vcf is the pool's whole panel, so its
-        # record count differs from the matrix rows on every capture (a check
-        # would stop every capture), and a VCF with exactly the matrix rows would
-        # repeat souporcell_cluster. Record how many rows line up by CHROM/POS.
-        n_gt=$(grep -c -v -e '^#' -e '^$' {input.known_gt}) || true
-        n_alt=$(awk '!/^%/ {{ print $1; exit }}' {input.alt})
-        aligned=$(paste <(grep -v '^#' {input.variants} | cut -f1,2) <(grep -v '^#' {input.known_gt} | cut -f1,2) \
-            | awk -F'\t' 'NF == 4 && $1 == $3 && $2 == $4 {{ k++ }} END {{ print k + 0 }}')
-        echo "known_genotypes.vcf: $n_gt records; matrices: $n_alt rows; same CHROM/POS at $aligned of $n_alt rows. souporcell pairs record i with row i, so the other rows start from other sites' genotypes. This run feeds only denovo_known_agree." > {log}
-        # One solve on one thread, as in souporcell_cluster: this run also passes
-        # --known_genotypes, so every restart is the same solve.
+        # De novo: the result depends on --restarts, --seed and --threads (each
+        # thread draws its own starts from the seed and runs
+        # ceil(restarts/threads) solves). All three come from config
+        # (params.souporcell restarts, seed, denovo_threads), not from the
+        # profile; the CPU request follows denovo_threads through resources.
         /opt/souporcell/souporcell/target/release/souporcell -k {params.k} -a {input.alt} -r {input.ref} -b {input.barcodes} \
-            --restarts 1 --min_ref {params.min_ref} --min_alt {params.min_alt} --threads 1 \
-            --known_genotypes {input.known_gt} --known_genotypes_sample_names $names \
-            > {output.clusters_tmp} 2>> {log}
+            --restarts {params.restarts} --min_ref {params.min_ref} --min_alt {params.min_alt} \
+            --threads {params.threads} --seed {params.seed} \
+            > {output.clusters_tmp} 2> {log}
         """
 
 

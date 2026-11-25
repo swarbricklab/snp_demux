@@ -31,7 +31,7 @@ rule hierarchical_consensus:
     input:
         # recovery backbone (de-novo souporcell) + doublet/singlet log-probs
         denovo_clusters=rules.souporcell_troublet.output.clusters,
-        # known-GT souporcell run -> de-novo-vs-known partition agreement QC
+        # second souporcell run (de novo, under known/) -> partition agreement QC
         known_clusters=rules.souporcell_troublet_known.output.clusters,
         # vireosnp cluster<->donor annotation + GPb_diff margin matrix
         vireosnp_annotated=rules.vireosnp.output.clusters_annotated,
