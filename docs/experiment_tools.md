@@ -110,7 +110,7 @@ One page per group of tools:
 
 - [Compare runs](experiment_tools/compare-runs.md) (available): call readers for both snp_demux lines, run-to-run comparison and the sex check.
 
-- [Scorecard](experiment_tools/scorecard.md) (planned): per-cell tables, scorecards against truth, calibration and doublet excess.
+- [Scorecard](experiment_tools/scorecard.md) (available): per-cell tables, scorecards against truth, calibration and doublet excess.
 
 - [Job costs](experiment_tools/job-costs.md) (planned): service units per job, rule and capture from PBS logs.
 

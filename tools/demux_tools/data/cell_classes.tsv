@@ -1,0 +1,34 @@
+label	class
+B cell	immune
+T cell	immune
+granulocyte	immune
+hematopoietic cell	immune
+hematopoietic precursor cell	immune
+leukocyte	immune
+lymphocyte	immune
+macrophage	immune
+mast cell	immune
+monocyte	immune
+mononuclear cell	immune
+myeloid leukocyte	immune
+adipocyte	non-immune
+cardiac muscle cell	non-immune
+ciliated cell	non-immune
+columnar/cuboidal epithelial cell	non-immune
+connective tissue cell	non-immune
+contractile cell	non-immune
+endothelial cell	non-immune
+epithelial cell	non-immune
+fibroblast	non-immune
+glandular epithelial cell	non-immune
+glial cell	non-immune
+glutamatergic neuron	non-immune
+mesenchymal cell	non-immune
+mural cell	non-immune
+neural cell	non-immune
+neuron	non-immune
+neuron associated cell	non-immune
+secretory cell	non-immune
+serous secreting cell	non-immune
+smooth muscle cell	non-immune
+squamous epithelial cell	non-immune

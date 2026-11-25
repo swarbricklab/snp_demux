@@ -21,10 +21,14 @@ import sys
 # One line per command, in alphabetical order: "name": ("module", "one-line help"),
 # A new command is added as one line in alphabetical order.
 COMMANDS = {
+    "calibrate": ("scorecard", "wrong-donor rate by sex in bins of a per-cell score, with Wilson intervals"),
     "calls": ("calls", "read any demultiplexing calls into one schema (status, donor, pair)"),
+    "cell-table": ("scorecard", "one row per cell: every run's status, donor and pair beside per-cell truth"),
     "compare-runs": ("compare", "compare two runs' calls per cell: transitions and summary"),
+    "doublet-excess": ("scorecard", "doublet calls per capture by tool, against the loading expectation"),
     "score": ("scorer", "reproduce vireo's fixed-mode calls for one capture, with each cell's evidence"),
     "score-many": ("scorer", "score the captures of a manifest in parallel, with a summary and validation table"),
+    "scorecard": ("scorecard", "score runs against truth: shares with pool-resampled intervals, lost cells"),
     "sex-check": ("compare", "count cells whose donor's sex disagrees with their sex call"),
     "site-terms": ("scorer", "one cell's log-likelihood under each donor, site by site"),
     "sites": ("sites", "site lists for the Scorer: annotate with a GTF and INFO, thin, take from a panel"),
