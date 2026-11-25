@@ -44,6 +44,13 @@ rule report_variant_embedding:
     output:
         png=report_dir/"diagnostics/{capture_id}.embedding.png",
         tsv=report_dir/"diagnostics/{capture_id}.embedding.metrics.tsv",
+    resources:
+        # PBS memory used at most 4.0 GB over 17 captures; killed ~18x at 4 GB
+        # while grouped (when it ran at the default). Start at 8 GB and double
+        # per retry (retries: 2): 8, 16, 32 GB, so attempt 3 equals the old flat
+        # 32 GB. A mem key for this rule in profiles/workflow set-resources would
+        # override this on every attempt: keep it out.
+        mem_mb=lambda wildcards, attempt: 8000 * 2 ** (attempt - 1),
     conda:
         "../envs/embedding.yaml"
     log:

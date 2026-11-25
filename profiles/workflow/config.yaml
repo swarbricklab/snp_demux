@@ -64,9 +64,9 @@ set-resources:
     runtime: 30
   souporcell_consensus:
     # consensus.py runs a pystan mixture model and historically OOM-killed at 8GB.
-    # Real peak ~11GB this cohort -> 16GB (comfortably above the 8GB that failed).
+    # Real peak ~11GB this cohort. Memory grows with the attempt in the rule
+    # (8, 16, 32GB); no mem here (set-resources would override it).
     threads: 1
-    mem: "16GB"
     runtime: 30
   # Second run (souporcell/{c}/known/): same footprint as the first run's trio.
   souporcell_cluster_known:
@@ -80,9 +80,9 @@ set-resources:
     mem: "4GB"
     runtime: 30
   souporcell_consensus_known:
-    # No direct data this cohort; mirrors souporcell_consensus.
+    # No direct data this cohort; mirrors souporcell_consensus (memory in the
+    # rule; no mem here).
     threads: 1
-    mem: "16GB"
     runtime: 30
   # --- vireo ---
   # Real peak only ~10GB; profile was 32GB. (Some vireo jobs were also seen running
@@ -110,12 +110,13 @@ set-resources:
     runtime: 30
   # --- Python diagnostics / pre-flight screen ---
   # (Historically ran at the 4GB DEFAULT while grouped -- grouping is now removed
-  # so these apply.) report_variant_embedding (UMAP) OOM-killed ~18x at 4GB, so its
-  # 32GB is KEPT (never below what OOM'd; true peak still unverified as it was killed
-  # before reaching it). The others fit comfortably in 4GB (observed peaks noted).
+  # so these apply.) report_variant_embedding (UMAP) OOM-killed ~18x at 4GB; PBS
+  # has since recorded at most 4.0GB over 17 captures. Its memory grows with the
+  # attempt in the rule (8, 16, 32GB; the last equals the old 32GB); no mem here
+  # (set-resources would override it). The others fit comfortably in 4GB
+  # (observed peaks noted).
   report_variant_embedding:
     threads: 1
-    mem: "32GB"
   present_absent_screen:
     # Observed peak ~2.5GB across 144 jobs.
     threads: 1
