@@ -25,6 +25,17 @@ conda-frontend: mamba
 # grouped, the diagnostic rules ran at the 4GB DEFAULT (set-resources didn't apply
 # to grouped submissions), which is why report_variant_embedding OOM-killed ~18x.
 # Grouping is now removed, so these set-resources DO apply going forward.
+#
+# Queue: the rules below that carry queue: normalsr run on that queue. It
+# charges the same 2 SU per CPU-hour as normal, and one CPU carries 4.8 GB
+# there at no extra charge (4 GB on normal). Single test runs of other steps
+# used 19-44% fewer CPU-seconds on normalsr. On one 14,299-cell capture, with
+# vireo on 16 workers, the 12 of these rules that rule all runs used 0.69 of
+# the CPU-seconds and 0.67 of the SU they used on normal, with identical
+# must-match outputs; queue wait was about 1.5 min on normalsr and 1.1 min on
+# normal over 26 jobs. pbs_submit.py passes
+# resources.queue to qsub -q. It is set per rule because a default-resources
+# block here would replace the global profile's whole default-resources list.
 set-resources:
   # --- demuxlet family ---
   demuxlet:
@@ -58,16 +69,19 @@ set-resources:
     threads: 1
     mem: "4GB"
     runtime: 480
+    queue: normalsr
   souporcell_troublet:
     threads: 1
     mem: "6GB"
     runtime: 30
+    queue: normalsr
   souporcell_consensus:
     # consensus.py runs a pystan mixture model and historically OOM-killed at 8GB.
     # Real peak ~11GB this cohort. Memory grows with the attempt in the rule
     # (8, 16, 32GB); no mem here (set-resources would override it).
     threads: 1
     runtime: 30
+    queue: normalsr
   # Second run (souporcell/{c}/known/): same footprint as the first run's trio.
   souporcell_cluster_known:
     # Same one solve. Its start sits on other sites' genotypes, so the fit takes
@@ -75,16 +89,22 @@ set-resources:
     threads: 1
     mem: "4GB"
     runtime: 480
+    queue: normalsr
   souporcell_troublet_known:
     threads: 1
     mem: "4GB"
     runtime: 30
+    queue: normalsr
   souporcell_consensus_known:
     # No direct data this cohort; mirrors souporcell_consensus (memory in the
     # rule; no mem here).
     threads: 1
     runtime: 30
+    queue: normalsr
   # --- vireo ---
+  subset_vcf:
+    # bcftools subset of the pool's panel; default resources otherwise.
+    queue: normalsr
   # Real peak only ~10GB; profile was 32GB. (Some vireo jobs were also seen running
   # at 125GB via a rule-level mem override -- flagged for follow-up.)
   vireo:
@@ -104,10 +124,12 @@ set-resources:
     threads: 16  # cheaper and slower: 4, with runtime 240 (see above)
     mem: "16GB"
     runtime: 30
+    queue: normalsr
   vireosnp:
     # Real peak ~6.6GB -> 10GB (nudged up from 8GB for 1.3x headroom).
     mem: "10GB"
     runtime: 30
+    queue: normalsr
   # --- Python diagnostics / pre-flight screen ---
   # (Historically ran at the 4GB DEFAULT while grouped -- grouping is now removed
   # so these apply.) report_variant_embedding (UMAP) OOM-killed ~18x at 4GB; PBS
@@ -117,18 +139,22 @@ set-resources:
   # (observed peaks noted).
   report_variant_embedding:
     threads: 1
+    queue: normalsr
   present_absent_screen:
     # Observed peak ~2.5GB across 144 jobs.
     threads: 1
     mem: "4GB"
     runtime: 30
+    queue: normalsr
   report_distinctiveness:
     # Observed peak ~2.6GB across 144 jobs.
     threads: 1
     mem: "4GB"
     runtime: 30
+    queue: normalsr
   hierarchical_consensus:
     # Observed peak ~0.7GB across 116 jobs.
     threads: 1
     mem: "2GB"
     runtime: 30
+    queue: normalsr
