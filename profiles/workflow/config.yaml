@@ -48,14 +48,16 @@ set-resources:
     mem: "2GB"
     runtime: 30
   # --- souporcell ---
-  # sc_pileup branch: "cluster" is the heavy step but it is CPU-bound, not
-  # memory-bound -- real peak only ~3GB. Was 64GB.
+  # One genotype-started solve on one thread (--restarts 1 --threads 1 in the
+  # rule): median 12 s, max 92 s, peak 0.8 GB over 121 captures on harmonized
+  # panels (up to 36,759 cells); max 83 s, 1.1 GB over 17 more. 4 GB is what
+  # one CPU carries at no extra charge. Walltime is charged as used; 480 min
+  # covers one solve on the 30-40k-cell pools of the earlier union panels, where
+  # 100 restarts (7 solves per thread) ran past 12 h.
   souporcell_cluster:
-    # CPU-bound (peak ~3GB), but --restarts 100 on the 30-40k-cell pools exceeds
-    # 12h -> 24h walltime (NeoMet_Pool_009_2 / Atlas_Pool_7b class).
-    threads: 16
-    mem: "8GB"
-    runtime: 1440
+    threads: 1
+    mem: "4GB"
+    runtime: 480
   souporcell_troublet:
     threads: 1
     mem: "6GB"
@@ -66,13 +68,13 @@ set-resources:
     threads: 1
     mem: "16GB"
     runtime: 30
-  # Genotype-anchored second pass mirrors the de-novo trio's (now smaller) footprint.
+  # Second run (souporcell/{c}/known/): same footprint as the first run's trio.
   souporcell_cluster_known:
-    # Same as the de-novo cluster: --restarts 100 on big pools needs 24h
-    # (job 963 / NeoMet_Pool_009_2 hit the old 12h limit at only 2.6GB used).
-    threads: 16
-    mem: "8GB"
-    runtime: 1440
+    # Same one solve. Its start sits on other sites' genotypes, so the fit takes
+    # ~2.5x the first run's time (17 captures at 100 restarts).
+    threads: 1
+    mem: "4GB"
+    runtime: 480
   souporcell_troublet_known:
     threads: 1
     mem: "4GB"

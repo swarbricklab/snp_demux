@@ -136,6 +136,7 @@ See [`config/template_config.yaml`](config/template_config.yaml) for a starting 
 | `params.cellsnp_lite` | `minMAF` and `minCOUNT` thresholds for pileup |
 | `params.demuxlet` | `coeff` and `offset` for the demuxlet doublet prior |
 | `params.demuxafy` | Correlation limits for matching souporcell and freemuxlet clusters to donors, and the agreement threshold for the consensus |
+| `params.souporcell` | `min_ref` and `min_alt` (cells, not reads) and `ploidy`. Both souporcell runs start from known genotypes and run one solve; `restarts` and `known_gt` are read by no rule (see the comments in `workflow/rules/souporcell.smk`) |
 | `ref.souporcell.genome_fasta` | Reference genome FASTA, matching the transcriptome used by `cellranger` |
 | `containers.demuxafy` | Path to the Demuxafy `.sif` image |
 
