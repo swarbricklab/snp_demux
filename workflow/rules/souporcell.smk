@@ -43,6 +43,18 @@ rule souporcell_cluster:
         for d in $(echo {params.donors} | tr ',' ' '); do
             if printf '%s\n' "$avail" | grep -qxF -- "$d"; then names="$names $d"; fi
         done
+        # souporcell pairs --known_genotypes records with matrix rows by ORDER
+        # (record i -> row i) and says nothing when the counts differ. sc_pileup
+        # writes variants.vcf as the matrices' row list, so check it. Matrix
+        # Market: the first line not starting with '%' is "rows cols entries".
+        n_vcf=$( ( zcat -f {input.variants} 2>/dev/null || cat {input.variants} ) | grep -c -v -e '^#' -e '^$' ) || true
+        n_alt=$(awk '!/^%/ {{ print $1; exit }}' {input.alt})
+        n_ref=$(awk '!/^%/ {{ print $1; exit }}' {input.ref})
+        if [ "$n_vcf" != "$n_alt" ] || [ "$n_ref" != "$n_alt" ]; then
+            echo "ERROR: souporcell_cluster {wildcards.capture_id}: variants.vcf has $n_vcf records, alt.mtx $n_alt rows, ref.mtx $n_ref rows; --known_genotypes needs one record per matrix row" | tee {log} >&2
+            exit 1
+        fi
+        echo "row check: $n_vcf variants.vcf records = $n_alt matrix rows" > {log}
         # One solve on one thread. With --known_genotypes souporcell starts each
         # cluster from a donor's genotypes (a cluster with no donor genotype at
         # 0.5) and never draws a random number
@@ -55,7 +67,7 @@ rule souporcell_cluster:
         /opt/souporcell/souporcell/target/release/souporcell -k {params.k} -a {input.alt} -r {input.ref} -b {input.barcodes} \
             --restarts 1 --min_ref {params.min_ref} --min_alt {params.min_alt} --threads 1 \
             --known_genotypes {input.variants} --known_genotypes_sample_names $names \
-            > {output.clusters_tmp} 2> {log}
+            > {output.clusters_tmp} 2>> {log}
         """
 
 
@@ -110,15 +122,18 @@ rule souporcell_consensus:
 # novo. These parallel rules instead point --known_genotypes at the pool's whole
 # panel (rule known_genotypes in split.smk = the panel subset to the pool's
 # donors). Outputs live under souporcell/{c}/known/ so the first run's path is
-# untouched. NB: known_genotypes.vcf is built from the SAME informative panel
-# sc_pileup piled against (see panel_path docstring), so its sites match the
-# alt/ref matrices by construction; souporcell matches genotype rows by position.
+# untouched. NB: known_genotypes.vcf holds every site of the pool's panel, while
+# the matrices hold only the covered subset (variants.vcf). souporcell matches
+# genotype rows by record order (record i -> row i), not by position, so most
+# rows of this run start from another site's genotypes; the rule logs how many
+# line up.
 rule souporcell_cluster_known:
     input:
         alt=pileup_path("souporcell", "alt.mtx"),
         ref=pileup_path("souporcell", "ref.mtx"),
         barcodes=pileup_path("souporcell", "barcodes.tsv"),
         known_gt=rules.known_genotypes.output.vcf,
+        variants=pileup_path("souporcell", "variants.vcf"),
     output:
         clusters_tmp=temp(out_dir/"souporcell/{capture_id}/known/clusters_tmp.tsv"),
     params:
@@ -142,12 +157,21 @@ rule souporcell_cluster_known:
         for d in $(echo {params.donors} | tr ',' ' '); do
             if printf '%s\n' "$avail" | grep -qxF -- "$d"; then names="$names $d"; fi
         done
+        # Log, do not check: known_genotypes.vcf is the pool's whole panel, so its
+        # record count differs from the matrix rows on every capture (a check
+        # would stop every capture), and a VCF with exactly the matrix rows would
+        # repeat souporcell_cluster. Record how many rows line up by CHROM/POS.
+        n_gt=$(grep -c -v -e '^#' -e '^$' {input.known_gt}) || true
+        n_alt=$(awk '!/^%/ {{ print $1; exit }}' {input.alt})
+        aligned=$(paste <(grep -v '^#' {input.variants} | cut -f1,2) <(grep -v '^#' {input.known_gt} | cut -f1,2) \
+            | awk -F'\t' 'NF == 4 && $1 == $3 && $2 == $4 {{ k++ }} END {{ print k + 0 }}')
+        echo "known_genotypes.vcf: $n_gt records; matrices: $n_alt rows; same CHROM/POS at $aligned of $n_alt rows. souporcell pairs record i with row i, so the other rows start from other sites' genotypes. This run feeds only denovo_known_agree." > {log}
         # One solve on one thread, as in souporcell_cluster: this run also passes
         # --known_genotypes, so every restart is the same solve.
         /opt/souporcell/souporcell/target/release/souporcell -k {params.k} -a {input.alt} -r {input.ref} -b {input.barcodes} \
             --restarts 1 --min_ref {params.min_ref} --min_alt {params.min_alt} --threads 1 \
             --known_genotypes {input.known_gt} --known_genotypes_sample_names $names \
-            > {output.clusters_tmp} 2> {log}
+            > {output.clusters_tmp} 2>> {log}
         """
 
 
