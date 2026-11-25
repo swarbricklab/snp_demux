@@ -21,8 +21,11 @@ import sys
 # One line per command, in alphabetical order: "name": ("module", "one-line help"),
 # A new command is added as one line in alphabetical order.
 COMMANDS = {
+    "calls": ("calls", "read any demultiplexing calls into one schema (status, donor, pair)"),
+    "compare-runs": ("compare", "compare two runs' calls per cell: transitions and summary"),
     "score": ("scorer", "reproduce vireo's fixed-mode calls for one capture, with each cell's evidence"),
     "score-many": ("scorer", "score the captures of a manifest in parallel, with a summary and validation table"),
+    "sex-check": ("compare", "count cells whose donor's sex disagrees with their sex call"),
     "site-terms": ("scorer", "one cell's log-likelihood under each donor, site by site"),
     "sites": ("sites", "site lists for the Scorer: annotate with a GTF and INFO, thin, take from a panel"),
     "synth": ("synth", "write a synthetic capture: cellsnp folder, donor VCF and truth table"),
