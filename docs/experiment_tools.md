@@ -56,8 +56,10 @@ Scorer's modules may import scipy, and never at module level.
 - **Gzip output is deterministic.** A `.gz` output has mtime 0 and no file
   name in its header, so the same content gives the same bytes in one
   environment. Gzip input is recognised by its first bytes, not its name.
-- **Every output has a provenance sidecar.** It is `<output>.provenance.json`,
-  or `provenance.json` inside an output folder. It records the tool version
+- **Every command records its provenance.** Most write a sidecar
+  `<output>.provenance.json`, or `provenance.json` inside an output folder.
+  `score` keeps the record inside `PREFIX.fit.json`, and `validate-vireo`
+  writes one only with `--out`. The record holds the tool version
   and git commit, the tools' path, the command line, the Python, numpy,
   pandas, scipy and vireoSNP versions, each input's path, size and
   modification time, the time and peak memory used, and the command's own
@@ -102,7 +104,7 @@ One page per group of tools:
 
 - [Core](experiment_tools/core.md) (available): the package, the shared readers and writers, `synth`, `vireo-pairs` and `version`.
 
-- [Scorer](experiment_tools/scorer.md) (planned): vireo's fixed-mode calls reproduced from the pileup and the donor VCF, with a margin per cell.
+- [Scorer](experiment_tools/scorer.md) (available): vireo's fixed-mode calls reproduced from the pileup and the donor VCF, with a margin per cell.
 
 - [Scorer diagnostics](experiment_tools/scorer-diagnostics.md) (planned): native fit, site masks and groups, genotype overrides and per-site detail.
 
