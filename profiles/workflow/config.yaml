@@ -88,7 +88,20 @@ set-resources:
   # Real peak only ~10GB; profile was 32GB. (Some vireo jobs were also seen running
   # at 125GB via a rule-level mem override -- flagged for follow-up.)
   vireo:
-    threads: 16
+    # 16 workers and 30 min, kept for speed. Fixed-mode vireo assigns cells on
+    # one thread; --callAmbientRNAs fits each cell's ambient share in a pool of
+    # --nproc workers (resources.threads) and is 85-99% of the CPU.
+    # donor_ids.tsv is identical at 1, 4, 8 and 16 workers.
+    # A cheaper, slower setting was measured and can be swapped in when SU is
+    # tight: `threads: 4` with `runtime: 240` and the same 16 GB, which 4 CPUs
+    # carry at no extra charge. Over 9 captures it wrote identical call tables
+    # and kept 64-96% of its CPUs busy (16 workers: 28-84%). It ran 1.8-3.1x
+    # longer, at most 44 min against 16, for about a third less charge (11.0
+    # against 16.7 SU on six of the captures). 8 workers was timed on one small
+    # capture only: 140 s, against 109 s at 16 and 183 s at 4. PBS memory used
+    # (page cache included) reached 15.6 GB at 4 and at 16 workers on an
+    # 18,930-cell capture.
+    threads: 16  # cheaper and slower: 4, with runtime 240 (see above)
     mem: "16GB"
     runtime: 30
   vireosnp:
