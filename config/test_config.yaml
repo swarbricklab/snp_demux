@@ -5,12 +5,18 @@ deps:
   vcf: .tests/integration/data/imputation/imputed_filtered.hg38.vcf.gz
   pileup_root: .tests/integration/data/pileup
   default_platform: short
+  # Optional per-capture sex-call CSV (format-string keyed on {capture_id}).
+  sex_calls: .tests/integration/data/predemux/{capture_id}/sex_calls.csv
 
 outs:
   root: .tests/integration/results
   logs: .tests/integration/logs
 
 params:
+  # Which per-cell demux tools to run (subset of souporcell/vireo/demuxlet/
+  # freemuxlet). Default = all four. demuxlet + freemuxlet need popscle pileups;
+  # drop them for a souporcell+vireo-only run. Demuxafy needs >=2 enabled tools.
+  tools: [souporcell, vireo, demuxlet, freemuxlet]
   cellsnp_lite:
     minMAF: 0.1
     minCOUNT: 20
@@ -26,6 +32,17 @@ params:
     min_ref: 2
     min_alt: 2
     ploidy: 2
+    known_gt: true
+  hierarchical:
+    margin_min: 0.15
+    sex_weight: 1.0
+    min_cells_floor: 20
+    low_conf_keep: true
+  # Pre-flight donor present/absent screen (present_absent_screen.py).
+  present_absent:
+    min_covered_sites: 200
+    k_sites: 3
+    min_cells: 3
 
 ref:
   souporcell:

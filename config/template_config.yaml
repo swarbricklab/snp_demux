@@ -16,8 +16,18 @@ deps:
   # (bcarc_chromium build_informative_panels): <panel_root>/<capture>/informative.vcf.gz.
   # Defaults to <pileup_root>/panel if omitted (standalone sc_pileup builds).
   panel_root: data/snp/vcf/panel
+  # Panel VCF filename within <panel_root>/<capture>/ (index: <file>.csi).
+  # Defaults to informative.vcf.gz; bcarc_chromium's unfiltered panels are panel.vcf.gz.
+  panel_file: informative.vcf.gz
   # Platform used when a capture row has no `platform` column (sc_pileup keys by it).
   default_platform: short
+  # Per-capture sex-call CSV (columns: barcode,sex_call,confidence with
+  # sex_call in {female,male,no_signal}), produced upstream by cellranger predemux.
+  # Python format-string keyed on {capture_id}; resolved by sex_path() in common.smk.
+  # Consumed by the hierarchical consensus (sex-aware tie-breaking / QC). The join
+  # is robust to this file being absent, so it is safe to leave pointing at a path
+  # that may not exist yet.
+  sex_calls: data/cellranger/count/predemux/{capture_id}/sex_calls.csv
 
 outs:
   root: data/snp/demux/
@@ -27,6 +37,14 @@ outs:
   reports: reports/snp_demux
 
 params:
+  # Which per-cell demux tools to run. The pipeline runs, aggregates and
+  # consensuses ONLY the selected subset; `rule all` and the Demuxafy consensus
+  # (Combine_Results.R) adapt automatically. Default = all four (fully backward
+  # compatible). NOTE: demuxlet + freemuxlet require popscle pileups that are not
+  # always available -- a run without them should list only e.g.
+  # [souporcell, vireo], and Demuxafy will then combine just those two.
+  # Demuxafy needs >=2 enabled tools to form a consensus.
+  tools: [souporcell, vireo, demuxlet, freemuxlet]
   cellsnp_lite:
     minMAF: 0.1
     minCOUNT: 20
@@ -43,6 +61,29 @@ params:
     min_ref: 10     # souporcell default
     min_alt: 10     # souporcell default
     ploidy: 2       # souporcell default
+    # Run the second, genotype-anchored souporcell mode (souporcell/{c}/known/).
+    # Whether it actually runs is decided by targets; this flag documents intent
+    # and lets a downstream config disable the extra compute if desired.
+    known_gt: true
+
+  # Hierarchical, sex-aware consensus (runs ALONGSIDE demuxafy; see
+  # docs/hierarchical_demux_design.md). De-novo souporcell decides cluster
+  # membership (recovery); genotypes decide the donor label; sex breaks ties.
+  hierarchical:
+    margin_min: 0.15      # min vireosnp GPb_diff margin (best vs 2nd-best) to call a confident label
+    sex_weight: 1.0       # weight of the sex prior when down-weighting sex-conflicting donors
+    min_cells_floor: 20   # clusters below this cell count are flagged low_cell
+    low_conf_keep: true   # keep de-novo-recovered cells even when the genotype label is weak
+
+  # Pre-flight donor present/absent screen (workflow/scripts/present_absent_screen.py).
+  # Coarse QC gate: per donor, count cells carrying >= k_sites of that donor's private
+  # alleles; call present when >= min_cells such cells exist. A flag only -- nothing
+  # downstream prunes the panel or sets souporcell k from it.
+  present_absent:
+    min_covered_sites: 200  # fewer covered private sites than this -> "untestable"
+    k_sites: 3              # a cell needs >= this many private-alt sites to count as evidence
+    min_cells: 3            # >= this many evidence cells -> "present" (else "absent")
+
   # Expected doublet rate per 1,000 cells recovered (here, barcodes
   # demultiplexed), by chip, from 10x's multiplet-rate table. Used for
   # doublet_rate_loading / doublet_rate_vs_loading in doublet_summary.csv. A

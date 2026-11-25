@@ -5,8 +5,8 @@
 # config['outs']['reports'] so a dataset can publish these alongside its other
 # reports; see report_dir in the Snakefile.
 # ==================================
-# The report helper functions (get_samples_in_capture, get_pool_for_capture)
-# live in rules/common.smk with the other lookup helpers.
+# The report helper functions (get_samples_in_capture, get_pool_for_capture,
+# freemuxlet_corr_fig) live in rules/common.smk with the other lookup helpers.
 
 
 rule report_capture_metrics:
@@ -22,6 +22,13 @@ rule report_capture_metrics:
         cell_assignment=out_dir / "assignment/{capture_id}/cell_assignment.tsv",
         ambient_summary=out_dir / "vireo/{capture_id}/ambient_summary.csv",
         souporcell_ambient=out_dir / "souporcell/{capture_id}/ambient_rna.txt",
+        # Diagnostics roll-up into the shared metrics table (design doc §D gates):
+        # overall silhouette + number of absorbed (non-distinct) donors.
+        embedding_metrics=rules.report_variant_embedding.output.tsv,
+        leave_one_out=rules.leave_one_out.output.tsv,
+        # Pre-flight present/absent verdict counts roll into the shared metrics
+        # row so the landing page can show them per capture at a glance.
+        present_absent=rules.present_absent_screen.output.tsv,
     output:
         metrics=report_dir / "metrics/{capture_id}.tsv",
     # conda:  # conda fallback for platforms without singularity (use instead of the container)
@@ -44,15 +51,25 @@ rule report_capture:
     """
     input:
         metrics=rules.report_capture_metrics.output.metrics,
+        # Pre-flight donor present/absent screen, surfaced at the TOP of the page.
+        present_absent=rules.present_absent_screen.output.tsv,
+        # Post-hoc by-elimination recovery check (genotype + sex verdict).
+        negative_test=rules.negative_test.output.tsv,
         assignments=out_dir / "assignment/{capture_id}/sample_barcode_assignments.tsv",
         all_cells=out_dir / "assignment/{capture_id}/all_cells_stats.tsv",
         all_singlets=out_dir / "assignment/{capture_id}/all_singlets_stats.tsv",
         ambient_stats=out_dir / "vireo/{capture_id}/ambient_stats.csv",
         gt_distance=out_dir / "vireo/{capture_id}/fig_GT_distance_estimated.png",
-        freemuxlet_corr=out_dir
-        / "freemuxlet/{capture_id}/ref_clust_pearson_correlation.png",
+        freemuxlet_corr=freemuxlet_corr_fig,
         vireosnp_heatmap=out_dir
         / "souporcell/annotation/vireosnp/{capture_id}/matched_GPb_diff_scores_cluster_genotype.heatmap.png",
+        # Per-capture diagnostics (design doc §D/§E): distinctiveness table+plot,
+        # variant-space embedding UMAP + silhouette metrics, leave-one-out table.
+        distinctiveness_tsv=rules.report_distinctiveness.output.tsv,
+        distinctiveness_png=rules.report_distinctiveness.output.png,
+        embedding_png=rules.report_variant_embedding.output.png,
+        embedding_metrics=rules.report_variant_embedding.output.tsv,
+        leave_one_out=rules.leave_one_out.output.tsv,
     output:
         # Single output: Snakemake permits an .Rmd script only one.
         report_dir / "captures/{capture_id}.html",

@@ -11,7 +11,7 @@
 
 rule check_panel:
     input:
-        vcf=panel_path("informative.vcf.gz"),
+        vcf=panel_vcf(),
     output:
         report=out_dir / "preflight/{capture_id}.panel_check.txt",
     log:

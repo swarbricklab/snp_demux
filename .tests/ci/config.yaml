@@ -12,7 +12,10 @@ outs:
 params:
   demuxlet: {coeff: 1.0, offset: 0.05}
   demuxafy: {freemuxlet_correlation_limit: 0.7, souporcell_correlation_limit: 0.7, pct_agreement: 0.7}
-  souporcell: {restarts: 100, min_ref: 10, min_alt: 10, ploidy: 2}
+  souporcell: {restarts: 100, min_ref: 10, min_alt: 10, ploidy: 2, known_gt: true}
+  tools: [souporcell, vireo, demuxlet, freemuxlet]
+  hierarchical: {margin_min: 0.15, sex_weight: 1.0, min_cells_floor: 20, low_conf_keep: true}
+  present_absent: {min_covered_sites: 200, k_sites: 3, min_cells: 3}
 ref:
   souporcell: {genome_fasta: .tests/ci/genome.fa}
 containers:

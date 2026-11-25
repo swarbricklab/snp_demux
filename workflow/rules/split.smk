@@ -6,9 +6,18 @@
 rule known_genotypes:
     input:
         # Per-pool informative panel from sc_pileup (donor GTs, already pool-subset
-        # + informative-filtered). The --samples step below is now a consistency
-        # guard / donor-ordering enforcement rather than the primary subset.
-        vcf=panel_path("informative.vcf.gz"),
+        # + informative-filtered). A donor absent from every genotype source is
+        # OMITTED from this panel by build_harmonized_panel.sh (NOT an all-./.
+        # column). The --samples step below selects only the pool donors that are
+        # ACTUALLY PRESENT as samples in the panel (declared donors ∩ panel
+        # samples), preserving declared order. It deliberately does NOT use
+        # --force-samples: that would RE-ADD the omitted donor as an all-./. column,
+        # making it look "genotyped" to extract_genotyped_donors and undoing the
+        # by-elimination recovery + causing vireo cluster mis-steal. Mirrors the
+        # name-filter guard in souporcell.smk. The omitted donor still appears in
+        # the samples.csv roster annotate.py diffs against, so it becomes the "one
+        # unknown" and is recovered downstream.
+        vcf=panel_vcf(),
     output:
         vcf=out_dir / "souporcell/annotation/{capture_id}/known_genotypes.vcf",
     log:
@@ -19,11 +28,20 @@ rule known_genotypes:
         donor_ids=get_donors_in_capture,
     shell:
         """
+        # Intersect declared pool donors with the panel's actual samples (order
+        # preserved). strict-mode-safe: `|| true` swallows any grep SIGPIPE; the
+        # if/then keeps a not-found grep from aborting the loop under `set -e`.
+        avail=$(bcftools query -l {input.vcf}) || true
+        keep=""
+        for d in $(echo {params.donor_ids} | tr ',' ' '); do
+            if printf '%s\\n' "$avail" | grep -qxF -- "$d"; then keep="$keep,$d"; fi
+        done
+        keep=${{keep#,}}
+        echo "known_genotypes {wildcards.capture_id}: declared=[{params.donor_ids}] kept=[$keep]" >{log}
         bcftools view {input.vcf} \
-            --samples {params.donor_ids} \
-            --force-samples \
+            --samples "$keep" \
             -Ov -o {output.vcf} \
-            2>{log}
+            2>>{log}
         """
 
 

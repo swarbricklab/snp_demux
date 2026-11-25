@@ -22,21 +22,36 @@ include: "rules/freemuxlet.smk"
 include: "rules/souporcell.smk"
 include: "rules/souporcell_genotyping.smk"
 include: "rules/demuxafy.smk"
+include: "rules/hierarchical_consensus.smk"
 include: "rules/doublets.smk"
 include: "rules/prepare_data_for_report.smk"
 include: "rules/aggregate.smk"
+include: "rules/diagnostics.smk"
+include: "rules/presence.smk"
 include: "rules/report.smk"
 
 
+# Run genuinely-trivial file-bookkeeping rules on the submit host (no qsub), so
+# they don't queue behind cluster congestion. Only pure aggregate sentinels and
+# combine/index rules are listed here -- nothing that does real computation.
+localrules:
+    aggregate_souporcell,
+    aggregate_vireo,
+    aggregate_demuxlet,
+    aggregate_freemuxlet,
+    aggregate_demuxafy,
+    aggregate_hier,
+    aggregate_diagnostics,
+    aggregate_present_absent,
+    aggregate_negative_test,
+    combine_cell_assignments,
+    combine_cell_stats,
+    combine_singlet_stats,
+    report_index,
+
+
+# `rule all` targets come from rule_all_targets() in rules/common.smk, which
+# requires each per-tool sentinel only when that tool is enabled (params.tools).
 rule all:
     input:
-        rules.aggregate_demuxlet.output.checkpoint_file,
-        rules.aggregate_freemuxlet.output.checkpoint_file,
-        rules.aggregate_vireo.output.checkpoint_file,
-        rules.aggregate_souporcell.output.checkpoint_file,
-        rules.aggregate_demuxafy.output.checkpoint_file,
-        out_dir / "assignment/report/all_singlets_stats_full.tsv",
-        out_dir / "assignment/report/all_cells_stats_full.tsv",
-        out_dir / "assignment/report/combined_results.tsv",
-        out_dir / "assignment/report/doublet_summary.csv",
-        report_dir / "index.html",
+        rule_all_targets(),

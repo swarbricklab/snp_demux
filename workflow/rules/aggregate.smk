@@ -15,6 +15,12 @@ rule aggregate_souporcell:
             / "souporcell/annotation/vireosnp/{capture_id}/clusters_annotated.tsv",
             capture_id=captures.index.tolist(),
         ),
+        # de-novo-vs-known partition QC depends on the known-GT second mode, so
+        # make its outputs reachable via the souporcell target too.
+        all_known_results=expand(
+            out_dir / "souporcell/{capture_id}/known/clusters.tsv",
+            capture_id=captures.index.tolist(),
+        ),
     output:
         checkpoint_file=out_dir / "souporcell/all.done",
     log:
@@ -98,6 +104,13 @@ rule aggregate_vireo:
         """
 
 
+# NOTE on selectable tools (config params.tools): the four per-tool sentinels
+# above (aggregate_souporcell/demuxlet/freemuxlet/vireo) are only ever pulled
+# into the DAG by `rule all`, which now requires each one ONLY when that tool is
+# enabled -- so a disabled tool's branch is never built. aggregate_demuxafy
+# depends solely on the tool-agnostic cell_assignment.tsv (produced by the
+# demuxafy->wrangle chain), so it does NOT demand demuxlet/freemuxlet outputs;
+# the demuxafy rule itself declares only the enabled tools' outputs as inputs.
 rule aggregate_demuxafy:
     input:
         expand(
@@ -108,6 +121,28 @@ rule aggregate_demuxafy:
         checkpoint_file=out_dir / "assignment/all.done",
     log:
         logs / "aggregate/demuxafy.log",
+    container:
+        config["containers"]["bcftools"]
+    shell:
+        """
+        echo {input} >{output.checkpoint_file} 2>{log}
+        """
+
+
+rule aggregate_hier:
+    """
+    Sentinel for the hierarchical (sex-aware) consensus branch, run alongside
+    demuxafy. Collects the per-capture hierarchical_consensus.tsv tables.
+    """
+    input:
+        expand(
+            out_dir / "assignment/{capture_id}/hierarchical_consensus.tsv",
+            capture_id=captures.index.tolist(),
+        ),
+    output:
+        checkpoint_file=out_dir / "assignment/hierarchical.done",
+    log:
+        logs / "aggregate/hierarchical.log",
     container:
         config["containers"]["bcftools"]
     shell:

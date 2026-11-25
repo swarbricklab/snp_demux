@@ -30,9 +30,21 @@ rule souporcell_cluster:
         min_alt=config["params"]["souporcell"]["min_alt"],
     shell:
         """
-        names=$(echo {params.donors} | tr ',' ' ')
+        # Restrict --known_genotypes_sample_names to donors actually present as
+        # samples in variants.vcf. A donor absent from every genotype source has
+        # no column here, and souporcell panics ("no entry found for key") on a
+        # missing name. k is left unchanged: souporcell treats clusters beyond the
+        # supplied known names as de-novo, so the pool's resolvable donors still cluster.
+        # NB: strict-mode-safe (snakemake wraps shell in `set -euo pipefail`).
+        # `|| true` swallows the SIGPIPE from grep -m1 closing the reader; the
+        # if/then keeps a not-found grep from aborting the loop.
+        avail=$( (zcat -f {input.variants} 2>/dev/null || cat {input.variants}) | grep -m1 '^#CHROM' | cut -f10- | tr '\t' '\n') || true
+        names=""
+        for d in $(echo {params.donors} | tr ',' ' '); do
+            if printf '%s\n' "$avail" | grep -qxF -- "$d"; then names="$names $d"; fi
+        done
         /opt/souporcell/souporcell/target/release/souporcell -k {params.k} -a {input.alt} -r {input.ref} -b {input.barcodes} \
-            --restarts {params.restarts} --min_ref {params.min_ref} --min_alt {params.min_alt} \
+            --restarts {params.restarts} --min_ref {params.min_ref} --min_alt {params.min_alt} --threads {resources.threads} \
             --known_genotypes {input.variants} --known_genotypes_sample_names $names \
             >{output.clusters_tmp} 2>{log}
         """
@@ -67,6 +79,99 @@ rule souporcell_consensus:
         ambient_rna=out_dir / "souporcell/{capture_id}/ambient_rna.txt",
     log:
         logs / "souporcell/{capture_id}/consensus.log",
+    container:
+        SOUPORCELL_CONTAINER
+    params:
+        ploidy=config["params"]["souporcell"]["ploidy"],
+    shell:
+        """
+        outdir=$(dirname {output.cluster_genotypes})
+        /opt/souporcell/consensus.py -c {input.clusters} -a {input.alt} -r {input.ref} -p {params.ploidy} \
+            --output_dir $outdir --soup_out {output.ambient_rna} \
+            --vcf_out {output.cluster_genotypes} --vcf {input.variants} \
+            >{log} 2>&1
+        """
+
+
+# ---------------------------------------------------------------------------
+# souporcell KNOWN-GT second mode (parallel to the de-novo rules above).
+# ---------------------------------------------------------------------------
+# The de-novo rules above pass sc_pileup's variants.vcf (a bare site list) to
+# --known_genotypes, so clustering is genotype-free (the recovery backbone).
+# These parallel rules instead point --known_genotypes at the REAL per-pool donor
+# genotypes (rule known_genotypes in split.smk = the informative panel subset to
+# the pool's donors), giving a direct genotype-anchored clustering to compare
+# against de-novo. Outputs live under souporcell/{c}/known/ so the de-novo path
+# is untouched. NB: known_genotypes.vcf is built from the SAME informative panel
+# sc_pileup piled against (see panel_path docstring), so its sites match the
+# alt/ref matrices by construction; souporcell matches genotype rows by position.
+rule souporcell_cluster_known:
+    input:
+        alt=pileup_path("souporcell", "alt.mtx"),
+        ref=pileup_path("souporcell", "ref.mtx"),
+        barcodes=pileup_path("souporcell", "barcodes.tsv"),
+        known_gt=rules.known_genotypes.output.vcf,
+    output:
+        clusters_tmp=temp(out_dir / "souporcell/{capture_id}/known/clusters_tmp.tsv"),
+    log:
+        logs / "souporcell/{capture_id}/known/cluster.log",
+    container:
+        SOUPORCELL_CONTAINER
+    params:
+        k=get_number_of_samples_in_capture_pool,
+        donors=get_donors_in_capture,
+        restarts=config["params"]["souporcell"]["restarts"],
+        min_ref=config["params"]["souporcell"]["min_ref"],
+        min_alt=config["params"]["souporcell"]["min_alt"],
+    shell:
+        """
+        # Same guard as the de-novo rule: only pass known-genotype names that are
+        # real samples in the panel (a donor absent from all sources is ./.-only /
+        # missing and makes souporcell panic or produce degenerate clusters).
+        # strict-mode-safe (see de-novo rule): || true swallows grep -m1 SIGPIPE;
+        # if/then keeps a not-found grep from aborting the loop under `set -e`.
+        avail=$( (zcat -f {input.known_gt} 2>/dev/null || cat {input.known_gt}) | grep -m1 '^#CHROM' | cut -f10- | tr '\t' '\n') || true
+        names=""
+        for d in $(echo {params.donors} | tr ',' ' '); do
+            if printf '%s\n' "$avail" | grep -qxF -- "$d"; then names="$names $d"; fi
+        done
+        /opt/souporcell/souporcell/target/release/souporcell -k {params.k} -a {input.alt} -r {input.ref} -b {input.barcodes} \
+            --restarts {params.restarts} --min_ref {params.min_ref} --min_alt {params.min_alt} --threads {resources.threads} \
+            --known_genotypes {input.known_gt} --known_genotypes_sample_names $names \
+            >{output.clusters_tmp} 2>{log}
+        """
+
+
+rule souporcell_troublet_known:
+    input:
+        alt=pileup_path("souporcell", "alt.mtx"),
+        ref=pileup_path("souporcell", "ref.mtx"),
+        clusters_tmp=rules.souporcell_cluster_known.output.clusters_tmp,
+    output:
+        clusters=out_dir / "souporcell/{capture_id}/known/clusters.tsv",
+    log:
+        logs / "souporcell/{capture_id}/known/troublet.log",
+    container:
+        SOUPORCELL_CONTAINER
+    shell:
+        """
+        /opt/souporcell/troublet/target/release/troublet --alts {input.alt} --refs {input.ref} --clusters {input.clusters_tmp} \
+            >{output.clusters} 2>{log}
+        """
+
+
+rule souporcell_consensus_known:
+    input:
+        alt=pileup_path("souporcell", "alt.mtx"),
+        ref=pileup_path("souporcell", "ref.mtx"),
+        variants=pileup_path("souporcell", "variants.vcf"),
+        clusters=rules.souporcell_troublet_known.output.clusters,
+    output:
+        cluster_genotypes=out_dir
+        / "souporcell/{capture_id}/known/cluster_genotypes.vcf",
+        ambient_rna=out_dir / "souporcell/{capture_id}/known/ambient_rna.txt",
+    log:
+        logs / "souporcell/{capture_id}/known/consensus.log",
     container:
         SOUPORCELL_CONTAINER
     params:

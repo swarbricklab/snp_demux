@@ -14,38 +14,83 @@ conda-frontend: mamba
 # Resource settings per rule. Only rules that need more than the defaults are
 # listed; everything else (bcftools helpers, R wrangling/reporting, summaries,
 # aggregation, preflight) runs with Snakemake's defaults.
+#
+# Where both histories set a rule, the merge keeps the LARGER of each value:
+# main's release sizing, or the sizing refined against PBS "Resource Usage"
+# from a 138-capture cohort run (~1.3x observed max memory, ~1.5x max walltime).
 set-resources:
+  # --- demuxlet / freemuxlet ---
   demuxlet:
+    threads: 1
     mem: "16GB"
     runtime: 60
   demuxlet_summary:
     mem: "8GB"
-    runtime: 5
+    runtime: 30
   freemuxlet:
     threads: 2
     mem: "16GB"
     runtime: 60
   freemuxlet_summary:
     mem: "2GB"
-    runtime: 5
+    runtime: 30
   demuxafy:
     mem: "2GB"
     runtime: 60
-  # souporcell resumes from sc_pileup's ref/alt.mtx: cluster is the heavy step;
-  # troublet/consensus are light.
+  # --- souporcell: resumes from sc_pileup's ref/alt.mtx ---
+  # cluster is CPU-bound (cohort peak ~3GB), but --restarts 100 on 30-40k-cell
+  # pools exceeds 12h, hence the 24h walltime.
   souporcell_cluster:
     threads: 16
     mem: "64GB"
-    runtime: 720
+    runtime: 1440
   souporcell_troublet:
     threads: 1
     mem: "8GB"
+    runtime: 30
   souporcell_consensus:
+    # consensus.py runs a pystan mixture model; OOM-killed at 8GB, cohort peak ~11GB.
     threads: 1
+    mem: "16GB"
+    runtime: 30
+  # Genotype-anchored second pass mirrors the de-novo trio.
+  souporcell_cluster_known:
+    threads: 16
     mem: "8GB"
+    runtime: 1440
+  souporcell_troublet_known:
+    threads: 1
+    mem: "4GB"
+    runtime: 30
+  souporcell_consensus_known:
+    threads: 1
+    mem: "16GB"
+    runtime: 30
+  # --- vireo ---
   vireo:
     threads: 16
     mem: "32GB"
+    runtime: 30
   vireosnp:
-    mem: "8GB"
-    runtime: 10
+    mem: "10GB"
+    runtime: 30
+  # --- Python diagnostics / pre-flight screen ---
+  # report_variant_embedding (UMAP) OOM-killed at 4GB; 32GB kept.
+  report_variant_embedding:
+    threads: 1
+    mem: "32GB"
+  present_absent_screen:
+    # Observed peak ~2.5GB.
+    threads: 1
+    mem: "4GB"
+    runtime: 30
+  report_distinctiveness:
+    # Observed peak ~2.6GB.
+    threads: 1
+    mem: "4GB"
+    runtime: 30
+  hierarchical_consensus:
+    # Observed peak ~0.7GB.
+    threads: 1
+    mem: "2GB"
+    runtime: 30

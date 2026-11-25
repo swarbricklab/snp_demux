@@ -3,12 +3,12 @@
 # ----------------------------------
 # Run demuxafy "combine results" to find common cell annotation (to individuals) across methods
 # ==================================
+# Helper functions (enabled-tool inputs/flags) live in rules/common.smk.
+
+
 rule demuxafy:
     input:
-        demuxlet=rules.demuxlet.output.best,
-        freemuxlet=rules.freemuxlet.output.samples,
-        souporcell=rules.souporcell_troublet.output.clusters,
-        vireo=rules.relabel_vireo.output.donor_ids,
+        unpack(demuxafy_inputs),
     output:
         # TODO: add wildcard based logic to determine the combine method (e.g., AtLeastHalfSinglet)
         combined_results=temp(out_dir / "assignment/{capture_id}/combined_results.tsv"),
@@ -31,29 +31,16 @@ rule demuxafy:
     container:
         config["containers"]["demuxafy"]
     params:
-        freemuxlet_correlation_limit=config["params"]["demuxafy"][
-            "freemuxlet_correlation_limit"
-        ],
-        souporcell_correlation_limit=config["params"]["demuxafy"][
-            "souporcell_correlation_limit"
-        ],
+        combine_flags=demuxafy_combine_flags,
+        ref=demuxafy_ref(),
         pct_agreement=config["params"]["demuxafy"]["pct_agreement"],
     shell:
         """
-        demuxlet_dir=$(dirname {input.demuxlet})
-        freemuxlet_dir=$(dirname {input.freemuxlet})
-        souporcell_dir=$(dirname {input.souporcell})
-        vireo_dir=$(dirname {input.vireo})
         Combine_Results.R \
             -o {output.combined_results} \
-            --demuxlet $demuxlet_dir \
-            --freemuxlet $freemuxlet_dir \
-            --freemuxlet_correlation_limit {params.freemuxlet_correlation_limit} \
-            --souporcell $souporcell_dir \
-            --souporcell_correlation_limit {params.souporcell_correlation_limit} \
-            --vireo $vireo_dir \
+            {params.combine_flags} \
             --method "AtLeastHalfSinglet" \
-            --ref Vireo \
+            --ref {params.ref} \
             --pct_agreement {params.pct_agreement} \
             >{log}
         """

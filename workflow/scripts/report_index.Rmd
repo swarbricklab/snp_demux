@@ -45,6 +45,52 @@ page <- function(capture) sprintf('<a href="captures/%s.html">%s</a>', capture, 
 `r nrow(metrics)` captures across `r n_pools` pools,
 `r comma(sum(metrics$n_barcodes))` barcodes.
 
+## Donor present/absent screen
+
+Clustering-independent pre-flight QC flag per capture (see each capture page for
+the per-donor detail). Captures with **absent** donors are listed first: an absent
+donor is a declared donor that appears to have dropped out of the capture.
+
+```{r present-absent-prep}
+pa_cols <- c("pa_n_donors", "pa_n_present", "pa_n_absent", "pa_n_untestable")
+pa_have <- all(pa_cols %in% names(metrics))
+if (pa_have) {
+  pa_tbl <- metrics %>%
+    transmute(
+      capture = page(capture_id),
+      pool = pool_id,
+      donors = pa_n_donors,
+      present = pa_n_present,
+      absent = pa_n_absent,
+      untestable = pa_n_untestable,
+      .flag = coalesce(pa_n_absent, 0L)
+    ) %>%
+    arrange(desc(.flag), capture) %>%
+    select(-.flag)
+  n_flagged <- sum(coalesce(metrics$pa_n_absent, 0L) > 0)
+} else {
+  pa_tbl <- NULL; n_flagged <- NA_integer_
+}
+```
+
+```{r present-absent-note, results='asis'}
+if (pa_have) {
+  cat(sprintf("\n%d of %d captures have at least one absent donor.\n\n",
+              n_flagged, nrow(metrics)))
+} else {
+  cat("\n_No present/absent screen columns in the metrics roll-up._\n")
+}
+```
+
+```{r present-absent-table}
+if (pa_have) {
+  datatable(pa_tbl, escape = FALSE, rownames = FALSE, filter = "top",
+            extensions = "Buttons",
+            options = list(pageLength = 25, dom = "Bfrtip",
+                           buttons = c("copy", "csv"), scrollX = TRUE))
+}
+```
+
 ## Overview
 
 ```{r overview, fig.height=4.5}
