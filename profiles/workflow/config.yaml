@@ -7,14 +7,9 @@ rerun-incomplete: True
 latency-wait: 30
 retries: 2
 
-# Job grouping: each capture's lightweight post-processing chain is packed into
-# ONE PBS submission (per-capture) via rule-level `group: "postproc"` directives
-# in workflow/rules/*.smk, instead of ~12 tiny jobs, to cut scheduler churn and
-# queue waits. The directives live in the rules (not here) because snakemake 7.32
-# does not reliably honor `groups:`/`group-components:` from a --workflow-profile.
-# Heavy/parallel rules (souporcell*, vireo) and the pre-flight screen are left
-# ungrouped so they still spread across nodes / run early. Snakemake's default of
-# one job per connected group component already yields per-capture grouping.
+# No job grouping. Rule-level `group:` directives were removed in a2a973f: a
+# grouped submission ran at default-resources (set-resources did not apply to
+# it) and serialized each capture behind souporcell. Each rule is its own job.
 
 # Conda settings
 use-conda: True
@@ -31,24 +26,6 @@ conda-frontend: mamba
 # to grouped submissions), which is why report_variant_embedding OOM-killed ~18x.
 # Grouping is now removed, so these set-resources DO apply going forward.
 set-resources:
-  # --- Pileup (per-chromosome dsc_pileup) ---
-  # ~3000 jobs each; real peak ~33GB (p95 ~18GB), max walltime ~60min. Was 64GB.
-  dsc_pileup_demuxlet_by_chromosome:
-    threads: 1
-    mem: "48GB"
-    runtime: 90
-  dsc_pileup_freemuxlet_by_chromosome:
-    threads: 1
-    mem: "48GB"
-    runtime: 90
-  # cellSNP-lite: the key was previously "cellsnp-lite" (hyphen) and never matched
-  # the rule "cellsnp_lite", so it ran at the 4GB/1-thread DEFAULT and still
-  # completed (its memory was page-cache-capped at the limit, no OOM; walltime up to
-  # ~157min at 1 thread). Name fixed here; sized generously given the capped signal.
-  cellsnp_lite:
-    threads: 32
-    mem: "16GB"
-    runtime: 240
   # --- demuxlet family ---
   demuxlet:
     threads: 1
@@ -58,25 +35,6 @@ set-resources:
     threads: 1
     mem: "2GB"
     runtime: 30
-  merge_cel_demuxlet:
-    threads: 1
-    mem: "2GB"
-  merge_var_demuxlet:
-    threads: 1
-    mem: "2GB"
-  merge_plp_demuxlet:
-    threads: 1
-    mem: "2GB"
-  merge_umi_demuxlet:
-    # Peak sits at the request (reclaimable page cache); resident set fits in 4GB.
-    threads: 1
-    mem: "4GB"
-    runtime: 30
-  wrangle_umi_demuxlet:
-    # Trivial memory (<1GB) but long walltime (~150min) on the big pools.
-    threads: 1
-    mem: "2GB"
-    runtime: 240
   # --- demuxafy wrapper ---
   demuxafy:
     mem: "2GB"
@@ -86,22 +44,10 @@ set-resources:
     threads: 2
     mem: "16GB"
     runtime: 45
-  freemuxlet_genotyping:
-    # No jobs under this rule name in this cohort run -- left as-is (unverified).
-    mem: "20GB"
   freemuxlet_summary:
     mem: "2GB"
     runtime: 30
-  split_by_chr:
-    # No matching rule ran under this name this cohort -- left as-is (unverified).
-    mem: "2GB"
-    runtime: 5
-  # --- souporcell (full de-novo) ---
-  # Real peak ~158GB of 190GB requested (no OOM); kept near the node memory cap.
-  souporcell:
-    threads: 32
-    mem: "190GB"
-    runtime: 1440
+  # --- souporcell ---
   # sc_pileup branch: "cluster" is the heavy step but it is CPU-bound, not
   # memory-bound -- real peak only ~3GB. Was 64GB.
   souporcell_cluster:
@@ -136,9 +82,6 @@ set-resources:
     threads: 1
     mem: "16GB"
     runtime: 30
-  souporcell_genotyping:
-    # No jobs under this rule name in this cohort run -- left as-is (unverified).
-    mem: "20GB"
   # --- vireo ---
   # Real peak only ~10GB; profile was 32GB. (Some vireo jobs were also seen running
   # at 125GB via a rule-level mem override -- flagged for follow-up.)

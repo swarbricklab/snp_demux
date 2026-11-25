@@ -61,9 +61,9 @@ params:
     min_ref: 10     # souporcell default
     min_alt: 10     # souporcell default
     ploidy: 2       # souporcell default
-    # Run the second, genotype-anchored souporcell mode (souporcell/{c}/known/).
-    # Whether it actually runs is decided by targets; this flag documents intent
-    # and lets a downstream config disable the extra compute if desired.
+    # Read by no rule: the second, genotype-anchored run (souporcell/{c}/known/)
+    # always runs, because hierarchical_consensus and aggregate_souporcell require
+    # its clusters.tsv. Kept as a record of intent.
     known_gt: true
 
   # Hierarchical, sex-aware consensus (runs ALONGSIDE demuxafy; see
