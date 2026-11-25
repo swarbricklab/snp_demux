@@ -9,10 +9,19 @@ name: PR Validation
 #                   (run_test.sh --check)
 #   3. cleanup    — remove the per-PR scratch clone
 #
-# Gated on fork == false: forks cannot use the self-hosted runner or the NCI creds.
+# Gated on the PR coming from this repository: forks cannot use the self-hosted
+# runner or the NCI creds.
+#
+# Triggered by pull_request_target, not pull_request: the workflow file then
+# always comes from main, so a pull request cannot change these steps or the
+# same-repository guard below, and the self-hosted runner group can limit the
+# runner to this workflow on refs/heads/main. Only branches pushed to this
+# repository (by people with write access) run; fork PRs are skipped.
+# Because the workflow file comes from main, a PR that edits this file runs
+# main's version until it is merged.
 
 on:
-  pull_request:
+  pull_request_target:
     branches: [main]
     # Skip the (slow, self-hosted) full reproduce when a PR touches only
     # documentation / metadata — those can't change workflow outputs. Any change
@@ -28,7 +37,7 @@ on:
 
 jobs:
   clone:
-    if: ${{ github.event.pull_request.head.repo.fork == false }}
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: qxub-runner
     permissions:
       contents: read
@@ -50,7 +59,7 @@ jobs:
 
   reproduce:
     needs: clone
-    if: ${{ github.event.pull_request.head.repo.fork == false }}
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: qxub-runner
     permissions:
       pull-requests: write
@@ -77,7 +86,7 @@ jobs:
 
   cleanup:
     needs: [clone, reproduce]
-    if: ${{ always() && github.event.pull_request.head.repo.fork == false }}
+    if: ${{ always() && github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: qxub-runner
     steps:
       - name: Remove per-PR scratch clone
