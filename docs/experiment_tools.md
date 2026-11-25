@@ -106,7 +106,7 @@ One page per group of tools:
 
 - [Scorer](experiment_tools/scorer.md) (available): vireo's fixed-mode calls reproduced from the pileup and the donor VCF, with a margin per cell.
 
-- [Scorer diagnostics](experiment_tools/scorer-diagnostics.md) (planned): native fit, site masks and groups, genotype overrides and per-site detail.
+- [Scorer diagnostics](experiment_tools/scorer-diagnostics.md) (available): native fit, site masks and groups, genotype overrides and per-site detail.
 
 - [Compare runs](experiment_tools/compare-runs.md) (planned): call readers for both snp_demux lines, run-to-run comparison and the sex check.
 

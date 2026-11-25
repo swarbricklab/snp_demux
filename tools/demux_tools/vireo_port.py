@@ -30,6 +30,11 @@
 #   naming of 0.5.7 (permutations) or 0.5.9 (combinations) chosen by the
 #   caller; gzip output has mtime 0, files are written atomically, and no
 #   _log.txt is written.
+# - `beta_entropy` is copied from vireo_base without its printed shape errors.
+#   `binom_coeff_sum` is the sum of vireo_base.get_binom_coeff.
+# - `fit_fixed_native` performs the steps of vireo_wrap and Vireo._fit_VB for
+#   fixed genotypes (learn_GT=False, one start, ASE_mode off) on (cells x
+#   donors) matrices formed once, instead of sparse products each iteration.
 """Code ported from vireoSNP, kept in this one module (see the notice above).
 
 Everything else in demux_tools is original. Where a function here returns
@@ -389,3 +394,130 @@ def write_vireo_files(out_dir, donors, cells, n_vars, prob_singlet, prob_doublet
             line = ["%.2e" % x for x in prob_doublet[i, :]]
             fid.write("\t".join([cells[i]] + line) + "\n")
     return paths
+
+
+# ---------------------------------------------------------------------------
+# vireo_base.beta_entropy, get_binom_coeff; the fixed-mode fit of vireo_wrap and Vireo._fit_VB
+
+
+def beta_entropy(X, X_prior=None, axis=None):
+    """Entropy of Beta distributions (N, 2), or the KL divergence from X_prior (vireo_base.beta_entropy)."""
+    from scipy.special import betaln, digamma
+
+    def _beta_cross_entropy(Xp, Xq):
+        return (
+            betaln(Xq[:, 0], Xq[:, 1]) -
+            (Xq[:, 0] - 1) * digamma(Xp[:, 0]) -
+            (Xq[:, 1] - 1) * digamma(Xp[:, 1]) +
+            (Xq.sum(axis=1) - 2) * digamma(Xp.sum(axis=1))
+        )
+
+    if len(X.shape) == 1:
+        X = X.reshape(-1, 2)
+    if X_prior is not None and len(X_prior.shape) == 1:
+        X_prior = X_prior.reshape(-1, 2)
+    if X_prior is None:
+        RV_mat = _beta_cross_entropy(X, X)
+    else:
+        RV_mat = _beta_cross_entropy(X, X_prior) - _beta_cross_entropy(X, X)
+    return np.sum(RV_mat, axis=axis)
+
+
+def binom_coeff_sum(AD, DP, max_val=700):
+    """Sum of log binomial coefficients over the entries with reads, as vireo adds it to the lower bound."""
+    from scipy.special import binom
+
+    idx = DP > 0
+    _AD = AD[idx].astype(np.int64)
+    _DP = DP[idx].astype(np.int64)
+    binom_coeff = np.log(binom(_DP, _AD))
+    binom_coeff[binom_coeff > max_val] = max_val
+    return float(np.sum(binom_coeff.astype(np.float32)))
+
+
+def fit_fixed_native(AD, DP, GPb, max_iter_init=20, delay_fit_theta=3, min_iter=5, max_iter=200,
+                     epsilon_conv=1e-2, min_GP=0.00001):
+    """vireo's fixed-mode fit of the allele ratios, on (cells x donors) matrices.
+
+    The steps are those of vireo_wrap with learn_GT=False and one start: a
+    first pass of at most `max_iter_init` iterations with the ratio update
+    held back for `delay_fit_theta` iterations, then a second pass of at most
+    `max_iter` iterations, each stopping as Vireo._fit_VB stops (after
+    `min_iter` iterations, when the lower bound rises by less than
+    `epsilon_conv`). With the genotypes fixed, every sparse product vireo
+    forms per iteration is a fixed (cells x donors) matrix times a scalar, so
+    the six products A_g = AD.T @ GT_g and B_g = (DP - AD).T @ GT_g are formed
+    once and each iteration costs O(cells x donors). The lower bound includes
+    vireo's constant terms (the genotype KL against the prior clipped at
+    `min_GP`, and the binomial coefficients), so its values and the stopping
+    point follow vireo's. Results differ from vireo's only by floating-point
+    summation order.
+
+    Returns a dict: theta_mean, theta_sum (1, 3); n_iter [pass 1, pass 2];
+    elbo (vireo's final LB_doublet); ID_prob (cells x donors) before the
+    doublet step.
+    """
+    from scipy.special import digamma
+    from scipy.stats import entropy
+
+    G = normalize(GPb)
+    prior = GPb.copy()
+    prior[prior < min_GP] = min_GP
+    prior[prior > 1 - min_GP] = 1 - min_GP
+    prior = normalize(prior)
+    KL_GT = np.sum(entropy(G, prior, axis=-1))
+    BD = DP - AD
+    n_cell, n_donor, n_gt = AD.shape[1], G.shape[1], G.shape[2]
+    A = [np.asarray(AD.T @ G[:, :, ig]) for ig in range(n_gt)]
+    B = [np.asarray(BD.T @ G[:, :, ig]) for ig in range(n_gt)]
+    beta_mu = np.ones((1, n_gt)) * np.linspace(0.01, 0.99, n_gt).reshape(1, -1)
+    beta_sum = np.ones((1, n_gt)) * 50
+    beta_mu_prior = np.expand_dims(np.linspace(0.01, 0.99, n_gt), axis=0)
+    beta_sum_prior = np.ones(beta_mu_prior.shape) * 50.0
+    s1_prior = beta_mu_prior * beta_sum_prior
+    s2_prior = (1 - beta_mu_prior) * beta_sum_prior
+    ID_prior = normalize(np.ones((n_cell, n_donor)))
+    log_ID_prior = np.log(ID_prior)
+    binom_const = binom_coeff_sum(AD, DP)
+    state = {"mu": beta_mu, "sum": beta_sum, "ID": None}
+
+    def one_pass(n_max, delay):
+        ELBO = np.zeros(n_max)
+        it = 0
+        for it in range(n_max):
+            if it >= delay:
+                s1 = np.zeros((1, n_gt)) + s1_prior
+                s2 = np.zeros((1, n_gt)) + s2_prior
+                for ig in range(n_gt):
+                    s1[:, ig] += np.sum(state["ID"] * A[ig])
+                    s2[:, ig] += np.sum(state["ID"] * B[ig])
+                state["mu"] = s1 / (s1 + s2)
+                state["sum"] = s1 + s2
+            theta_s1 = state["mu"] * state["sum"]
+            theta_s2 = (1 - state["mu"]) * state["sum"]
+            dg1 = digamma(theta_s1)[0]
+            dg2 = digamma(theta_s2)[0]
+            dgs = digamma(theta_s1 + theta_s2)[0]
+            logLik_ID = np.zeros((n_cell, n_donor))
+            for ig in range(n_gt):
+                logLik_ID += A[ig] * dg1[ig] + B[ig] * dg2[ig] - (A[ig] + B[ig]) * dgs[ig]
+            state["ID"] = normalize(np.exp(loglik_amplify(logLik_ID + log_ID_prior)))
+            KL_theta = beta_entropy(
+                np.append(np.expand_dims(theta_s1, 1), np.expand_dims(theta_s2, 1), axis=1),
+                np.append(np.expand_dims(s1_prior, 1), np.expand_dims(s2_prior, 1), axis=1))
+            ELBO[it] = (np.sum(logLik_ID * state["ID"]) - np.sum(entropy(state["ID"], ID_prior, axis=-1))
+                        - KL_GT - KL_theta)
+            if it > min_iter:
+                if ELBO[it] < ELBO[it - 1] - 1e-6:
+                    pass
+                elif it == n_max - 1:
+                    pass
+                elif ELBO[it] - ELBO[it - 1] < epsilon_conv:
+                    break
+        return ELBO[:it] + binom_const, it + 1
+
+    elbo1, n1 = one_pass(max_iter_init, delay_fit_theta)
+    elbo2, n2 = one_pass(max_iter, 0)
+    elbo = elbo2[-1] if len(elbo2) else (elbo1[-1] if len(elbo1) else float("nan"))
+    return {"theta_mean": state["mu"], "theta_sum": state["sum"], "n_iter": [int(n1), int(n2)],
+            "elbo": float(elbo), "ID_prob": state["ID"]}
