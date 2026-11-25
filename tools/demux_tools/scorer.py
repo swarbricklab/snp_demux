@@ -22,6 +22,12 @@ Under backend "vireo" the eight columns are vireo's own numbers, and the
 internal check (`maxdiff_*` in fit.json) shows the evidence columns come
 from the same arithmetic. scipy and vireoSNP are imported inside the
 functions that need them, so the commands' --help needs neither.
+
+A variant (`apply_variant`) scores a capture again with changed sites
+(`subset_sites`), changed genotypes (`fill_missing`, `harden`, `add_donors`)
+or held allele ratios, and adds the columns of `diagnostics`. backend
+"native" fits without vireoSNP. Without these options the output is the
+same as before they existed.
 """
 import contextlib
 import io
@@ -420,7 +426,8 @@ class Fit(object):
 
     theta_mean, theta_sum: float64 (1, 3), the Beta mean and concentration of
         the ALT share for genotypes 0/0, 0/1, 1/1 (vireo's beta_mu, beta_sum).
-    backend: "vireo", or "given" for ratios set by the caller.
+    backend: "vireo", "native", "held" (ratios held fixed by fit()), or
+        "given" for ratios set by the caller.
     n_iter: iterations of vireo's two fitting passes, or None.
     elbo: vireo's final lower bound, or None.
     doublet_prior: the prior probability of a doublet, spread over the pairs.
@@ -462,17 +469,29 @@ def _resolve_prior(capture, doublet_prior):
     return value, False
 
 
-def fit(capture, backend="vireo", doublet_prior="auto"):
+def fit(capture, backend="vireo", theta=None, doublet_prior="auto"):
     """Fit the allele ratios of `capture`; returns a Fit.
 
+    theta: None to fit, or (theta_mean, theta_sum) to hold the ratios fixed.
     backend "vireo": vireoSNP's vireo_wrap with the arguments vireo.py passes
     in fixed mode (learn_GT False, one start, no extra donors, doublets
     checked, no ambient step, one process). Its printed lines go to Fit.log.
     With one donor there are no pairs, so doublets are not checked.
+    backend "native": vireo_port.fit_fixed_native, the same steps on
+    (cells x donors) matrices, without vireoSNP; the probabilities then come
+    from the Scorer's own matrices.
     """
     prior, auto = _resolve_prior(capture, doublet_prior)
+    if theta is not None:
+        return Fit(theta[0], theta[1], backend="held", doublet_prior=prior)
+    if backend == "native":
+        from demux_tools.vireo_port import fit_fixed_native
+
+        res = fit_fixed_native(capture.AD, capture.DP, capture.GPb)
+        return Fit(res["theta_mean"], res["theta_sum"], backend="native", n_iter=res["n_iter"], elbo=res["elbo"],
+                   doublet_prior=prior)
     if backend != "vireo":
-        raise UsageError("backend must be vireo, not %r" % backend)
+        raise UsageError("backend must be vireo or native, not %r" % backend)
     from vireoSNP.utils import vireo_wrap as vw
 
     lengths = []
@@ -716,14 +735,24 @@ def _combinations(n):
     return [tuple(p) for p in donor_pairs(n)]
 
 
-def write_cells(scores, path, columns=None):
+def write_cells(scores, path, columns=None, extra=None):
     """Write the per-cell table (tab-separated, gzip for ".gz", deterministic); returns the path.
 
     Numbers use FLOAT_FORMATS; a missing value is written empty. With
     vireo_format 0.5.10 the prob_doublet column is named prob_max_doublet.
+    extra: a DataFrame of further columns (one row per cell), appended after
+    the base columns.
     """
     table = scores.table if columns is None else scores.table.loc[:, list(columns)]
     formats = {c: f for c, f in FLOAT_FORMATS.items() if c in table.columns}
+    if extra is not None:
+        import pandas as pd
+
+        clash = [c for c in extra.columns if c in table.columns]
+        if clash:
+            raise ValueError("extra columns repeat %s" % ", ".join(clash))
+        table = pd.concat([table.reset_index(drop=True), extra.reset_index(drop=True)], axis=1)
+        formats.update(extra_formats(extra))
     renamed = _prob_doublet_column(scores.vireo_format)
     if renamed != "prob_doublet":
         table = table.rename(columns={"prob_doublet": renamed})
@@ -821,6 +850,397 @@ def compare_vireo_files(ours, theirs):
     return out
 
 
+
+# ---------------------------------------------------------------------------
+# Changing the sites and the genotypes (each returns a new Capture)
+
+
+def subset_sites(capture, keep):
+    """A Capture with only the sites where `keep` (a boolean mask over sites) is True."""
+    keep = np.asarray(keep, dtype=bool)
+    if len(keep) != capture.n_sites:
+        raise ValueError("site mask has %d entries for %d sites" % (len(keep), capture.n_sites))
+    idx = np.flatnonzero(keep)
+    counts = dict(capture.counts)
+    counts["n_sites_masked"] = int(capture.n_sites - len(idx)) + int(capture.counts.get("n_sites_masked", 0))
+    return Capture(capture.name, capture.barcodes, [capture.variants[k] for k in idx], capture.AD[idx],
+                   capture.DP[idx], capture.donors, capture.GPb[idx], capture.missing[idx], capture.pileup_rows[idx],
+                   capture.vcf_rows[idx], {f: v[idx] for f, v in capture.info.items()}, counts, capture.inputs,
+                   capture.load_info)
+
+
+def _with_genotypes(capture, GPb, missing, donors=None, counts=None):
+    return Capture(capture.name, capture.barcodes, capture.variants, capture.AD, capture.DP,
+                   capture.donors if donors is None else donors, GPb, missing, capture.pileup_rows, capture.vcf_rows,
+                   capture.info, counts or capture.counts, capture.inputs, capture.load_info)
+
+
+def hwe_probabilities(q):
+    """Genotype probabilities ((1-q)^2, 2q(1-q), q^2) for ALT allele frequencies q (NaN rows stay NaN)."""
+    q = np.asarray(q, dtype=np.float64)
+    return np.stack([(1 - q) ** 2, 2 * q * (1 - q), q ** 2], axis=-1)
+
+
+def fill_missing(capture, how="uniform", af=None, donors=None):
+    """Replace blank genotypes; returns (Capture, counts).
+
+    how: "uniform" (vireo's a third each: no change), "hwe" (Hardy-Weinberg
+    proportions of `af`, one ALT allele frequency per site; a site with no
+    frequency keeps a third each) or "drop-site" (drop every site where a
+    donor is blank). donors: names of the donors to fill (default all).
+    counts: blanks filled, blanks left (no frequency), sites dropped.
+    """
+    cols = list(range(capture.n_donors)) if donors is None else [capture.donors.index(d) for d in donors]
+    target = np.zeros_like(capture.missing)
+    target[:, cols] = capture.missing[:, cols]
+    if how == "uniform":
+        return capture, {"blanks": int(target.sum()), "filled": 0}
+    if how == "drop-site":
+        keep = ~target.any(axis=1)
+        return subset_sites(capture, keep), {"blanks": int(target.sum()), "sites_dropped": int((~keep).sum())}
+    if how != "hwe":
+        raise UsageError("blank fill must be uniform, hwe or drop-site, not %r" % how)
+    if af is None:
+        raise UsageError("hwe needs an allele frequency per site")
+    q = np.asarray(af, dtype=np.float64)
+    have = ~np.isnan(q)
+    fill = target & have[:, None]
+    GPb = capture.GPb.copy()
+    probs = hwe_probabilities(np.where(have, q, 0.0))
+    v, d = np.nonzero(fill)
+    GPb[v, d, :] = probs[v]
+    return (_with_genotypes(capture, GPb, capture.missing),
+            {"blanks": int(target.sum()), "filled": int(fill.sum()), "left_uniform": int((target & ~fill).sum())})
+
+
+def harden(capture):
+    """Soft genotypes made hard (one-hot at their most likely genotype); blanks stay blank."""
+    G = capture.GPb
+    hard = np.zeros_like(G)
+    np.put_along_axis(hard, G.argmax(axis=2)[:, :, None], 1.0, axis=2)
+    GPb = np.where(capture.missing[:, :, None], G, hard)
+    changed = int(((GPb != G).any(axis=2)).sum())
+    return _with_genotypes(capture, GPb, capture.missing), {"hardened": changed}
+
+
+def add_donors(capture, vcf, donors=None, tag="GT", missing="uniform", af=None):
+    """Append donors from another VCF (decoys), matched to the capture's sites by id; returns (Capture, counts).
+
+    A site the other VCF lacks is blank for the new donors, then `missing`
+    applies to those blanks: "uniform", "hwe" (with `af` per site) or
+    "drop-site". Names already in the capture raise UsageError.
+    """
+    from demux_tools import vcf as vcf_mod
+
+    _, header = vcf_mod.read_header(vcf)
+    names = list(header) if donors is None else list(donors)
+    clash = [d for d in names if d in capture.donors]
+    if clash:
+        raise UsageError("extra donor(s) already in the capture: %s" % ",".join(clash))
+    m = vcf_mod.read_matched(vcf, capture.variants, samples=names, tag=tag, check=False)
+    geno, idx_cell, idx_donor, how = m["genotypes"], m["idx_cell"], m["idx_donor"], m["how"]
+    n = capture.n_sites
+    gp = np.tile(np.array([1 / 3, 1 / 3, 1 / 3]), (n, len(names), 1))
+    miss = np.ones((n, len(names)), dtype=bool)
+    gp[idx_cell] = geno.gp[idx_donor]
+    miss[idx_cell] = geno.missing[idx_donor]
+    counts = dict(capture.counts)
+    counts["extra_donors"] = names
+    out = _with_genotypes(capture, np.concatenate([capture.GPb, gp], axis=1),
+                          np.concatenate([capture.missing, miss], axis=1), donors=capture.donors + names,
+                          counts=counts)
+    out, filled = fill_missing(out, how=missing, af=af, donors=names)
+    return out, {"extra_donors": names, "sites_in_extra_vcf": int(len(idx_cell)), "match": how, "fill": filled}
+
+
+# ---------------------------------------------------------------------------
+# Allele ratios held from elsewhere
+
+
+def parse_theta(spec):
+    """("refit", None), ("base", None), ("hold", path) or ("fixed", (theta_mean, theta_sum)) from a --theta value."""
+    spec = (spec or "refit").strip()
+    if spec in ("refit", "base"):
+        return spec, None
+    if spec.startswith("hold:"):
+        return "hold", spec[len("hold:"):]
+    if spec.startswith("fixed:"):
+        parts = spec[len("fixed:"):].split(":")
+        try:
+            mean = [float(x) for x in parts[0].split(",")]
+            total = [float(x) for x in parts[1].split(",")] if len(parts) > 1 else [1e6] * 3
+        except (ValueError, IndexError):
+            mean = total = []
+        if len(mean) != 3 or len(total) != 3:
+            raise UsageError("--theta fixed:m0,m1,m2[:s0,s1,s2] needs three means (and three concentrations)")
+        if not all(0.0 < m < 1.0 for m in mean) or not all(0.0 < t < float("inf") for t in total):
+            raise UsageError("--theta fixed: means must lie strictly between 0 and 1, and concentrations be "
+                             "positive and finite (got %s)" % spec)
+        return "fixed", (mean, total)
+    raise UsageError("--theta must be refit, base, hold:FIT.json or fixed:m0,m1,m2:s0,s1,s2, not %r" % spec)
+
+
+# ---------------------------------------------------------------------------
+# Variants: one capture scored with changed sites, genotypes or allele ratios
+
+VARIANT_COLUMNS = ("variant", "sites", "exclude_sites", "thin_bp", "thin_keep", "group_by", "fill_blanks", "harden",
+                   "extra_vcf", "extra_donors", "extra_missing", "theta", "backend", "marginal", "pairwise_shared",
+                   "top_sites", "extra_columns")
+_FLAGS = ("harden", "marginal", "pairwise_shared", "extra_columns")
+
+
+def default_variant(name="base"):
+    """The variant that changes nothing: D2's scoring."""
+    return {"variant": name, "sites": "", "exclude_sites": "", "thin_bp": "", "thin_keep": "first", "group_by": [],
+            "fill_blanks": "keep", "harden": False, "extra_vcf": "", "extra_donors": "", "extra_missing": "uniform",
+            "theta": "refit", "backend": "", "marginal": False, "pairwise_shared": False, "top_sites": "",
+            "extra_columns": False}
+
+
+def _truthy(value):
+    if isinstance(value, bool):
+        return value
+    text = str(value).strip().lower()
+    if text in ("", "0", "false", "no", "off"):
+        return False
+    if text in ("1", "true", "yes", "on"):
+        return True
+    raise UsageError("expected true or false, not %r" % value)
+
+
+def normalise_variant(row):
+    """A variant dict with every key, text values cleaned and flags as bool; group_by as a list."""
+    v = default_variant(str(row.get("variant") or "base"))
+    for k in VARIANT_COLUMNS[1:]:
+        if k not in row or row[k] is None:
+            continue
+        value = row[k]
+        if k in _FLAGS:
+            v[k] = _truthy(value)
+        elif k == "group_by":
+            v[k] = [g for g in (value if isinstance(value, list) else str(value).split(";")) if g]
+        else:
+            v[k] = str(value).strip()
+    if v["fill_blanks"] in ("", "uniform"):
+        v["fill_blanks"] = "keep"
+    if not v["theta"]:
+        v["theta"] = "refit"
+    if not v["extra_missing"]:
+        v["extra_missing"] = "uniform"
+    if not v["thin_keep"]:
+        v["thin_keep"] = "first"
+    return v
+
+
+def is_default_variant(v):
+    d = default_variant(v["variant"])
+    return all(v[k] == d[k] for k in VARIANT_COLUMNS[1:])
+
+
+def read_variants(path):
+    """The variants table: one row per variant, columns from VARIANT_COLUMNS (`variant` required).
+
+    group_by holds groupings separated by ";". Flags take true or false.
+    """
+    table = read_table(path)
+    if "variant" not in table.columns:
+        raise UsageError("%s needs a variant column" % path)
+    unknown = [c for c in table.columns if c not in VARIANT_COLUMNS]
+    if unknown:
+        raise UsageError("%s: unknown column(s) %s (known: %s)"
+                         % (path, ", ".join(unknown), ", ".join(VARIANT_COLUMNS)))
+    rows = [normalise_variant(r) for r in table.to_dict(orient="records")]
+    names = [check_name(r["variant"], "variant name") for r in rows]
+    if len(set(names)) != len(names):
+        raise UsageError("%s names a variant twice" % path)
+    for k, r in enumerate(rows):
+        if r["theta"] == "base" and (k == 0 or parse_theta(rows[0]["theta"])[0] != "refit"):
+            raise UsageError("theta=base holds the first variant's fit; the first variant must refit")
+    return rows
+
+
+def _af_spec(spec):
+    """For "hwe:X": ("file", X) when X is an existing file, else ("info", X)."""
+    if not spec.startswith("hwe:"):
+        return None
+    source = spec[len("hwe:"):]
+    return ("file", source) if os.path.isfile(source) else ("info", source)
+
+
+def info_fields_needed(variants):
+    """INFO fields the variants read: @info groupings and hwe:FIELD fills."""
+    fields = set()
+    for v in variants:
+        for g in v["group_by"]:
+            if g.startswith("@info:"):
+                fields.add(g.split(":")[1])
+        for spec in (v["fill_blanks"], v["extra_missing"]):
+            af = _af_spec(spec)
+            if af and af[0] == "info":
+                fields.add(af[1])
+    return sorted(fields)
+
+
+def _allele_frequencies(capture, spec):
+    """ALT allele frequency per site from "hwe:FIELD" (INFO) or "hwe:FILE" (a table with variant and af)."""
+    kind, source = _af_spec(spec)
+    if kind == "info":
+        if source not in capture.info:
+            raise UsageError("INFO field %s was not loaded" % source)
+        return capture.info[source]
+    table = read_table(source)
+    if "variant" not in table.columns or "af" not in table.columns:
+        raise UsageError("%s needs columns variant and af" % source)
+    lookup = dict(zip(table["variant"], table["af"]))
+    return np.array([float(lookup[v]) if lookup.get(v, "") not in ("", "NA", ".") else np.nan
+                     for v in capture.variants], dtype=np.float64)
+
+
+def _fill(spec):
+    if spec in ("keep", "uniform"):
+        return "uniform"
+    if spec == "drop-site":
+        return "drop-site"
+    if spec.startswith("hwe:"):
+        return "hwe"
+    raise UsageError("blank fill must be keep, hwe:FIELD, hwe:FILE or drop-site, not %r" % spec)
+
+
+def held_theta(path):
+    """(theta_mean, theta_sum) stored in a fit.json."""
+    import json
+
+    with open(path) as f:
+        rec = json.load(f)
+    return rec["theta_mean"], rec["theta_sum"]
+
+
+class VariantResult(object):
+    """What `apply_variant` returns: capture, fit, scores, extra (DataFrame of extra columns or None),
+    sites (long top-sites table or None), record (dict for fit.json) and seconds (by step)."""
+
+    def __init__(self, **kw):
+        self.__dict__.update(kw)
+
+
+def apply_variant(capture, variant, backend="vireo", doublet_prior="auto", prob_max=0.9, prob_doublet=0.9,
+                  min_vars=10, vireo_format="0.5.7", base_fit=None, site_table=None, top_groups=10,
+                  gene_column="gene_name", geno_tag="GT"):
+    """Score `capture` under one variant (a dict from `normalise_variant`); returns a VariantResult.
+
+    The steps run in this order: keep or drop sites (sites, exclude_sites,
+    thin_bp), add donors (extra_vcf), fill blanks, harden, then fit or hold
+    the allele ratios (theta: refit, base = `base_fit`, hold:FIT.json or
+    fixed:...), score, and the diagnostics asked for. The variant's own
+    backend, when set, overrides `backend`. geno_tag is the FORMAT field read
+    from extra_vcf.
+    """
+    from demux_tools import diagnostics as dg
+    from demux_tools import sites as sites_mod
+
+    v = normalise_variant(variant)
+    seconds = {}
+    record = {}
+    t = time.time()
+    keep = None
+    if v["sites"] or v["exclude_sites"]:
+        keep = sites_mod.mask(capture.variants, keep=v["sites"] or None, exclude=v["exclude_sites"] or None)
+    if v["thin_bp"]:
+        base_keep = np.ones(capture.n_sites, dtype=bool) if keep is None else keep
+        idx = np.flatnonzero(base_keep)
+        depth = np.asarray(capture.DP.sum(axis=1)).ravel()[idx]
+        thinned = sites_mod.thin([capture.variants[k] for k in idx], int(v["thin_bp"]), keep=v["thin_keep"],
+                                 depth=depth)
+        keep = np.zeros(capture.n_sites, dtype=bool)
+        keep[idx[thinned]] = True
+    work = capture
+    if keep is not None:
+        record["sites_kept"] = int(keep.sum())
+        work = subset_sites(capture, keep)
+    if v["extra_vcf"]:
+        missing = _fill(v["extra_missing"])
+        af = _allele_frequencies(work, v["extra_missing"]) if missing == "hwe" else None
+        donors = [d for d in v["extra_donors"].split(",") if d] or None
+        work, record["extra_donors"] = add_donors(work, v["extra_vcf"], donors=donors,
+                                                  tag=geno_tag, missing=missing, af=af)
+    if v["fill_blanks"] != "keep":
+        how = _fill(v["fill_blanks"])
+        af = _allele_frequencies(work, v["fill_blanks"]) if how == "hwe" else None
+        work, record["fill_blanks"] = fill_missing(work, how=how, af=af)
+    if v["harden"]:
+        work, record["harden"] = harden(work)
+    if work.n_sites == 0:
+        raise ValueError("variant %s leaves no site" % v["variant"])
+    seconds["overrides"] = round(time.time() - t, 3)
+
+    t = time.time()
+    mode, value = parse_theta(v["theta"])
+    if mode == "refit":
+        fit_result = fit(work, backend=v["backend"] or backend, doublet_prior=doublet_prior)
+    elif mode == "base":
+        if base_fit is None:
+            raise UsageError("theta=base needs the first variant's fit")
+        fit_result = fit(work, theta=(base_fit.theta_mean, base_fit.theta_sum), doublet_prior=doublet_prior)
+    elif mode == "hold":
+        fit_result = fit(work, theta=held_theta(value), doublet_prior=doublet_prior)
+    else:
+        fit_result = fit(work, theta=value, doublet_prior=doublet_prior)
+    seconds["fit"] = round(time.time() - t, 3)
+    t = time.time()
+    scores = score(work, fit_result, prob_max=prob_max, prob_doublet=prob_doublet, min_vars=min_vars,
+                   vireo_format=vireo_format)
+    seconds["score"] = round(time.time() - t, 3)
+
+    t = time.time()
+    extra, long_sites = [], None
+    wants = v["extra_columns"] or v["group_by"] or v["marginal"] or v["top_sites"]
+    if wants or v["pairwise_shared"]:
+        best, second = dg.best_and_second(scores)
+        entries = dg.Entries(work) if wants else None
+        labels = {}
+        if v["extra_columns"]:
+            extra.append(dg.cheap_columns(work, fit_result, best, second, entries=entries))
+        for spec in v["group_by"]:
+            name, lab = sites_mod.groups_from(spec, work.variants, missing=work.missing, donors=work.donors,
+                                              info=work.info, site_table=site_table, top=top_groups)
+            labels[name] = lab
+            extra.append(dg.group_margins(work, fit_result, best, second, lab, name, entries=entries))
+        if v["marginal"]:
+            extra.append(dg.marginal_singlet(work, fit_result, scores.ll_singlet, best, entries=entries)[0])
+        if v["pairwise_shared"]:
+            extra.append(dg.pairwise_shared(work, fit_result))
+        if v["top_sites"]:
+            gene = None
+            if site_table is not None and gene_column in site_table.columns:
+                lookup = dict(zip(site_table["variant"], site_table[gene_column]))
+                gene = np.array([lookup.get(x, "") for x in work.variants], dtype=object)
+            long_sites, per_cell = dg.top_sites(work, fit_result, best, second, n=int(v["top_sites"]),
+                                                labels=labels, gene=gene, entries=entries)
+            extra.append(per_cell)
+    seconds["diagnostics"] = round(time.time() - t, 3)
+    if extra:
+        import pandas as pd
+
+        extra = pd.concat([e.reset_index(drop=True) for e in extra], axis=1)
+    else:
+        extra = None
+    if not is_default_variant(v):
+        record["options"] = {k: v[k] for k in VARIANT_COLUMNS}
+    return VariantResult(capture=work, fit=fit_result, scores=scores, extra=extra, sites=long_sites, record=record,
+                         seconds=seconds)
+
+
+def extra_formats(extra):
+    """%-formats for the extra columns: integers as they are, fit_expected_per_umi %.5f, other numbers %.4f."""
+    formats = {}
+    if extra is None:
+        return formats
+    for c in extra.columns:
+        if extra[c].dtype.kind == "f":
+            formats[c] = "%.5f" if c == "fit_expected_per_umi" else "%.4f"
+    return formats
+
+
 # ---------------------------------------------------------------------------
 # Running one capture (shared by score and score-many)
 
@@ -869,41 +1289,99 @@ def _capture_kwargs(args_or_row):
                 barcodes=get("barcodes") or None)
 
 
-def run_one(name, capture_kwargs, out_prefix, backend="vireo", loader="native", cache_dir=None,
-            doublet_prior="auto", prob_max=0.9, prob_doublet=0.9, min_vars=10, vireo_format="0.5.7",
-            vireo_dir=None, argv=None, clock=None, n_donor=None):
-    """Load, fit and score one capture; write PREFIX.cells.tsv.gz and PREFIX.fit.json.
-
-    vireo_dir: also write vireo's files there. n_donor: refuse unless the
-    capture has this many donors. Returns the fit.json record.
-    """
-    clock = clock or start_clock()
-    timings = {}
-    t = time.time()
-    capture = load_capture(name, loader=loader, cache_dir=cache_dir, **capture_kwargs)
+def _load_for(name, capture_kwargs, loader, cache_dir, n_donor, info):
+    capture = load_capture(name, loader=loader, cache_dir=cache_dir, info=info, **capture_kwargs)
     if n_donor is not None and n_donor != capture.n_donors:
         raise UsageError("--n-donor %d differs from the %d donors used; vireo would not run in fixed mode "
                          "(learning mode, or its donor-subset path), which the Scorer does not reproduce"
                          % (n_donor, capture.n_donors))
-    timings["load"] = round(time.time() - t, 3)
-    t = time.time()
-    fit_result = fit(capture, backend=backend, doublet_prior=doublet_prior)
-    timings["fit"] = round(time.time() - t, 3)
-    t = time.time()
-    scores = score(capture, fit_result, prob_max=prob_max, prob_doublet=prob_doublet, min_vars=min_vars,
-                   vireo_format=vireo_format)
-    timings["score"] = round(time.time() - t, 3)
+    return capture
+
+
+def _write_result(result, out_prefix, vireo_format, timings, vireo_dir=None, argv=None, clock=None):
+    """Write PREFIX.cells.tsv.gz (and PREFIX.sites.tsv.gz, vireo's files) and PREFIX.fit.json; returns the record."""
     t = time.time()
     cells_path = out_prefix + ".cells.tsv.gz"
-    write_cells(scores, cells_path)
+    write_cells(result.scores, cells_path, extra=result.extra)
+    outputs = {"cells": cells_path, "vireo_dir": vireo_dir}
+    if result.sites is not None:
+        outputs["sites"] = out_prefix + ".sites.tsv.gz"
+        formats = {c: "%.4f" for c in ("term_best", "term_second", "delta", "cum_share")}
+        write_table(result.sites, outputs["sites"], float_formats=formats)
     if vireo_dir:
-        write_vireo_dir(capture, scores, vireo_dir)
+        write_vireo_dir(result.capture, result.scores, vireo_dir)
+    timings = dict(timings)
     timings["write"] = round(time.time() - t, 3)
-    record = _fit_record(capture, fit_result, scores, timings, vireo_format)
-    record["outputs"] = {"cells": cells_path, "vireo_dir": vireo_dir}
-    record["provenance"] = provenance(argv or [], capture.inputs, clock=clock)
+    record = _fit_record(result.capture, result.fit, result.scores, timings, vireo_format)
+    if result.record:
+        record["variant"] = result.record
+    record["outputs"] = outputs
+    record["provenance"] = provenance(argv or [], result.capture.inputs, clock=clock)
     write_json(record, out_prefix + ".fit.json")
     return record
+
+
+def run_one(name, capture_kwargs, out_prefix, backend="vireo", loader="native", cache_dir=None,
+            doublet_prior="auto", prob_max=0.9, prob_doublet=0.9, min_vars=10, vireo_format="0.5.7",
+            vireo_dir=None, argv=None, clock=None, n_donor=None, variant=None, site_table=None, info=(),
+            top_groups=10, gene_column="gene_name"):
+    """Load, fit and score one capture; write PREFIX.cells.tsv.gz and PREFIX.fit.json.
+
+    variant: a dict of variant options (default: none, D2's scoring).
+    vireo_dir: also write vireo's files there. n_donor: refuse unless the
+    capture has this many donors. Returns the fit.json record.
+    """
+    clock = clock or start_clock()
+    variant = normalise_variant(variant or {})
+    fields = sorted(set(info or ()) | set(info_fields_needed([variant])))
+    t = time.time()
+    capture = _load_for(name, capture_kwargs, loader, cache_dir, n_donor, fields)
+    timings = {"load": round(time.time() - t, 3)}
+    result = apply_variant(capture, variant, backend=backend, doublet_prior=doublet_prior, prob_max=prob_max,
+                           prob_doublet=prob_doublet, min_vars=min_vars, vireo_format=vireo_format,
+                           site_table=site_table, top_groups=top_groups, gene_column=gene_column,
+                           geno_tag=capture_kwargs.get("geno_tag") or "GT")
+    timings.update(_variant_seconds(result))
+    return _write_result(result, out_prefix, vireo_format, timings, vireo_dir=vireo_dir, argv=argv, clock=clock)
+
+
+def _variant_seconds(result):
+    """fit and score as D2 reports them; the variant steps only when they ran."""
+    out = {"fit": result.seconds["fit"], "score": result.seconds["score"]}
+    if result.record or result.extra is not None:
+        out["overrides"] = result.seconds["overrides"]
+        out["diagnostics"] = result.seconds["diagnostics"]
+    return out
+
+
+def run_variants(name, capture_kwargs, out_dir, variants, backend="vireo", loader="native", cache_dir=None,
+                 doublet_prior="auto", prob_max=0.9, prob_doublet=0.9, min_vars=10, vireo_format="0.5.7",
+                 argv=None, site_table=None, info=(), top_groups=10, gene_column="gene_name"):
+    """Load one capture once and score every variant; write OUT_DIR/<variant>.cells.tsv.gz and .fit.json each.
+
+    Returns the list of fit.json records, in the order of `variants`.
+    """
+    variants = [normalise_variant(v) for v in variants]
+    fields = sorted(set(info or ()) | set(info_fields_needed(variants)))
+    t = time.time()
+    capture = _load_for(name, capture_kwargs, loader, cache_dir, None, fields)
+    load_seconds = round(time.time() - t, 3)
+    records, base_fit = [], None
+    for k, v in enumerate(variants):
+        clock = start_clock()
+        result = apply_variant(capture, v, backend=backend, doublet_prior=doublet_prior, prob_max=prob_max,
+                               prob_doublet=prob_doublet, min_vars=min_vars, vireo_format=vireo_format,
+                               base_fit=base_fit, site_table=site_table, top_groups=top_groups,
+                               gene_column=gene_column, geno_tag=capture_kwargs.get("geno_tag") or "GT")
+        if k == 0:
+            base_fit = result.fit
+        timings = {"load": load_seconds if k == 0 else 0.0}
+        timings.update(_variant_seconds(result))
+        timings["overrides"] = result.seconds["overrides"]
+        timings["diagnostics"] = result.seconds["diagnostics"]
+        records.append(_write_result(result, os.path.join(out_dir, v["variant"]), vireo_format, timings,
+                                     argv=argv, clock=clock))
+    return records
 
 
 # ---------------------------------------------------------------------------
@@ -936,8 +1414,9 @@ def _add_model_args(parser):
     g.add_argument("--n-donor", type=int, default=None,
                    help="refuse to run unless this equals the number of donors used (vireo runs another "
                         "mode when --nDonor differs from the donors in the file)")
-    g.add_argument("--backend", default="vireo", choices=("vireo",),
-                   help="how the allele ratios are fitted: vireoSNP's own code (default)")
+    g.add_argument("--backend", default="vireo", choices=("vireo", "native"),
+                   help="how the allele ratios are fitted: vireo (vireoSNP's own code; default) or native (the "
+                        "same steps without vireoSNP; calls then come from the Scorer's matrices)")
     g.add_argument("--loader", default="native", choices=("native", "vireo"),
                    help="native: pandas readers and the cache (default); vireo: vireoSNP's readers (slow, "
                         "for checking)")
@@ -957,6 +1436,66 @@ def _model_kwargs(args):
     return dict(backend=args.backend, loader=args.loader, cache_dir=args.cache_dir,
                 doublet_prior=args.doublet_prior, prob_max=args.prob_max, prob_doublet=args.prob_doublet,
                 min_vars=args.min_vars, vireo_format=args.vireo_format)
+
+
+def _add_shared_diagnostic_args(parser):
+    g = parser.add_argument_group("site tables and INFO fields")
+    g.add_argument("--site-groups", help="table of sites with a variant column and labels (e.g. from sites "
+                                         "annotate), for --group-by COLUMN and --gene-column")
+    g.add_argument("--info", default="", help="comma-separated INFO fields of the donor VCF to load per site")
+    g.add_argument("--top-groups", type=int, default=10,
+                   help="@missing keeps this many blank patterns and calls the rest 'other' (default 10)")
+    g.add_argument("--gene-column", default="gene_name",
+                   help="column of --site-groups that names the gene, for the top-sites gene shares")
+
+
+def _add_variant_args(parser):
+    g = parser.add_argument_group("a changed site list, genotypes or allele ratios (default: none)")
+    g.add_argument("--sites", help="score only these sites (a site list or VCF)")
+    g.add_argument("--exclude-sites", help="leave these sites out")
+    g.add_argument("--thin-bp", type=int, help="keep no two sites within this many bp")
+    g.add_argument("--thin-keep", default="first", choices=("first", "deepest"),
+                   help="which site of a close group to keep (default first)")
+    g.add_argument("--fill-blanks", default="keep",
+                   help="blank genotypes: keep (a third each, as vireo), hwe:FIELD (Hardy-Weinberg from an INFO "
+                        "allele frequency), hwe:FILE (a table with variant and af) or drop-site")
+    g.add_argument("--harden", action="store_true", help="make soft genotypes hard (blanks stay blank)")
+    g.add_argument("--extra-vcf", help="add donors from this VCF (decoys), matched by site")
+    g.add_argument("--extra-donors", default="", help="comma-separated donors of --extra-vcf (default all)")
+    g.add_argument("--extra-missing", default="uniform",
+                   help="the extra donors' blanks and absent sites: uniform, hwe:FIELD, hwe:FILE or drop-site")
+    g.add_argument("--theta", default="refit",
+                   help="allele ratios: refit (default), hold:FIT.json (from an earlier score), or "
+                        "fixed:m0,m1,m2:s0,s1,s2 (means and concentrations)")
+    d = parser.add_argument_group("diagnostics (extra columns; default: none)")
+    d.add_argument("--extra-columns", action="store_true",
+                   help="alt_umis, n_sites_diff, umis_diff, fit_expected_per_umi")
+    d.add_argument("--group-by", action="append", default=[],
+                   help="margins by site group: a --site-groups column, @missing, @chrom or "
+                        "@info:FIELD:e0,e1,...; repeatable")
+    d.add_argument("--marginal", action="store_true",
+                   help="exact marginal at soft and blank genotypes beside vireo's mean-field value")
+    d.add_argument("--pairwise-shared", action="store_true", help="each donor pair compared on shared sites")
+    d.add_argument("--top-sites", type=int, help="write PREFIX.sites.tsv.gz with each cell's N top sites")
+
+
+def variant_from_args(args):
+    """The variant a score command line asks for."""
+    return normalise_variant({
+        "variant": "base", "sites": args.sites, "exclude_sites": args.exclude_sites,
+        "thin_bp": args.thin_bp or "", "thin_keep": args.thin_keep, "group_by": list(args.group_by),
+        "fill_blanks": args.fill_blanks, "harden": args.harden, "extra_vcf": args.extra_vcf,
+        "extra_donors": args.extra_donors, "extra_missing": args.extra_missing, "theta": args.theta,
+        "backend": "", "marginal": args.marginal, "pairwise_shared": args.pairwise_shared,
+        "top_sites": args.top_sites or "", "extra_columns": args.extra_columns})
+
+
+def _diagnostic_kwargs(args):
+    site_table = read_table(args.site_groups) if args.site_groups else None
+    if site_table is not None and "variant" not in site_table.columns:
+        raise UsageError("%s needs a variant column" % args.site_groups)
+    return dict(site_table=site_table, info=[f for f in args.info.split(",") if f], top_groups=args.top_groups,
+                gene_column=args.gene_column)
 
 
 def _wrap_errors(fn, *a, **kw):
@@ -981,7 +1520,7 @@ def require_libraries(backends=("vireo",), loader="native"):
                 raise UsageError("the Scorer needs scipy; run it in the vireo image (snp_demux-vireo:0.5.7) or "
                                  "an environment with numpy, pandas and scipy")
             raise UsageError("the vireo backend and loader need vireoSNP; run in the vireo image "
-                             "(snp_demux-vireo:0.5.7) or install vireoSNP==0.5.9")
+                             "(snp_demux-vireo:0.5.7), install vireoSNP==0.5.9, or pass --backend native")
 
 
 def check_name(name, what):
@@ -1003,6 +1542,8 @@ def configure_score(parser):
         "(allele ratios, counts, the check against vireo's probabilities, timings, provenance).")
     _add_capture_args(parser)
     _add_model_args(parser)
+    _add_shared_diagnostic_args(parser)
+    _add_variant_args(parser)
     parser.add_argument("--vireo-out", help="also write donor_ids.tsv, summary.tsv, prob_singlet.tsv.gz and "
                                             "prob_doublet.tsv.gz to this folder, as vireo writes them (an output: "
                                             "a folder that already holds donor_ids.tsv is refused without --force)")
@@ -1033,9 +1574,12 @@ def run_score(args):
             raise UsageError("--n-donor %d differs from the %d donors used; vireo would not run in fixed mode "
                              "(learning mode, or its donor-subset path), which the Scorer does not reproduce"
                              % (args.n_donor, len(donor_list)))
-    require_libraries((args.backend,), args.loader)
+    variant = variant_from_args(args)
+    require_libraries((args.backend,) if parse_theta(variant["theta"])[0] == "refit" else (), args.loader)
+    options = _model_kwargs(args)
+    options.update(_diagnostic_kwargs(args))
     record = _wrap_errors(run_one, name, kwargs, args.out, vireo_dir=args.vireo_out, argv=args.argv, clock=clock,
-                          n_donor=args.n_donor, **_model_kwargs(args))
+                          n_donor=args.n_donor, variant=variant, **options)
     calls = record["calls"]
     print("score %s: %d cells, %d donors, %d sites used of %s piled; theta %s; %d doublet, %d unassigned; "
           "values from %s; cache %s"
@@ -1092,32 +1636,48 @@ def _limit_threads():
 
 
 def _score_many_worker(job):
-    """Score one manifest row in a worker process; returns (summary row, validation row or None)."""
-    row, options, out_dir, argv = job
+    """Score one manifest row in a worker process; returns (summary rows, validation row or None).
+
+    Without variants there is one summary row (variant "base"); with
+    variants, one per variant. A capture is validated against its vireo_dir
+    on the variant named "base" when that variant changes nothing.
+    """
+    row, options, out_dir, argv, variants = job
     limiter = _limit_threads()
     cap = row["capture"]
-    summary = {"capture": cap, "variant": "base", "status": "ok"}
     validation = None
     t0 = time.time()
+    names = [v["variant"] for v in variants] if variants else ["base"]
+    summaries = []
     try:
         cap_dir = os.path.join(out_dir, cap)
         os.makedirs(cap_dir, exist_ok=True)
         kwargs = _capture_kwargs(row)
-        record = run_one(cap, kwargs, os.path.join(cap_dir, "base"), argv=argv, **options)
-        summary.update(_summary_fields(record))
-        if row.get("vireo_dir"):
+        if variants:
+            records = run_variants(cap, kwargs, cap_dir, variants, argv=argv, **options)
+        else:
+            records = [run_one(cap, kwargs, os.path.join(cap_dir, "base"), argv=argv, **options)]
+        for name, record in zip(names, records):
+            summary = {"capture": cap, "variant": name, "status": "ok"}
+            summary.update(_summary_fields(record, with_variant_seconds=bool(variants)))
+            summaries.append(summary)
+        check = [v for v in (variants or [default_variant()]) if v["variant"] == "base" and is_default_variant(v)]
+        if row.get("vireo_dir") and check:
             validation = {"capture": cap}
             validation.update(validate_against_vireo(os.path.join(cap_dir, "base.cells.tsv.gz"), row["vireo_dir"]))
     except Exception as e:  # recorded in summary.tsv; the run carries on with the other captures
-        summary["status"] = "error: %s: %s" % (type(e).__name__, str(e).replace("\t", " ").replace("\n", " "))
-    summary["seconds_total"] = round(time.time() - t0, 3)
-    summary["peak_rss_mb"] = peak_rss_mb()
+        error = "error: %s: %s" % (type(e).__name__, str(e).replace("\t", " ").replace("\n", " "))
+        done = set(s["variant"] for s in summaries)
+        summaries += [{"capture": cap, "variant": n, "status": error} for n in names if n not in done]
+    for summary in summaries:
+        summary["seconds_total"] = round(time.time() - t0, 3)
+        summary["peak_rss_mb"] = peak_rss_mb()
     if limiter is not None:
         limiter.restore_original_limits()
-    return summary, validation
+    return summaries, validation
 
 
-def _summary_fields(record):
+def _summary_fields(record, with_variant_seconds=False):
     calls = record["calls"]
     out = {
         "cells": record["n_cells"],
@@ -1138,6 +1698,10 @@ def _summary_fields(record):
     }
     for k in ("maxdiff_prob_singlet", "maxdiff_prob_doublet", "maxdiff_doublet_llr"):
         out[k] = record["check"].get(k, "")
+    if with_variant_seconds:
+        out["backend"] = record["backend"]
+        out["seconds_overrides"] = record["seconds"].get("overrides", "")
+        out["seconds_diagnostics"] = record["seconds"].get("diagnostics", "")
     return out
 
 
@@ -1149,12 +1713,19 @@ def configure_score_many(parser):
         "with a vireo_dir. Manifest columns (tab-separated, header): capture, vcf, and cellsnp or "
         "base+samples+ad+dp; optional donors (comma-separated), donor_order, barcodes, geno_tag, vireo_dir "
         "(vireo's output for that capture, to compare with). Exits 1 if a capture fails or differs from "
-        "its vireo_dir.")
+        "its vireo_dir. With --variants, each capture is loaded once and scored under every variant: "
+        "OUT_DIR/<capture>/<variant>.cells.tsv.gz and .fit.json, one summary row per capture and variant.")
     parser.add_argument("--manifest", required=True, help="manifest table (see above)")
     parser.add_argument("--out-dir", required=True, help="output folder")
     parser.add_argument("--jobs", type=int, default=1, help="worker processes (default 1)")
+    parser.add_argument("--variants", help="variants table: one row per variant; columns variant, sites, "
+                                           "exclude_sites, thin_bp, thin_keep, group_by (';'-separated), "
+                                           "fill_blanks, harden, extra_vcf, extra_donors, extra_missing, theta "
+                                           "(refit, base = the first variant's fit, hold:FIT.json, fixed:...), "
+                                           "backend, marginal, pairwise_shared, top_sites, extra_columns")
     _add_capture_args(parser, manifest=True)
     _add_model_args(parser)
+    _add_shared_diagnostic_args(parser)
 
 
 def run_score_many(args):
@@ -1166,32 +1737,39 @@ def run_score_many(args):
     rows = read_manifest(args.manifest)
     if args.n_donor is not None:
         raise UsageError("--n-donor applies to score only")
-    require_libraries((args.backend,), args.loader)
+    variants = read_variants(args.variants) if args.variants else None
+    backends = set(v["backend"] or args.backend for v in variants if parse_theta(v["theta"])[0] == "refit") \
+        if variants else {args.backend}
+    require_libraries(tuple(backends), args.loader)
     for r in rows:
         if not r.get("geno_tag"):
             r["geno_tag"] = args.geno_tag
     rows.sort(key=lambda r: -_dp_size(r))
     os.makedirs(args.out_dir, exist_ok=True)
     options = _model_kwargs(args)
-    jobs = [(r, options, args.out_dir, args.argv) for r in rows]
+    options.update(_diagnostic_kwargs(args))
+    jobs = [(r, options, args.out_dir, args.argv, variants) for r in rows]
     summaries, validations = [], []
     ctx = multiprocessing.get_context("fork") if hasattr(os, "fork") else multiprocessing
     pool = ctx.Pool(processes=max(1, args.jobs), maxtasksperchild=1)
     try:
-        for summary, validation in pool.imap_unordered(_score_many_worker, jobs):
-            summaries.append(summary)
+        for rows_done, validation in pool.imap_unordered(_score_many_worker, jobs):
+            summaries.extend(rows_done)
             if validation is not None:
                 validations.append(validation)
-            print("score-many: %s %s (%s s)" % (summary["capture"], summary["status"], summary["seconds_total"]))
+            for summary in rows_done:
+                print("score-many: %s %s %s (%s s)" % (summary["capture"], summary["variant"], summary["status"],
+                                                       summary["seconds_total"]))
             sys.stdout.flush()
     finally:
         pool.close()
         pool.join()
     order = {r["capture"]: i for i, r in enumerate(rows)}
-    summaries.sort(key=lambda s: order[s["capture"]])
+    variant_order = {v["variant"]: i for i, v in enumerate(variants or [default_variant()])}
+    summaries.sort(key=lambda s: (order[s["capture"]], variant_order.get(s["variant"], 0)))
     validations.sort(key=lambda s: order[s["capture"]])
     write_table(pd.DataFrame(summaries), os.path.join(args.out_dir, "summary.tsv"))
-    failed = [s["capture"] for s in summaries if s["status"] != "ok"]
+    failed = sorted(set(s["capture"] for s in summaries if s["status"] != "ok"), key=order.get)
     differ = []
     if validations:
         vt = pd.DataFrame(validations)
@@ -1201,7 +1779,8 @@ def run_score_many(args):
              "validated": len(validations)}
     from demux_tools._io import write_provenance
 
-    write_provenance(os.path.join(args.out_dir, "summary.tsv"), args.argv, [args.manifest], clock=clock, extra=extra)
+    inputs = [args.manifest] + ([args.variants] if args.variants else [])
+    write_provenance(os.path.join(args.out_dir, "summary.tsv"), args.argv, inputs, clock=clock, extra=extra)
     print("score-many: %d captures, %d failed, %d validated against vireo, %d differ"
           % (len(rows), len(failed), len(validations), len(differ)))
     return 1 if failed or differ else 0
