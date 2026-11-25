@@ -21,12 +21,12 @@ rule report_distinctiveness:
         dp_mtx=pileup_path("cellsnp", "cellSNP.tag.DP.mtx"),
         base_vcf=pileup_path("cellsnp", "cellSNP.base.vcf.gz"),
     output:
-        tsv=report_dir/"diagnostics/{capture_id}.distinctiveness.tsv",
-        png=report_dir/"diagnostics/{capture_id}.distinctiveness.png",
+        tsv=report_dir / "diagnostics/{capture_id}.distinctiveness.tsv",
+        png=report_dir / "diagnostics/{capture_id}.distinctiveness.png",
+    log:
+        logs / "diagnostics/{capture_id}.distinctiveness.log",
     conda:
         "../envs/vireosnp.yaml"
-    log:
-        logs/"diagnostics/{capture_id}.distinctiveness.log"
     script:
         "../scripts/report_distinctiveness.py"
 
@@ -42,12 +42,12 @@ rule report_variant_embedding:
         samples=pileup_path("cellsnp", "cellSNP.samples.tsv"),
         clusters=rules.souporcell_troublet.output.clusters,
     output:
-        png=report_dir/"diagnostics/{capture_id}.embedding.png",
-        tsv=report_dir/"diagnostics/{capture_id}.embedding.metrics.tsv",
+        png=report_dir / "diagnostics/{capture_id}.embedding.png",
+        tsv=report_dir / "diagnostics/{capture_id}.embedding.metrics.tsv",
+    log:
+        logs / "diagnostics/{capture_id}.embedding.log",
     conda:
         "../envs/embedding.yaml"
-    log:
-        logs/"diagnostics/{capture_id}.embedding.log"
     script:
         "../scripts/report_variant_embedding.py"
 
@@ -60,13 +60,13 @@ rule leave_one_out:
     input:
         scores_full=rules.vireosnp.output.scores_full,
     output:
-        tsv=report_dir/"diagnostics/{capture_id}.leave_one_out.tsv",
-    params:
-        margin_min=config['params']['hierarchical']['margin_min'],
+        tsv=report_dir / "diagnostics/{capture_id}.leave_one_out.tsv",
+    log:
+        logs / "diagnostics/{capture_id}.leave_one_out.log",
     conda:
         "../envs/vireosnp.yaml"
-    log:
-        logs/"diagnostics/{capture_id}.leave_one_out.log"
+    params:
+        margin_min=hier_param("margin_min"),
     script:
         "../scripts/leave_one_out.py"
 
@@ -79,15 +79,19 @@ rule aggregate_diagnostics:
     input:
         expand(
             [
-                report_dir/"diagnostics/{capture_id}.distinctiveness.tsv",
-                report_dir/"diagnostics/{capture_id}.embedding.metrics.tsv",
-                report_dir/"diagnostics/{capture_id}.leave_one_out.tsv",
+                report_dir / "diagnostics/{capture_id}.distinctiveness.tsv",
+                report_dir / "diagnostics/{capture_id}.embedding.metrics.tsv",
+                report_dir / "diagnostics/{capture_id}.leave_one_out.tsv",
             ],
-            capture_id=captures.index.tolist()
-        )
+            capture_id=captures.index.tolist(),
+        ),
     output:
-        checkpoint_file=out_dir/"diagnostics/all.done"
+        checkpoint_file=out_dir / "diagnostics/all.done",
+    log:
+        logs / "aggregate/diagnostics.log",
+    container:
+        config["containers"]["bcftools"]
     shell:
         """
-        echo {input} > {output.checkpoint_file}
+        echo {input} >{output.checkpoint_file} 2>{log}
         """

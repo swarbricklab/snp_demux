@@ -1,0 +1,156 @@
+$schema: "http://json-schema.org/draft-07/schema#"
+description: >-
+  snp_demux configuration. Validated at workflow start via
+  snakemake.utils.validate() in rules/common.smk.
+type: object
+properties:
+  deps:
+    type: object
+    description: Inputs the workflow depends on.
+    properties:
+      samples:
+        type: string
+        description: Path to samples.csv (sample_id, donor_id, capture_id).
+      captures:
+        type: string
+        description: Path to captures.csv (capture_id + barcodes; optional platform column).
+      pileup_root:
+        type: string
+        description: >-
+          Root of the sc_pileup outputs consumed here, laid out as
+          <pileup_root>/<engine>/<platform>/<capture_id>/<files>.
+      panel_root:
+        type: string
+        description: >-
+          Root of the per-pool donor-genotype panels
+          (<panel_root>/<capture_id>/<panel_file>). Defaults to
+          <pileup_root>/panel.
+      panel_file:
+        type: string
+        description: >-
+          Panel VCF filename within <panel_root>/<capture_id>/ (index <file>.csi).
+          Defaults to informative.vcf.gz; set e.g. panel.vcf.gz for panels not
+          filtered to informative sites.
+      default_platform:
+        type: string
+        description: Platform segment used when a capture has no `platform` column. Defaults to "short".
+      sex_calls:
+        type: string
+        description: >-
+          Optional per-capture sex-call CSV (barcode,sex_call,confidence) as a
+          Python format string on {capture_id}. Read by the hierarchical
+          consensus for sex-aware tie-breaking; a missing file is tolerated.
+      vcf:
+        type: string
+        description: Legacy cohort donor VCF; retained for reference, unused by the current rules.
+    required: [samples, captures, pileup_root]
+    additionalProperties: false
+  outs:
+    type: object
+    properties:
+      root: {type: string, description: Root for all data outputs.}
+      logs: {type: string, description: Root for per-rule logs.}
+      reports:
+        type: string
+        description: Where HTML reports are written. Defaults to <outs.root>/report.
+    required: [root, logs]
+    additionalProperties: false
+  params:
+    type: object
+    properties:
+      tools:
+        type: array
+        description: >-
+          Per-cell demux tools to run, aggregate and combine. Defaults to all four.
+          Demuxafy needs at least two.
+        items: {type: string, enum: [souporcell, vireo, demuxlet, freemuxlet]}
+        minItems: 1
+        uniqueItems: true
+      cellsnp_lite:
+        type: object
+        description: Legacy pileup thresholds; the pileup is produced upstream now, so these are unused here.
+      demuxlet:
+        type: object
+        properties:
+          coeff: {type: number}
+          offset: {type: number}
+        required: [coeff, offset]
+      demuxafy:
+        type: object
+        properties:
+          freemuxlet_correlation_limit: {type: number}
+          souporcell_correlation_limit: {type: number}
+          pct_agreement: {type: number}
+        required: [freemuxlet_correlation_limit, souporcell_correlation_limit, pct_agreement]
+      souporcell:
+        type: object
+        properties:
+          restarts: {type: integer}
+          min_ref: {type: integer}
+          min_alt: {type: integer}
+          ploidy: {type: integer}
+          known_gt:
+            type: boolean
+            description: Documents intent to run the genotype-anchored second souporcell mode (souporcell/<capture>/known/).
+        required: [restarts, min_ref, min_alt]
+      hierarchical:
+        type: object
+        description: >-
+          Optional. Hierarchical sex-aware consensus (docs/hierarchical_demux_design.md).
+          Defaults: margin_min 0.15, sex_weight 1.0, min_cells_floor 20, low_conf_keep true.
+        properties:
+          margin_min: {type: number, minimum: 0, description: Minimum vireoSNP GPb_diff margin (best vs second-best) for a confident label.}
+          sex_weight: {type: number, minimum: 0, description: Weight of the sex prior when down-weighting sex-conflicting donors.}
+          min_cells_floor: {type: integer, minimum: 0, description: Clusters below this many cells are flagged low_cell.}
+          low_conf_keep: {type: boolean, description: Keep de-novo-recovered cells even when the genotype label is weak.}
+        additionalProperties: false
+      present_absent:
+        type: object
+        description: >-
+          Optional. Pre-flight donor present/absent screen (present_absent_screen.py).
+          A QC flag only; nothing downstream prunes on it.
+        properties:
+          min_covered_sites: {type: integer, minimum: 0, description: Fewer covered private sites than this gives "untestable".}
+          k_sites: {type: integer, minimum: 1, description: A cell needs at least this many private-alt sites to count as evidence.}
+          min_cells: {type: integer, minimum: 1, description: At least this many evidence cells gives "present".}
+        additionalProperties: false
+      doublet:
+        type: object
+        description: >-
+          Optional. Expected-doublet-rate inputs for doublet_summary.csv.
+          Defaults: rate_per_1k {standard: 0.008, HT: 0.004}, default_chip standard.
+        properties:
+          rate_per_1k:
+            type: object
+            description: Doublet rate per 1,000 cells recovered (here, barcodes demultiplexed), keyed by chip (case-insensitive), from 10x's multiplet-rate table.
+            additionalProperties: {type: number, minimum: 0}
+          default_chip:
+            type: string
+            description: Chip used for captures with no `chip` column value.
+        additionalProperties: false
+    required: [demuxlet, demuxafy, souporcell]
+  ref:
+    type: object
+    properties:
+      souporcell:
+        type: object
+        properties:
+          genome_fasta:
+            type: string
+            description: Reference genome FASTA, matching the cellranger transcriptome.
+        required: [genome_fasta]
+    required: [souporcell]
+  containers:
+    type: object
+    description: Per-tool container images (replaces the old monolithic Demuxafy.sif).
+    properties:
+      bcftools: {type: string}
+      popscle: {type: string}
+      vireo: {type: string}
+      vireosnp: {type: string}
+      souporcell: {type: string}
+      r: {type: string}
+      demuxafy: {type: string}
+    required: [bcftools, popscle, vireo, vireosnp, souporcell, r, demuxafy]
+    additionalProperties: false
+required: [deps, outs, params, ref, containers]

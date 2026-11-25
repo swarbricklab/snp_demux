@@ -1,0 +1,2 @@
+capture_id,barcodes,platform,pool_id
+Pool_A,.tests/ci/barcodes.tsv,short,Pool_A

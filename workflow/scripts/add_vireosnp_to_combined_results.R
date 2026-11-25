@@ -60,12 +60,24 @@ message("----------------------------------")
 message("read the combined results per pool")
 df_demuxafy_assignments <- read.delim(file_demuxafy_assignments, sep = "\t", header = TRUE)
 
+# Defensive: Demuxafy's Combine_Results.R can emit exact-duplicate rows (a join
+# artifact seen with relaxed correlation/agreement thresholds on sparse data),
+# which otherwise propagate into cell_assignment.tsv and break the report's
+# per-barcode pivot. These are byte-identical duplicate rows, so dropping them is
+# safe. (A barcode with genuinely conflicting rows would NOT be collapsed here.)
+n_before <- nrow(df_demuxafy_assignments)
+df_demuxafy_assignments <- dplyr::distinct(df_demuxafy_assignments)
+if (nrow(df_demuxafy_assignments) < n_before) {
+  message("dropped ", n_before - nrow(df_demuxafy_assignments),
+          " exact-duplicate demuxafy row(s)")
+}
+
 message("read the VireoSNP cell assignments")
 df_vireosnp_assignments <- read.delim(file_vireosnp_assignments, sep = "\t", header = TRUE)
 
 # check if demuxafy and vireosnp have same number of cells
 # We'd expect these to be the same, unless some additional filtering has taken place
-# TODO: In the mixed_pool12 - Mixed_1 results, there is one barcode "TGCGGGTAGACGTCCC-1" in vireosnp but not demuxafy, why, what causes this difference?
+# TODO: in some runs a small number of barcodes appear in the vireosnp output but not the demuxafy combined output (or vice versa); investigate which filtering step causes this.
 barcode_differences <- dplyr::symdiff(df_demuxafy_assignments$Barcode, df_vireosnp_assignments$barcode)
 if(length(barcode_differences) > 0) {
     warning("WARNING: The following ", length(barcode_differences), " cell barcodes are present in only one of vireosnp or demuxafy combined: ", paste(barcode_differences))

@@ -1,0 +1,26 @@
+{
+  "title": "snp_demux: a Snakemake workflow for SNP-based single-cell demultiplexing",
+  "description": "A Snakemake workflow that demultiplexes genetically-pooled single-cell RNA-seq captures back to their donors from natural genetic variation. It runs vireo, demuxlet, freemuxlet and souporcell and combines them into a Demuxafy consensus per-cell assignment, with HTML QC reports. The expensive per-cell pileups are produced upstream by sc_pileup and consumed here, so the fast assignment step can be re-run and re-tuned cheaply. It runs standalone or as a git submodule within a DVC-tracked dataset.",
+  "upload_type": "software",
+  "access_right": "open",
+  "license": "MIT",
+  "creators": [
+    {"name": "Reeves, John", "orcid": "0000-0001-7368-7489", "affiliation": "Garvan Institute of Medical Research"},
+    {"name": "Roden, Daniel", "orcid": "0000-0003-2393-5805", "affiliation": "Garvan Institute of Medical Research"},
+    {"name": "Kiedik, Beata", "affiliation": "Garvan Institute of Medical Research"},
+    {"name": "Liu, Victor", "orcid": "0009-0008-7628-7825", "affiliation": "Garvan Institute of Medical Research"},
+    {"name": "Swarbrick, Alexander", "orcid": "0000-0002-3051-5676", "affiliation": "Garvan Institute of Medical Research"}
+  ],
+  "keywords": [
+    "single-cell",
+    "scRNA-seq",
+    "demultiplexing",
+    "genetic multiplexing",
+    "vireo",
+    "demuxlet",
+    "freemuxlet",
+    "souporcell",
+    "Demuxafy",
+    "Snakemake"
+  ]
+}

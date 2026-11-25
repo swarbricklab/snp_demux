@@ -1,5 +1,12 @@
 # SNP Demux
 
+[![DOI](https://zenodo.org/badge/934015429.svg)](https://doi.org/10.5281/zenodo.23657537)
+[![CI](https://github.com/swarbricklab/snp_demux/actions/workflows/ci.yml/badge.svg)](https://github.com/swarbricklab/snp_demux/actions/workflows/ci.yml)
+[![Snakemake](https://img.shields.io/badge/snakemake-%E2%89%A57.32.4-brightgreen.svg)](https://snakemake.github.io)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Code style: snakefmt](https://img.shields.io/badge/code%20style-snakefmt-000000.svg)](https://github.com/snakemake/snakefmt)
+[![WorkflowHub](https://img.shields.io/badge/WorkflowHub-2362-14b8a6.svg)](https://workflowhub.eu/workflows/2362)
+
 This workflow demultiplexes "pooled captures".
 A "pooled capture" is when multiple tissues samples are dissociated into single cells together in the same test tube, and then captured together using the 10X Chromium platform to generate scRNA-seq libraries.
 
@@ -30,7 +37,10 @@ We can also use SNP information to detect "heterotypic doublets", where a barcod
 This workflow is a simplification and refactoring of the [demuxafy](https://github.com/swarbricklab/demuxafy) workflow developed by [Daniel Roden](https://github.com/dlroden) and [Beata Kiedik](https://github.com/BeataKiedik). 
 The demuxafy workflow is, in turn, a Snakemake wrapper around the [Demuxafy](https://demultiplexing-doublet-detecting-docs.readthedocs.io/en/latest/index.html) package and tools developed by [Drew Neavin](https://github.com/drneavin) at the Powell Lab.
 
-The main difference between this workflow and the [demuxafy](https://github.com/swarbricklab/demuxafy) workflow is that the [genotyping](https://github.com/swarbricklab/genotyping) and [imputation](https://github.com/swarbricklab/imputation) phases have been factored out into separate workflows, which are prerequisites for this workflow. 
+The main difference between this workflow and the [demuxafy](https://github.com/swarbricklab/demuxafy) workflow is that several phases have been factored out into separate, reusable workflows that are prerequisites for this one:
+
+- [genotyping](https://github.com/swarbricklab/genotyping) and [imputation](https://github.com/swarbricklab/imputation) — build the donor SNP-genotype panel;
+- [sc_pileup](https://github.com/swarbricklab/sc_pileup) — the expensive, deterministic **per-cell pileup** (cellSNP-lite, popscle `dsc-pileup`, souporcell `vartrix`). snp_demux no longer computes pileups: it **consumes sc_pileup's outputs** and runs only the (comparatively fast) demultiplexing + consensus. This means the pileups can be frozen and the demux re-run and re-tuned cheaply, and it greatly simplifies this workflow's rule graph (see below).
 
 ## Method
 
@@ -86,15 +96,32 @@ flowchart TB
     VS -. "appended after<br/>the consensus" .-> OUT
 ```
 
+### Rule graph
+
+Because the pileups are produced upstream by [sc_pileup](https://github.com/swarbricklab/sc_pileup)
+and consumed here, the rule graph contains **only** the demultiplexing, consensus,
+aggregation and reporting rules — no per-cell pileup, per-chromosome split, or
+merge rules:
+
+![snp_demux rule graph](docs/rulegraph.svg)
+
+Each engine reads sc_pileup's output for the capture (`cellSNP.*` for vireo,
+`pileup.{cel,var,plp,umi}.gz` for demuxlet/freemuxlet, `ref/alt.mtx` for
+souporcell) and the per-pool donor-genotype panel; nothing re-reads the BAM.
+
 ## Requirements
 
-This workflow requires
-1. `cellranger` "outs" for each capture (barcode and bam files)
-2. SNP profiles for each donor (*) as a VCF file
+This workflow requires, per capture:
+1. **sc_pileup outputs** — the per-cell pileups produced by [sc_pileup](https://github.com/swarbricklab/sc_pileup) (cellSNP-lite, popscle `dsc-pileup`, souporcell `vartrix`), under `deps.pileup_root`.
+2. **A per-pool donor-genotype panel** — the donors' SNP profiles at the piled sites, as `deps.panel_root/<capture>/informative.vcf.gz` (bgzipped + `.csi`-indexed).
 
-### `cellranger` outs
+The cellranger `barcodes.tsv.gz` and `possorted_genome_bam.bam` are inputs to **sc_pileup** (which reads the BAM once to build the pileups); snp_demux itself never re-reads the BAM. Run [sc_pileup](https://github.com/swarbricklab/sc_pileup) first against the panel's sites, then point `deps.pileup_root` at its output root.
 
-This workflow requires the following `cellranger` "outs":
+Before running, make sure the panel and BAM satisfy the tool requirements (all-autosome coverage, matching contig order, a populated `R2` field for demuxlet) — see [`docs/data_prep_requirements.md`](docs/data_prep_requirements.md).
+
+### `cellranger` barcodes (for sc_pileup)
+
+sc_pileup takes the following `cellranger` "outs":
 1. `barcodes.tsv.gz`
 2. `possorted_genome_bam.bam`
 
@@ -128,16 +155,20 @@ See [`config/template_config.yaml`](config/template_config.yaml) for a starting 
 | Key | Meaning |
 | --- | --- |
 | `deps.samples` | Sample sheet: which samples are in which capture (see below) |
-| `deps.captures` | Capture sheet: `cellranger` outs for each capture (see below) |
-| `deps.vcf` | Donor SNP profiles, bgzipped, with a `.csi` index alongside |
+| `deps.captures` | Capture sheet: one row per capture (see below) |
+| `deps.pileup_root` | Root of the sc_pileup outputs consumed here: `<pileup_root>/<engine>/<platform>/<capture>/` |
+| `deps.panel_root` | Per-pool donor-genotype panels: `<panel_root>/<capture>/informative.vcf.gz`. Defaults to `<pileup_root>/panel` |
+| `deps.default_platform` | Platform used when a capture row has no `platform` column (default `short`) |
+| `deps.vcf` | Legacy cohort donor VCF; retained for reference. Donor genotypes now come per-capture from the panel above |
 | `outs.root` | Root for all data outputs |
 | `outs.logs` | Root for per-rule logs |
 | `outs.reports` | Optional. Where the HTML reports are written; defaults to `<outs.root>/report` |
-| `params.cellsnp_lite` | `minMAF` and `minCOUNT` thresholds for pileup |
+| `params.cellsnp_lite` | Legacy pileup thresholds; the pileup is now done upstream in sc_pileup, so these are unused here |
 | `params.demuxlet` | `coeff` and `offset` for the demuxlet doublet prior |
 | `params.demuxafy` | Correlation limits for matching souporcell and freemuxlet clusters to donors, and the agreement threshold for the consensus |
+| `params.doublet` | Optional. `rate_per_1k` (doublet rate per 1,000 cells recovered, here barcodes demultiplexed, keyed by chip, from 10x's multiplet-rate table; default `standard: 0.008`, `HT: 0.004`) and `default_chip` (default `standard`). Used for `doublet_rate_loading` in `doublet_summary.csv` |
 | `ref.souporcell.genome_fasta` | Reference genome FASTA, matching the transcriptome used by `cellranger` |
-| `containers.demuxafy` | Path to the Demuxafy `.sif` image |
+| `containers.*` | Per-tool container images (replaces the old monolithic Demuxafy.sif): `bcftools`, `popscle` (demuxlet/freemuxlet), `vireo` (demux CLI), `vireosnp` (souporcell-genotyping + cell counts), `souporcell`, `r` (all R/Rmd rules), `demuxafy` (consensus/summary/assign scripts). See `config/template_config.yaml` and the recipes under [`containers/`](containers) |
 
 Set `outs.reports` when the reports should be published alongside a dataset's other reports rather than buried in the data tree.
 For example, in a dataset repository:
@@ -161,48 +192,66 @@ Mixed_1,Mixed_1,path/to/barcodes.tsv.gz,path/to/possorted_genome_bam.bam,15000,1
 `pool_id` is optional and is used only to group captures in the reports.
 Leave it blank if the captures are not organised into named pools.
 `cells_captured` and `possible_live_cells` are carried for provenance and are not read by the workflow.
+An optional `chip` column (e.g. `standard`, `HT`) selects the capture's loading-curve doublet rate from `params.doublet.rate_per_1k`; blank uses `params.doublet.default_chip`.
 
 `samples.csv` — one row per sample per capture:
 
 ```csv
 sample_id,donor_id,capture_id
-***REMOVED***,***REMOVED***,Mixed_1
-***REMOVED***,***REMOVED***,Mixed_1
+DONOR_1,DONOR_1,Mixed_1
+DONOR_2,DONOR_2,Mixed_1
 ```
 
 `sample_id` identifies the sample in the pool; `donor_id` identifies the genotype in the VCF.
 These differ when several samples come from one donor, for example a primary and a metastasis.
 The number of rows for a capture sets the number of clusters souporcell, freemuxlet and vireo are told to look for, so this sheet must be complete.
 
+The donor-genotype panel and the BAM must satisfy a few tool requirements (all-autosome
+coverage, matching contig order, a populated `R2` field for demuxlet) — see
+[`docs/data_prep_requirements.md`](docs/data_prep_requirements.md).
+
 ## Running
 
+### Preflight the inputs
+
+Before a full run, validate each capture's donor panel against the
+[input requirements](docs/data_prep_requirements.md):
+
+```bash
+snakemake check_inputs --workflow-profile profiles/workflow
+```
+
+This read-only check (one `check_panel` per capture) confirms the
+`informative.vcf.gz` panel spans every autosome (chr1–chr22), carries an `R2`
+INFO value on every site, and is contig-ordered to match Cell Ranger — the three
+things that otherwise surface as cryptic popscle/demuxlet FATALs partway through
+a run. It is not part of `rule all`, so running or skipping it cannot change any
+demux result.
+
+### The pipeline
+
 This module is defined as a [Snakemake](https://snakemake.readthedocs.io/en/v7.32.3/) workflow.
-The pipeline is roughly as follows.
-This is a simplification: each box stands for a group of rules, and the
-per-chromosome fan-out and merge steps are collapsed.
+The pipeline is roughly as follows. This is a simplification: each box stands for a
+group of rules. The per-cell pileups are produced upstream by
+[sc_pileup](https://github.com/swarbricklab/sc_pileup) and consumed here, so this
+workflow starts from those pileups and the donor panel — it does not read the BAM
+or run the pileup/split/merge steps itself (see the full rule graph above).
 
 ```mermaid
 flowchart TB
-    BAM["possorted_genome_bam.bam"]
-    BC["barcodes.tsv.gz"]
-    VCF["donor genotypes<br/>(VCF)"]
+    PANEL["donor panel<br/>informative.vcf.gz"]
+    PLP["sc_pileup outputs<br/>(cellSNP · popscle · souporcell pileups)"]
 
-    BAM --> SPLIT
-    VCF --> SPLIT
-    SPLIT["split by chromosome"] --> PILEUP["dsc_pileup per chromosome,<br/>then merged"]
-    PILEUP --> DL["demuxlet"]
-    PILEUP --> FM["freemuxlet"]
-
-    BAM --> CS
-    BC --> CS
-    VCF --> CS
-    CS["cellsnp_lite"] --> VI["vireo"]
+    PLP --> DL["demuxlet"]
+    PANEL --> DL
+    PLP --> FM["freemuxlet"]
+    PANEL --> FM
+    PLP --> VI["vireo"]
+    PANEL --> VI
     VI --> AMB["ambient RNA<br/>summary"]
-
-    BAM --> SO
-    BC --> SO
-    VCF --> SO
-    SO["souporcell"] --> VS["vireoSNP<br/>cluster annotation"]
+    PLP --> SO["souporcell"]
+    PANEL --> SO
+    SO --> VS["vireoSNP<br/>cluster annotation"]
 
     DL --> DX
     FM --> DX
@@ -253,13 +302,65 @@ After `snakemake` finishes, `run_mod.sh` does two clean-up steps:
     cell_assignment.tsv
     all_cells_stats.tsv             cells per sample, including doublet and unassigned
     all_singlets_stats.tsv          cells per sample, singlets only
+    doublet_summary.csv             one row: cross-donor doublet fraction + sample proportions
   assignment/report/
     combined_results.tsv            all captures, stamped with capture_id
     all_cells_stats_full.tsv
     all_singlets_stats_full.tsv
+    doublet_summary.csv             all captures' doublet_summary.csv rows
 ```
 
 `sample_barcode_assignments.tsv` is the main result.
+
+It also carries vireo's and souporcell's per-barcode posteriors, for
+expression-based doublet detection downstream (e.g. scDblFinder
+`knownDoublets`). Hard doublet calls undercount cross-donor doublets (low-UMI
+barcodes, donor pairs with few informative SNPs), which is why the posteriors
+are exported alongside them. Each tool's values are copied verbatim, and keep
+its own names because they mean different things:
+
+| column | source | meaning |
+|---|---|---|
+| `Vireo_prob_max` | vireo `prob_max` | posterior of the best singlet donor, joint with the doublet hypotheses |
+| `Vireo_prob_doublet` | vireo `prob_doublet` | posterior of the most likely donor *pair* (the max over pairs, not their sum), under vireo's doublet prior: barcodes in the capture / 100,000, capped at 0.5 and not configurable |
+| `Vireo_best_singlet` | vireo `best_singlet` | `sample_id` of the best singlet donor |
+| `Souporcell_singlet_posterior` | troublet `singlet_posterior` | posterior of the best cluster, normalised over clusters (given a singlet) |
+| `Souporcell_doublet_posterior` | troublet `doublet_posterior` | best donor pair vs best singlet, under troublet's doublet prior (0.5) |
+| `Souporcell_best_singlet` | troublet per-cluster log-probabilities | `sample_id` of the best cluster, named as the consensus names it; `NA` if the cluster is unnamed |
+
+The `*_best_singlet` columns hold `sample_id`s only, never cluster numbers or
+unrelabelled vireo donors (those are `NA`). A barcode missing from a tool's
+output is `NA` in that tool's columns. The values are copied verbatim into both
+the per-capture table and the cohort roll-up (`assignment/report/combined_results.tsv`).
+
+The two doublet columns use different priors: troublet's is 0.5, vireo's is
+0.014 on the 1,400-barcode test fixture and 0.21 on a 21,000-barcode capture.
+So compare them only after rescaling, and expect `Vireo_prob_doublet` for a
+barcode to move if the barcode list changes (a stricter cell filter upstream, or
+a subset).
+
+`Souporcell_DropletType` is not troublet's own status. The consensus step
+writes `doublet` there for a barcode troublet left `unassigned`, and for one it
+assigned to a cluster with no donor name, so `doublet` can sit beside a
+`Souporcell_doublet_posterior` below 0.9. troublet's own call is `doublet`
+exactly when `Souporcell_doublet_posterior >= 0.9`.
+
+souporcell's values reproduce exactly: the rule starts every cluster from the
+donor genotypes (`--known_genotypes`), which draws no random numbers.
+
+`doublet_summary.csv` records, per capture, the observed cross-donor doublet
+rate (`doublet_rate_cross_donor`, `doublet_rate_cross_donor_posterior`) and
+every declared sample's share of the consensus singlets (`sample_props`,
+`same_donor_pair_prob`): the inputs for an expected total doublet rate. Every column is defined in the
+[data dictionary](docs/data_dictionary.md#doublet_summarycsv).
+
+It also carries the expected total and within-donor doublet rates
+(`doublet_rate_total`, `doublet_rate_total_sd`, `doublet_rate_within_donor`)
+that `mkobj` passes to scDblFinder as `dbr` / `dbr.sd`, and a loading-curve
+check (`doublet_rate_loading`, `doublet_rate_vs_loading`). The rates are
+biased low (missed cross-donor doublets, same-sample aggregates), except that
+false cross-donor doublets push them up; see the data dictionary for
+definitions, caveats and fallbacks.
 
 > Note on reading these files: sample ids are frequently bare digits, so a TSV
 > reader left to infer types will read `sample_id` as numeric for some captures
@@ -296,3 +397,25 @@ Each capture page covers:
 Figures are embedded rather than linked, so a capture page can be sent on its own.
 
 The `metrics/<capture_id>.tsv` files are the per-capture roll-up that both the capture page and the index read, so the two cannot disagree.
+
+## Reproducibility
+
+Every rule runs in a pinned container (the Demuxafy-toolchain images are pinned to
+the exact versions the retired `Demuxafy.sif` shipped), and all demultiplexing
+**calls** reproduce byte-for-byte given the same frozen pileups + panel. The one
+output that is *not* bit-reproducible is vireo's ambient-RNA proportion QC
+(`--callAmbientRNAs` uses multithreaded, non-associative float reductions) — it
+does not affect any donor assignment. See
+[`docs/reproducibility.md`](docs/reproducibility.md) for the container pins, the
+full list of what is / isn't reproducible, and how the container split was
+verified against the `Demuxafy.sif` baseline.
+
+## Validation
+
+Reproducibility (above) proves **determinism**; separately the pipeline is validated
+for **correctness**. On the *full* OneK1K pool, `sc_pileup → snp_demux` reproduces the
+per-method demultiplexing numbers Neavin et al. publish for Demuxafy: freemuxlet and
+souporcell match at default settings, and vireo matches once cellSNP thresholds are
+matched to theirs. The comparison tables, methodology, and the one-off full-depth run
+configs (`config/test_config.full{,_neavin}.yaml`) are in
+[`docs/validation/demuxafy_consistency.md`](docs/validation/demuxafy_consistency.md).

@@ -59,11 +59,12 @@ recode_donors <- function(x) {
   dplyr::coalesce(mapped, x)
 }
 
-# Recode *_Individual_Assignment columns from donors to samples
+# Recode *_Individual_Assignment and *_best_singlet (vireo / souporcell
+# posteriors, see add_posteriors.py) columns from donors to samples
 df_assign <- df_assign %>%
   dplyr::mutate(
     across(
-      ends_with("_Individual_Assignment"),
+      c(ends_with("_Individual_Assignment"), ends_with("_best_singlet")),
       recode_donors
     )
   )
@@ -88,6 +89,13 @@ df_summary <- df_assign %>%
         status
     )
   )
+
+# Demuxafy's combine step can emit duplicate per-barcode rows (a join artifact
+# with relaxed thresholds on sparse data) — mostly identical, occasionally
+# conflicting. Keep exactly one row per barcode (first wins) so every downstream
+# consumer sees a single assignment per cell.
+df_assign   <- dplyr::distinct(df_assign, Barcode, .keep_all = TRUE)
+df_summary  <- dplyr::distinct(df_summary, barcode, .keep_all = TRUE)
 
 message("Writing sample barcode assignments")
 write_tsv(df_assign, combined_edited)

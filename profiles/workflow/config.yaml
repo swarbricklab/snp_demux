@@ -7,123 +7,54 @@ rerun-incomplete: True
 latency-wait: 30
 retries: 2
 
-# Job grouping: each capture's lightweight post-processing chain is packed into
-# ONE PBS submission (per-capture) via rule-level `group: "postproc"` directives
-# in workflow/rules/*.smk, instead of ~12 tiny jobs, to cut scheduler churn and
-# queue waits. The directives live in the rules (not here) because snakemake 7.32
-# does not reliably honor `groups:`/`group-components:` from a --workflow-profile.
-# Heavy/parallel rules (souporcell*, vireo) and the pre-flight screen are left
-# ungrouped so they still spread across nodes / run early. Snakemake's default of
-# one job per connected group component already yields per-capture grouping.
-
 # Conda settings
 use-conda: True
 conda-frontend: mamba
 
-# Resource settings per rule
+# Resource settings per rule. Only rules that need more than the defaults are
+# listed; everything else (bcftools helpers, R wrangling/reporting, summaries,
+# aggregation, preflight) runs with Snakemake's defaults.
 #
-# Values below were refined against ACTUAL PBS "Resource Usage" blocks from the
-# cohort run (logs/joblogs/<rule>/*.log). Sizing = ~1.3x observed max Memory Used
-# (rounded to a sensible value, floor ~2GB) and ~1.5x max Walltime Used (floor 30
-# min). See the review notes in the report for per-rule provenance. NOTE: some
-# joblogs used for sizing predate the removal of job grouping (a2a973f) -- while
-# grouped, the diagnostic rules ran at the 4GB DEFAULT (set-resources didn't apply
-# to grouped submissions), which is why report_variant_embedding OOM-killed ~18x.
-# Grouping is now removed, so these set-resources DO apply going forward.
+# Where both histories set a rule, the merge keeps the LARGER of each value:
+# main's release sizing, or the sizing refined against PBS "Resource Usage"
+# from a 138-capture cohort run (~1.3x observed max memory, ~1.5x max walltime).
 set-resources:
-  # --- Pileup (per-chromosome dsc_pileup) ---
-  # ~3000 jobs each; real peak ~33GB (p95 ~18GB), max walltime ~60min. Was 64GB.
-  dsc_pileup_demuxlet_by_chromosome:
-    threads: 1
-    mem: "48GB"
-    runtime: 90
-  dsc_pileup_freemuxlet_by_chromosome:
-    threads: 1
-    mem: "48GB"
-    runtime: 90
-  # cellSNP-lite: the key was previously "cellsnp-lite" (hyphen) and never matched
-  # the rule "cellsnp_lite", so it ran at the 4GB/1-thread DEFAULT and still
-  # completed (its memory was page-cache-capped at the limit, no OOM; walltime up to
-  # ~157min at 1 thread). Name fixed here; sized generously given the capped signal.
-  cellsnp_lite:
-    threads: 32
-    mem: "16GB"
-    runtime: 240
-  # --- demuxlet family ---
+  # --- demuxlet / freemuxlet ---
   demuxlet:
     threads: 1
-    mem: "10GB"
-    runtime: 30
+    mem: "16GB"
+    runtime: 60
   demuxlet_summary:
-    threads: 1
-    mem: "2GB"
+    mem: "8GB"
     runtime: 30
-  merge_cel_demuxlet:
-    threads: 1
-    mem: "2GB"
-  merge_var_demuxlet:
-    threads: 1
-    mem: "2GB"
-  merge_plp_demuxlet:
-    threads: 1
-    mem: "2GB"
-  merge_umi_demuxlet:
-    # Peak sits at the request (reclaimable page cache); resident set fits in 4GB.
-    threads: 1
-    mem: "4GB"
-    runtime: 30
-  wrangle_umi_demuxlet:
-    # Trivial memory (<1GB) but long walltime (~150min) on the big pools.
-    threads: 1
-    mem: "2GB"
-    runtime: 240
-  # --- demuxafy wrapper ---
-  demuxafy:
-    mem: "2GB"
-    runtime: 30
-  # --- freemuxlet family ---
   freemuxlet:
     threads: 2
     mem: "16GB"
-    runtime: 45
-  freemuxlet_genotyping:
-    # No jobs under this rule name in this cohort run -- left as-is (unverified).
-    mem: "20GB"
+    runtime: 60
   freemuxlet_summary:
     mem: "2GB"
     runtime: 30
-  split_by_chr:
-    # No matching rule ran under this name this cohort -- left as-is (unverified).
+  demuxafy:
     mem: "2GB"
-    runtime: 5
-  # --- souporcell (full de-novo) ---
-  # Real peak ~158GB of 190GB requested (no OOM); kept near the node memory cap.
-  souporcell:
-    threads: 32
-    mem: "190GB"
-    runtime: 1440
-  # sc_pileup branch: "cluster" is the heavy step but it is CPU-bound, not
-  # memory-bound -- real peak only ~3GB. Was 64GB.
+    runtime: 60
+  # --- souporcell: resumes from sc_pileup's ref/alt.mtx ---
+  # cluster is CPU-bound (cohort peak ~3GB), but --restarts 100 on 30-40k-cell
+  # pools exceeds 12h, hence the 24h walltime.
   souporcell_cluster:
-    # CPU-bound (peak ~3GB), but --restarts 100 on the 30-40k-cell pools exceeds
-    # 12h -> 24h walltime (NeoMet_Pool_009_2 / Atlas_Pool_7b class).
     threads: 16
-    mem: "8GB"
+    mem: "64GB"
     runtime: 1440
   souporcell_troublet:
     threads: 1
-    mem: "6GB"
+    mem: "8GB"
     runtime: 30
   souporcell_consensus:
-    # consensus.py runs a pystan mixture model and historically OOM-killed at 8GB.
-    # Real peak ~11GB this cohort -> 16GB (comfortably above the 8GB that failed).
+    # consensus.py runs a pystan mixture model; OOM-killed at 8GB, cohort peak ~11GB.
     threads: 1
     mem: "16GB"
     runtime: 30
-  # Genotype-anchored second pass mirrors the de-novo trio's (now smaller) footprint.
+  # Genotype-anchored second pass mirrors the de-novo trio.
   souporcell_cluster_known:
-    # Same as the de-novo cluster: --restarts 100 on big pools needs 24h
-    # (job 963 / NeoMet_Pool_009_2 hit the old 12h limit at only 2.6GB used).
     threads: 16
     mem: "8GB"
     runtime: 1440
@@ -132,44 +63,34 @@ set-resources:
     mem: "4GB"
     runtime: 30
   souporcell_consensus_known:
-    # No direct data this cohort; mirrors souporcell_consensus.
     threads: 1
     mem: "16GB"
     runtime: 30
-  souporcell_genotyping:
-    # No jobs under this rule name in this cohort run -- left as-is (unverified).
-    mem: "20GB"
   # --- vireo ---
-  # Real peak only ~10GB; profile was 32GB. (Some vireo jobs were also seen running
-  # at 125GB via a rule-level mem override -- flagged for follow-up.)
   vireo:
     threads: 16
-    mem: "16GB"
+    mem: "32GB"
     runtime: 30
   vireosnp:
-    # Real peak ~6.6GB -> 10GB (nudged up from 8GB for 1.3x headroom).
     mem: "10GB"
     runtime: 30
   # --- Python diagnostics / pre-flight screen ---
-  # (Historically ran at the 4GB DEFAULT while grouped -- grouping is now removed
-  # so these apply.) report_variant_embedding (UMAP) OOM-killed ~18x at 4GB, so its
-  # 32GB is KEPT (never below what OOM'd; true peak still unverified as it was killed
-  # before reaching it). The others fit comfortably in 4GB (observed peaks noted).
+  # report_variant_embedding (UMAP) OOM-killed at 4GB; 32GB kept.
   report_variant_embedding:
     threads: 1
     mem: "32GB"
   present_absent_screen:
-    # Observed peak ~2.5GB across 144 jobs.
+    # Observed peak ~2.5GB.
     threads: 1
     mem: "4GB"
     runtime: 30
   report_distinctiveness:
-    # Observed peak ~2.6GB across 144 jobs.
+    # Observed peak ~2.6GB.
     threads: 1
     mem: "4GB"
     runtime: 30
   hierarchical_consensus:
-    # Observed peak ~0.7GB across 116 jobs.
+    # Observed peak ~0.7GB.
     threads: 1
     mem: "2GB"
     runtime: 30

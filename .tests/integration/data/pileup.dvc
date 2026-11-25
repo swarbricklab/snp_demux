@@ -1,0 +1,6 @@
+outs:
+- md5: f153cbf2b1d2155cdc0d8cd6a2499233.dir
+  size: 22362781
+  nfiles: 15
+  hash: md5
+  path: pileup
