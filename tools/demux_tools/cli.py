@@ -26,6 +26,7 @@ COMMANDS = {
     "cell-table": ("scorecard", "one row per cell: every run's status, donor and pair beside per-cell truth"),
     "compare-runs": ("compare", "compare two runs' calls per cell: transitions and summary"),
     "doublet-excess": ("scorecard", "doublet calls per capture by tool, against the loading expectation"),
+    "job-costs": ("jobcosts", "CPU, memory and service units per job, rule and capture from PBS job logs"),
     "score": ("scorer", "reproduce vireo's fixed-mode calls for one capture, with each cell's evidence"),
     "score-many": ("scorer", "score the captures of a manifest in parallel, with a summary and validation table"),
     "scorecard": ("scorecard", "score runs against truth: shares with pool-resampled intervals, lost cells"),
