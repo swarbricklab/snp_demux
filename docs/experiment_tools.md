@@ -108,7 +108,7 @@ One page per group of tools:
 
 - [Scorer diagnostics](experiment_tools/scorer-diagnostics.md) (available): native fit, site masks and groups, genotype overrides and per-site detail.
 
-- [Compare runs](experiment_tools/compare-runs.md) (planned): call readers for both snp_demux lines, run-to-run comparison and the sex check.
+- [Compare runs](experiment_tools/compare-runs.md) (available): call readers for both snp_demux lines, run-to-run comparison and the sex check.
 
 - [Scorecard](experiment_tools/scorecard.md) (planned): per-cell tables, scorecards against truth, calibration and doublet excess.
 
