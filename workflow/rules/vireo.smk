@@ -57,6 +57,11 @@ rule vireo:
     params:
         field="GT",
         n=get_number_of_samples_in_capture_pool,
+    # Declared on the rule so --nproc is defined even when no profile is applied
+    # (a bare `snakemake -n` otherwise fails with "'Resources' object has no
+    # attribute 'threads'"); profiles/workflow set-resources still overrides it.
+    resources:
+        threads=16,
     shell:
         """
         base={input.base}
