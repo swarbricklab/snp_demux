@@ -57,8 +57,12 @@ set-resources:
     runtime: 30
   souporcell_consensus:
     # consensus.py runs a pystan mixture model; OOM-killed at 8GB, cohort peak ~11GB.
+    # Memory grows with the attempt in the rule (8, 16, 32GB); no mem here
+    # (set-resources would override it).
+    # What drives the cost: about 1 min per job that does not grow with the capture
+    # (likely the Stan compile, run in every job), plus 1-2 s per 1,000 matrix rows.
+    # PBS memory used was 2.4-3.9 GB up to 14 million entries, 4.6-7.1 GB above.
     threads: 1
-    mem: "16GB"
     runtime: 30
   # Second run (souporcell/{c}/known/): same footprint as the first run's trio.
   souporcell_cluster_known:
@@ -74,8 +78,11 @@ set-resources:
     mem: "4GB"
     runtime: 30
   souporcell_consensus_known:
+    # Memory grows with the attempt in the rule, as for souporcell_consensus;
+    # no mem here. It runs the same script on the same matrices, so its cost
+    # should follow the same drivers; rule all does not request it, so it was
+    # not measured.
     threads: 1
-    mem: "16GB"
     runtime: 30
   # --- vireo ---
   vireo:
@@ -101,10 +108,15 @@ set-resources:
     mem: "10GB"
     runtime: 30
   # --- Python diagnostics / pre-flight screen ---
-  # report_variant_embedding (UMAP) OOM-killed at 4GB; 32GB kept.
+  # report_variant_embedding (UMAP) OOM-killed at 4GB; PBS has since recorded at
+  # most 4.0GB over 17 captures. Its memory grows with the attempt in the rule
+  # (8, 16, 32GB; the last equals the old 32GB); no mem here (set-resources would
+  # override it).
+  # What drives the cost: PBS memory used grows with cells, about 1 GB at 2,500
+  # cells and 4 GB at 37,000 on 202,699-site panels, and up to 4 GB at 14,000 on
+  # 6-million-site ones. Jobs take under 2 min; the memory request sets the charge.
   report_variant_embedding:
     threads: 1
-    mem: "32GB"
   present_absent_screen:
     # Observed peak ~2.5GB.
     threads: 1
