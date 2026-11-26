@@ -28,7 +28,7 @@ soup_amb <- suppressWarnings(as.numeric(sub(
 )))
 
 methods   <- c("Demuxlet", "Freemuxlet", "Souporcell", "Vireo", "Souporcell_vireosnp")
-consensus <- "AtLeastHalfSinglet"
+consensus <- "Consensus"
 
 # A call is the sample id for a singlet, or the droplet type otherwise, so that
 # identity and doublet/unassigned are comparable on one axis.

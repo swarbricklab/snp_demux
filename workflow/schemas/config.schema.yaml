@@ -62,6 +62,26 @@ properties:
           souporcell_correlation_limit: {type: number}
           pct_agreement: {type: number}
         required: [freemuxlet_correlation_limit, souporcell_correlation_limit, pct_agreement]
+      consensus:
+        type: object
+        description: >-
+          Optional. How the per-method calls are combined (workflow/scripts/consensus.py).
+        properties:
+          method:
+            type: string
+            enum: [informative_majority, at_least_half_singlet]
+            default: informative_majority
+            description: >-
+              informative_majority: majority of the methods that made a singlet/doublet
+              call (unassigned abstains; a tie or too few calls -> unassigned).
+              at_least_half_singlet: Demuxafy's AtLeastHalfSinglet (singlet if at least
+              half the methods call singlet, else doublet).
+          min_informative:
+            type: integer
+            minimum: 1
+            default: 2
+            description: informative_majority only. Fewer singlet/doublet calls than this -> unassigned.
+        additionalProperties: false
       souporcell:
         type: object
         properties:

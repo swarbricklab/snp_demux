@@ -2,10 +2,17 @@
 # consensus
 # ----------------------------------
 # Per-barcode consensus of demuxlet, freemuxlet, souporcell and vireo (plus the
-# vireoSNP annotation of souporcell's clusters, which does not vote). A port of
-# Demuxafy's Combine_Results.R (--method AtLeastHalfSinglet --ref Vireo) for the
-# four methods this workflow runs; see workflow/scripts/consensus.py.
+# vireoSNP annotation of souporcell's clusters, which does not vote). Replaces
+# Demuxafy's Combine_Results.R; the rule is params.consensus.method (see
+# workflow/scripts/consensus.py).
 # ==================================
+CONSENSUS = {
+    "method": "informative_majority",
+    "min_informative": 2,
+    **config["params"].get("consensus", {}),
+}
+
+
 rule consensus:
     input:
         demuxlet=rules.demuxlet.output.best,
@@ -21,6 +28,8 @@ rule consensus:
         config["containers"]["vireosnp"]
     params:
         pct_agreement=config["params"]["demuxafy"]["pct_agreement"],
+        method=CONSENSUS["method"],
+        min_informative=CONSENSUS["min_informative"],
     script:
         "../scripts/consensus.py"
 
@@ -62,8 +71,8 @@ rule wrangle_demuxafy_assignments:
     container:
         config["containers"]["r"]
     params:
-        assignment_column="AtLeastHalfSinglet_Individual_Assignment",
-        droplettype_column="AtLeastHalfSinglet_DropletType",
+        assignment_column="Consensus_Individual_Assignment",
+        droplettype_column="Consensus_DropletType",
     script:
         "../scripts/wrangle_assignments.R"
 
@@ -81,7 +90,7 @@ rule wrangle_stats:
     container:
         config["containers"]["r"]
     params:
-        assignment_column="AtLeastHalfSinglet_Individual_Assignment",
+        assignment_column="Consensus_Individual_Assignment",
     script:
         "../scripts/wrangle_stats.R"
 

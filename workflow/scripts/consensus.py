@@ -1,31 +1,43 @@
 """Per-barcode consensus of the four demultiplexers for one capture.
 
-Replaces Demuxafy's ``Combine_Results.R`` (``--method AtLeastHalfSinglet
---ref Vireo``) and ``add_vireosnp_to_combined_results.R``. This is a direct port
-of the code paths that configuration exercises, kept output-equivalent so the
-switch can be verified against the golden; behaviour changes come separately.
+Replaces Demuxafy's ``Combine_Results.R`` and ``add_vireosnp_to_combined_results.R``.
 
 Steps
   1. Read each method's per-barcode call and normalise it to
      ``<M>_DropletType`` in {singlet, doublet, unassigned}, plus a donor
-     (Demuxlet, Vireo) or a cluster id (Freemuxlet, Souporcell).
-  2. Map Freemuxlet / Souporcell clusters to donors by agreement with Vireo: a
-     cluster takes the Vireo assignment shared by at least ``pct_agreement`` of
-     its barcodes. As in Demuxafy, a barcode whose cluster has no such mapping
-     (including the pseudo-clusters ``doublet`` and ``unassigned``) becomes a
-     ``doublet``.
-  3. AtLeastHalfSinglet: a singlet if at least half the methods call a singlet,
-     assigned to the donor most methods name (a tie leaves it unassigned);
-     otherwise a doublet.
-  4. Append souporcell's genotype-annotated call (vireoSNP) as
+     (Demuxlet, Vireo) or a cluster id (Freemuxlet, Souporcell). A method's own
+     ``unassigned`` / ``doublet`` call is kept as it is.
+  2. Name Freemuxlet / Souporcell clusters by agreement with Vireo: a cluster
+     takes the Vireo donor shared by at least ``pct_agreement`` of its barcodes.
+     Only real clusters are named (not the ``doublet`` / ``unassigned`` calls),
+     only after donors (not Vireo's ``doublet`` / ``unassigned``), and only when
+     exactly one donor qualifies. A singlet in an unnamed cluster abstains
+     (``unassigned``): a cluster no donor accounts for is as likely to be
+     doublets or noise as a donor, so its singlet call is not evidence.
+  3. Consensus (``Consensus_*``), by ``method``:
+       informative_majority (default)
+         Votes are the methods' droplet types; ``unassigned`` abstains.
+         Fewer than ``min_informative`` singlet/doublet votes -> unassigned;
+         otherwise the majority of singlet vs doublet, a tie -> unassigned.
+         A singlet takes the donor most methods name; a tie -> unassigned.
+       at_least_half_singlet
+         Demuxafy's AtLeastHalfSinglet (below).
+     Vote counts are written as ``Consensus_n_singlet``, ``Consensus_n_doublet``
+     and ``Consensus_n_informative``, so consumers can apply their own rule.
+  4. ``AtLeastHalfSinglet_*`` is always written as well: a singlet if at least
+     half the methods call a singlet, otherwise a doublet (so ``unassigned``
+     counts against singlet). Kept for comparison and for existing consumers.
+  5. Append souporcell's genotype-annotated call (vireoSNP) as
      ``Souporcell_vireosnp_*``. It does not vote.
 
-Rows follow demuxlet's barcode order (Demuxafy left-joins onto demuxlet); a
-barcode missing from another method gets ``unassigned`` for that method.
+Two Demuxafy behaviours are deliberately not reproduced (see #65): it turned
+every barcode whose cluster it could not name, including a method's own
+``unassigned`` calls, into a ``doublet``; and AtLeastHalfSinglet has no
+``unassigned`` outcome, so barcodes most methods could not call became doublets.
+``method: at_least_half_singlet`` restores the second; nothing restores the first.
 
-Where Demuxafy's join emits several rows for one barcode (a cluster that ties
-for the mapping, possible when pct_agreement <= 0.5), downstream kept the first;
-this port emits that row only.
+Rows follow demuxlet's barcode order; a barcode missing from another method gets
+``unassigned`` for that method.
 
 Pure standard library (runs in any container with python3 >= 3.6).
 """
@@ -59,7 +71,13 @@ COLUMNS = [
     CONSENSUS + "_Individual_Assignment",
     VIREOSNP + "_DropletType",
     VIREOSNP + "_Individual_Assignment",
+    "Consensus_DropletType",
+    "Consensus_Individual_Assignment",
+    "Consensus_n_singlet",
+    "Consensus_n_doublet",
+    "Consensus_n_informative",
 ]
+RULES = ("informative_majority", "at_least_half_singlet")
 
 
 # ---------------------------------------------------------------- reading ----
@@ -115,40 +133,50 @@ def read_vireo(rows):
 
 # ---------------------------------------------------------------- mapping ----
 def cluster_map(barcodes, clusters, reference, pct_agreement):
-    """cluster -> reference assignment, by agreement over ``barcodes``.
+    """Name clusters by agreement with ``reference`` over ``barcodes``.
 
-    For each (cluster, reference) pair: Proportion = pair count / cluster size.
-    Pairs with Proportion >= pct_agreement are candidates. Demuxafy keeps every
-    candidate (a join on them duplicates barcodes); downstream kept the first row,
-    i.e. the candidate with the highest count, ties going to the pair seen *last*
-    in barcode order (Demuxafy sorts with rev(order(Count))). That is the one
-    returned here. ``MISSING`` is a value like any other (a barcode absent from a
-    table), exactly as data.table groups NA.
+    Returns (mapping cluster -> donor, report rows). A cluster's agreement with a
+    donor is the share of the cluster's barcodes (as seen in ``barcodes``) that the
+    reference assigns to that donor; the denominator includes barcodes the
+    reference calls doublet/unassigned or lacks. A cluster is named only if
+    exactly one donor reaches ``pct_agreement`` (two can at <= 0.5).
     """
     totals = Counter()
-    pairs = OrderedDict()  # (cluster, ref) -> count, in order of first appearance
+    pairs = Counter()
     for bc in barcodes:
-        key = (clusters.get(bc), reference.get(bc))
-        totals[key[0]] += 1
-        pairs[key] = pairs.get(key, 0) + 1
-    ranked = sorted(
-        ((count, i, key) for i, (key, count) in enumerate(pairs.items())),
-        reverse=True,
-    )
-    mapping = {}
-    for count, _, (cluster, ref) in ranked:
-        if count / totals[cluster] >= pct_agreement and cluster not in mapping:
-            mapping[cluster] = ref
-    return mapping
+        cl = clusters.get(bc, MISSING)
+        if cl is MISSING or cl in SENTINELS:
+            continue
+        totals[cl] += 1
+        ref = reference.get(bc, MISSING)
+        if ref is not MISSING and ref not in SENTINELS:
+            pairs[(cl, ref)] += 1
+    mapping, report = {}, []
+    for cl in sorted(totals, key=lambda x: (-totals[x], x)):
+        frac = {ref: n / totals[cl] for (c, ref), n in pairs.items() if c == cl}
+        ok = sorted(ref for ref, f in frac.items() if f >= pct_agreement)
+        best = max(frac, key=lambda r: (frac[r], r)) if frac else None
+        if len(ok) == 1:
+            mapping[cl] = ok[0]
+        report.append((cl, totals[cl], best, frac.get(best, 0.0),
+                       ok[0] if len(ok) == 1 else ("ambiguous" if ok else "unnamed")))
+    return mapping, report
 
 
 def assign_clusters(calls, mapping):
-    """Give each barcode of a cluster method the donor its cluster maps to."""
+    """Give each singlet of a cluster method the donor its cluster is named after.
+
+    Doublet / unassigned calls keep that as their assignment; a singlet in an
+    unnamed cluster becomes ``unassigned`` (its cluster id is kept).
+    """
     for call in calls.values():
-        donor = mapping.get(call["Cluster"], MISSING)
-        call["Individual_Assignment"] = "doublet" if donor is MISSING else donor
-        if call["Individual_Assignment"] == "doublet":
-            call["DropletType"] = "doublet"
+        if call["DropletType"] not in SENTINELS:
+            donor = mapping.get(call["Cluster"])
+            if donor is None:
+                call["DropletType"] = "unassigned"
+        call["Individual_Assignment"] = (
+            call["DropletType"] if call["DropletType"] in SENTINELS else donor
+        )
 
 
 # -------------------------------------------------------------- consensus ----
@@ -163,6 +191,22 @@ def plurality(values):
     return top[0][0]
 
 
+def votes(row):
+    types = [row[m + "_DropletType"] for m in METHODS]
+    return types.count("singlet"), types.count("doublet")
+
+
+def informative_majority(row, min_informative=2):
+    """Majority of the methods that made a call -> (droplet type, assignment)."""
+    n_singlet, n_doublet = votes(row)
+    if n_singlet + n_doublet < min_informative or n_singlet == n_doublet:
+        return "unassigned", "unassigned"
+    if n_doublet > n_singlet:
+        return "doublet", "doublet"
+    donor = plurality(row[m + "_Individual_Assignment"] for m in METHODS)
+    return ("singlet", donor) if donor is not None else ("unassigned", "unassigned")
+
+
 def at_least_half_singlet(row):
     """Demuxafy's AtLeastHalfSinglet over METHODS -> (droplet type, assignment)."""
     n_singlet = sum(row[m + "_DropletType"] == "singlet" for m in METHODS)
@@ -173,8 +217,11 @@ def at_least_half_singlet(row):
 
 
 # ------------------------------------------------------------------ build ----
-def build(demuxlet, freemuxlet, souporcell, vireo, vireosnp, pct_agreement):
+def build(demuxlet, freemuxlet, souporcell, vireo, vireosnp, pct_agreement,
+          method="informative_majority", min_informative=2, log=None):
     """Inputs are the parsed tables (lists of dicts); returns output rows."""
+    if method not in RULES:
+        raise ValueError("consensus method must be one of %s, not %r" % (RULES, method))
     calls = {
         "Demuxlet": read_popscle(demuxlet, "Individual_Assignment"),
         "Freemuxlet": read_popscle(freemuxlet, "Cluster"),
@@ -185,7 +232,12 @@ def build(demuxlet, freemuxlet, souporcell, vireo, vireosnp, pct_agreement):
     vireo_ref = {bc: c["Individual_Assignment"] for bc, c in calls["Vireo"].items()}
     for m in CLUSTER_METHODS:
         clusters = {bc: c["Cluster"] for bc, c in calls[m].items()}
-        assign_clusters(calls[m], cluster_map(barcodes, clusters, vireo_ref, pct_agreement))
+        mapping, report = cluster_map(barcodes, clusters, vireo_ref, pct_agreement)
+        assign_clusters(calls[m], mapping)
+        if log:
+            print("%s clusters named by agreement with vireo (pct_agreement %s):" % (m, pct_agreement), file=log)
+            for cl, n, best, frac, named in report:
+                print("  cluster %-6s n=%-6d best=%s (%.2f) -> %s" % (cl, n, best, frac, named), file=log)
 
     snp = {r["barcode"]: r for r in vireosnp}
     out = []
@@ -200,6 +252,18 @@ def build(demuxlet, freemuxlet, souporcell, vireo, vireosnp, pct_agreement):
         row[CONSENSUS + "_DropletType"], row[CONSENSUS + "_Individual_Assignment"] = (
             at_least_half_singlet(row)
         )
+        if method == "informative_majority":
+            dtype, donor = informative_majority(row, min_informative)
+        else:
+            dtype, donor = row[CONSENSUS + "_DropletType"], row[CONSENSUS + "_Individual_Assignment"]
+        n_singlet, n_doublet = votes(row)
+        row.update({
+            "Consensus_DropletType": dtype,
+            "Consensus_Individual_Assignment": donor,
+            "Consensus_n_singlet": n_singlet,
+            "Consensus_n_doublet": n_doublet,
+            "Consensus_n_informative": n_singlet + n_doublet,
+        })
         s = snp.get(bc)
         row[VIREOSNP + "_DropletType"] = s["status"] if s else "NA"
         row[VIREOSNP + "_Individual_Assignment"] = s["assignment"] if s else "NA"
@@ -217,13 +281,14 @@ def write_tsv(rows, path):
 def main(sm):
     log = open(sm.log[0], "w")
     tables = {k: read_table(sm.input[k]) for k in ("demuxlet", "freemuxlet", "souporcell", "vireo", "vireosnp")}
-    rows = build(pct_agreement=float(sm.params.pct_agreement), **tables)
+    rows = build(pct_agreement=float(sm.params.pct_agreement), method=sm.params.method,
+                 min_informative=int(sm.params.min_informative), log=log, **tables)
     write_tsv(rows, sm.output.calls)
 
     only = {r["Barcode"] for r in rows} ^ {r["barcode"] for r in tables["vireosnp"]}
     if only:
         print("WARNING: %d barcode(s) in only one of demuxlet / vireoSNP" % len(only), file=log)
-    for m in METHODS + (CONSENSUS,):
+    for m in METHODS + (CONSENSUS, "Consensus"):
         counts = Counter(r[m + "_DropletType"] for r in rows)
         print("%-20s %s" % (m, dict(sorted(counts.items()))), file=log)
     log.close()

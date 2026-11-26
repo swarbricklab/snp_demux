@@ -37,6 +37,13 @@ params:
     freemuxlet_correlation_limit: 0.7 # default
     souporcell_correlation_limit: 0.7 # default
     pct_agreement: 0.7 # default
+  # How the four methods' calls are combined (optional; these are the defaults).
+  # informative_majority: majority of the methods that made a singlet/doublet
+  # call; "unassigned" abstains; a tie or fewer than min_informative calls ->
+  # unassigned. at_least_half_singlet: Demuxafy's AtLeastHalfSinglet.
+  consensus:
+    method: informative_majority
+    min_informative: 2
   # souporcell clustering (remap+vartrix now done upstream by sc_pileup).
   souporcell:
     restarts: 100   # souporcell default
