@@ -15,8 +15,9 @@ rule aggregate_souporcell:
             / "souporcell/annotation/vireosnp/{capture_id}/clusters_annotated.tsv",
             capture_id=captures.index.tolist(),
         ),
-        # de-novo-vs-known partition QC depends on the known-GT second mode, so
-        # make its outputs reachable via the souporcell target too.
+        # the partition QC (denovo_known_agree) depends on the second, de novo
+        # run (under known/), so make its outputs reachable via the souporcell
+        # target too.
         all_known_results=expand(
             out_dir / "souporcell/{capture_id}/known/clusters.tsv",
             capture_id=captures.index.tolist(),

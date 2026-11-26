@@ -89,9 +89,22 @@ properties:
           min_ref: {type: integer}
           min_alt: {type: integer}
           ploidy: {type: integer}
+          seed:
+            type: integer
+            minimum: 0
+            maximum: 255
+            description: >-
+              Optional. --seed of the second, de novo souporcell run
+              (souporcell/<capture>/known/). Default 4, souporcell's own.
+          denovo_threads:
+            type: integer
+            minimum: 1
+            description: >-
+              Optional. --threads of the second, de novo souporcell run, and its CPU
+              request. Default 10, so 100 restarts are 100 solves.
           known_gt:
             type: boolean
-            description: Documents intent to run the genotype-anchored second souporcell mode (souporcell/<capture>/known/).
+            description: Documents intent to run the second souporcell mode (souporcell/<capture>/known/).
         required: [restarts, min_ref, min_alt]
       vireo:
         type: object
