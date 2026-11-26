@@ -79,7 +79,22 @@ set-resources:
     runtime: 30
   # --- vireo ---
   vireo:
-    threads: 16
+    # 16 workers, 32 GB and 30 min, kept for speed. Fixed-mode vireo assigns cells
+    # on one thread; --callAmbientRNAs fits each cell's ambient share in a pool of
+    # --nproc workers (resources.threads) and is 85-99% of the CPU.
+    # Two cheaper, slower settings were timed with 16 GB on 9 captures, for when
+    # SU is tight. Both wrote call tables identical to 16 workers. Over the 9:
+    #   threads: 8, runtime: 120               1.64x the walltime, 0.82 of the SU
+    #   threads: 4, runtime: 240, mem: "16GB"  2.67x the walltime, 0.67 of the SU
+    # The longest job took 16 min at 16, 29 min at 8 and 44 min at 4. Per
+    # 138-capture pass on normal that is about 154 and 123 SU against 184. 8 CPUs
+    # carry 32 GB at no extra charge; 32 GB on 4 CPUs is charged as 8 on normal.
+    # What drives the cost: CPU grows faster than the number of cells, and more
+    # per cell on larger panels. About half the walltime at 16 workers does not
+    # shrink with more workers, yet each CPU is charged for all of it. PBS memory
+    # used (page cache included) reached the full 16 GB at 4, 8 and 16 workers
+    # on an 18,930-cell capture with 1.5 million sites in the donor file.
+    threads: 16  # cheaper and slower: 8 or 4 workers (see above)
     mem: "32GB"
     runtime: 30
   vireosnp:
