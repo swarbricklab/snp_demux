@@ -21,7 +21,11 @@ import sys
 # One line per command, in alphabetical order: "name": ("module", "one-line help"),
 # A new command is added as one line in alphabetical order.
 COMMANDS = {
+    "score": ("scorer", "reproduce vireo's fixed-mode calls for one capture, with each cell's evidence"),
+    "score-many": ("scorer", "score the captures of a manifest in parallel, with a summary and validation table"),
+    "site-terms": ("scorer", "one cell's log-likelihood under each donor, site by site"),
     "synth": ("synth", "write a synthetic capture: cellsnp folder, donor VCF and truth table"),
+    "validate-vireo": ("scorer", "compare Scorer calls with vireo's donor_ids.tsv cell by cell"),
     "version": ("cli", "print the package version, its git commit and library versions"),
     "vireo-pairs": ("vireo_files", "add the true doublet pair to vireo's donor_ids.tsv"),
 }
