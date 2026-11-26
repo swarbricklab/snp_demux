@@ -67,6 +67,17 @@ params:
     # always runs, because hierarchical_consensus and aggregate_souporcell require
     # its clusters.tsv. Kept as a record of intent.
     known_gt: true
+  # vireo. Optional: omitted keys take these defaults.
+  vireo:
+    # --callAmbientRNAs: per-cell ambient shares (vireo/<capture>/prop_ambient.tsv,
+    # read by mkobj). Most of vireo's CPU; no call depends on it. false (runs that
+    # need only calls) writes prop_ambient.tsv with NA for every cell.
+    call_ambient: true
+    # --randSeed (0 to 2**32 - 1); null passes none. Fixed-mode calls never depend
+    # on it. With one worker it makes prop_ambient.tsv repeat; above one worker it
+    # does not. For one worker, pass a copy of profiles/workflow whose vireo entry
+    # sets threads: 1 as --workflow-profile (not --set-resources on the command line).
+    seed: null
 
   # Hierarchical, sex-aware consensus (runs ALONGSIDE demuxafy; see
   # docs/hierarchical_demux_design.md). De-novo souporcell decides cluster

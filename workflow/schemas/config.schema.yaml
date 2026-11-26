@@ -93,6 +93,23 @@ properties:
             type: boolean
             description: Documents intent to run the genotype-anchored second souporcell mode (souporcell/<capture>/known/).
         required: [restarts, min_ref, min_alt]
+      vireo:
+        type: object
+        description: >-
+          Optional. vireo options. Defaults: call_ambient true, seed none.
+        properties:
+          call_ambient:
+            type: boolean
+            description: >-
+              Pass --callAmbientRNAs, which writes vireo/<capture>/prop_ambient.tsv
+              (read by mkobj). false writes that file with NA for every cell.
+          seed:
+            type: [integer, "null"]
+            minimum: 0
+            maximum: 4294967295
+            description: >-
+              Pass --randSeed (0 to 2**32 - 1). null, the default, passes none.
+        additionalProperties: false
       hierarchical:
         type: object
         description: >-
