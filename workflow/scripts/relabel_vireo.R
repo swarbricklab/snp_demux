@@ -63,14 +63,15 @@ all_donors <- samples %>%
     sort()
 message("All donors in the samples CSV: ", paste(all_donors, collapse = ", "))
 
-# Construct list of unique donor IDs from the Vireo results
-# This will include the placeholder 'donorX' for any missing donors
-# as well as "doublet" and "unassigned"
-vireo_donors <- vireo %>%
-    select(donor_id) %>%
-    distinct() %>%
-    pull(donor_id) %>%
-    sort()
+# Construct the list of donor IDs vireo modelled, plus the "doublet" and
+# "unassigned" call values. The donors come from the prob_singlet header (one
+# column per donor), not from the calls in donor_ids.tsv: a donor that vireo
+# modelled but assigned no cells is absent from the calls, and would otherwise
+# be mistaken for a missing (ungenotyped) donor -- or, for a learned 'donorX'
+# with no cells, skip the relabelling of the prob_* headers and the VCF.
+# This includes the placeholder 'donorX' for any missing donors.
+modelled_donors <- strsplit(readLines(prob_sing_tsv, n = 1), "\t")[[1]][-1]
+vireo_donors <- sort(union(modelled_donors, unique(vireo$donor_id)))
 message("Donors in Vireo results: ", paste(vireo_donors, collapse = ", "))
 
 # Check for the presence of 'donorX' placeholders in the Vireo results
