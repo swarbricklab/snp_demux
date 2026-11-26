@@ -102,6 +102,14 @@ rule souporcell_consensus:
         logs / "souporcell/{capture_id}/consensus.log",
     container:
         SOUPORCELL_CONTAINER
+    resources:
+        # consensus.py: PBS memory used at most 7.1 GB over 17 captures (RSS
+        # 2.0-6.0 GB on four of them); earlier union panels peaked ~11 GB and
+        # were killed at 8 GB. Start at 8 GB and double per retry (retries: 2):
+        # 8, 16, 32 GB; attempt 2 is the old flat 16 GB. A mem key for this rule
+        # in profiles/workflow set-resources would override this on every
+        # attempt: keep it out.
+        mem_mb=lambda wildcards, attempt: 8000 * 2 ** (attempt - 1),
     params:
         ploidy=config["params"]["souporcell"]["ploidy"],
     shell:
@@ -207,6 +215,11 @@ rule souporcell_consensus_known:
         logs / "souporcell/{capture_id}/known/consensus.log",
     container:
         SOUPORCELL_CONTAINER
+    resources:
+        # As souporcell_consensus: 8, 16, 32 GB by attempt; keep mem out of the
+        # profile. Nothing in rule all requests this rule's outputs; it is kept
+        # consistent with souporcell_consensus.
+        mem_mb=lambda wildcards, attempt: 8000 * 2 ** (attempt - 1),
     params:
         ploidy=config["params"]["souporcell"]["ploidy"],
     shell:
