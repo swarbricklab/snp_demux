@@ -57,15 +57,18 @@ params:
     pct_agreement: 0.7 # default
   # souporcell clustering (remap+vartrix now done upstream by sc_pileup).
   souporcell:
-    # restarts: read by no rule while both runs pass --known_genotypes (one
-    # solve each; see souporcell.smk). Kept for a run without known genotypes.
+    # restarts, seed and denovo_threads are read by the second, de novo run
+    # (souporcell/{c}/known/); its result depends on all three. The first run
+    # passes --known_genotypes and runs one solve (see souporcell.smk).
     restarts: 100   # souporcell default
     min_ref: 10     # souporcell default
     min_alt: 10     # souporcell default
     ploidy: 2       # souporcell default
-    # Read by no rule: the second, genotype-anchored run (souporcell/{c}/known/)
-    # always runs, because hierarchical_consensus and aggregate_souporcell require
-    # its clusters.tsv. Kept as a record of intent.
+    seed: 4         # souporcell default; 0-255
+    denovo_threads: 10  # 100 restarts = 10 per thread
+    # Read by no rule: the second run (souporcell/{c}/known/) always runs,
+    # because hierarchical_consensus and aggregate_souporcell require its
+    # clusters.tsv. Kept as a record of intent.
     known_gt: true
   # vireo. Optional: omitted keys take these defaults.
   vireo:

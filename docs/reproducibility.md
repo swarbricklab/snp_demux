@@ -40,12 +40,16 @@ given the same frozen pileups + panel:
   `all_*_stats_full.tsv`).
 
 souporcell's **clustering** is deterministic: `clusters.tsv` reproduces exactly
-given the same inputs. The rule passes `--known_genotypes`, so every restart starts
+given the same inputs. The first run's rule passes `--known_genotypes`, so every restart starts
 its cluster centres from the donor genotypes and draws no random numbers (`--seed`,
 default 4, is passed to that code path but not used), and the rule passes
 `--restarts 1 --threads 1`, so souporcell runs one solve on one thread. Its per-cluster
 **genotype inference** is not bit-stable, though (see below); that affects only
 `cluster_genotypes.vcf`, never the cluster assignments or anything downstream.
+The second run (`souporcell/<capture>/known/clusters.tsv`) passes no genotypes and
+clusters de novo from random starts. Its result depends on `params.souporcell`
+`restarts`, `seed` and `denovo_threads`. With seed 4 and 10 threads, repeated runs
+wrote byte-identical files on three captures, on one of them across two nodes.
 
 ## What is **not** bit-reproducible
 

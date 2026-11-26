@@ -78,15 +78,17 @@ set-resources:
     threads: 1
     runtime: 30
     queue: normalsr
-  # Second run (souporcell/{c}/known/): same footprint as the first run's trio.
+  # Second run (souporcell/{c}/known/).
   souporcell_cluster_known:
-    # Same one solve. Its start sits on other sites' genotypes, so the fit takes
-    # ~2.5x the first run's time (17 captures at 100 restarts). Its cost grows
-    # with the matrix entries too; one solve took 1.0-5.7x the first run's CPU
-    # (median 2.4, 19 captures).
-    threads: 1
-    mem: "4GB"
-    runtime: 480
+    # De novo: params.souporcell.restarts on denovo_threads threads (100 on 10 by
+    # default). The CPU request follows the rule (resources: threads), so there
+    # is no threads key here. Peak ~3GB at 16 threads; 100 restarts on the
+    # 30-40k-cell pools of the earlier union panels ran past 12h.
+    # What drives the cost: CPU is restarts times one solve, which grows with the
+    # matrix entries (a restart took 0.5-1.0x a genotype-started solve, 3 captures).
+    # Walltime is ceil(restarts / threads) solves, with 69-81% of 10 CPUs busy.
+    mem: "8GB"
+    runtime: 1440
     queue: normalsr
   souporcell_troublet_known:
     threads: 1
