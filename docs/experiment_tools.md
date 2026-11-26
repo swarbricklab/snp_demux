@@ -112,6 +112,6 @@ One page per group of tools:
 
 - [Scorecard](experiment_tools/scorecard.md) (available): per-cell tables, scorecards against truth, calibration and doublet excess.
 
-- [Job costs](experiment_tools/job-costs.md) (planned): service units per job, rule and capture from PBS logs.
+- [Job costs](experiment_tools/job-costs.md) (available): service units per job, rule and capture from PBS logs.
 
 - [Pileup tools](experiment_tools/pileup-tools.md) (planned): compare, subset and join pileups.
