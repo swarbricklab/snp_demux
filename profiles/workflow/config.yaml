@@ -18,6 +18,17 @@ conda-frontend: mamba
 # Where both histories set a rule, the merge keeps the LARGER of each value:
 # main's release sizing, or the sizing refined against PBS "Resource Usage"
 # from a 138-capture cohort run (~1.3x observed max memory, ~1.5x max walltime).
+#
+# Queue: the rules below that carry queue: normalsr run on that queue. It
+# charges the same 2 SU per CPU-hour as normal, and one CPU carries 4.8 GB
+# there at no extra charge (4 GB on normal). Single test runs of other steps
+# used 19-44% fewer CPU-seconds on normalsr. On one 14,299-cell capture, with
+# vireo on 16 workers, the 12 of these rules that rule all runs used 0.69 of
+# the CPU-seconds and 0.67 of the SU they used on normal, with identical
+# must-match outputs; queue wait was about 1.5 min on normalsr and 1.1 min on
+# normal over 26 jobs. pbs_submit.py passes
+# resources.queue to qsub -q. It is set per rule because a default-resources
+# block here would replace the global profile's whole default-resources list.
 set-resources:
   # --- demuxlet / freemuxlet ---
   demuxlet:
@@ -51,10 +62,12 @@ set-resources:
     threads: 1
     mem: "4GB"
     runtime: 480
+    queue: normalsr
   souporcell_troublet:
     threads: 1
     mem: "8GB"
     runtime: 30
+    queue: normalsr
   souporcell_consensus:
     # consensus.py runs a pystan mixture model; OOM-killed at 8GB, cohort peak ~11GB.
     # Memory grows with the attempt in the rule (8, 16, 32GB); no mem here
@@ -64,6 +77,7 @@ set-resources:
     # PBS memory used was 2.4-3.9 GB up to 14 million entries, 4.6-7.1 GB above.
     threads: 1
     runtime: 30
+    queue: normalsr
   # Second run (souporcell/{c}/known/): same footprint as the first run's trio.
   souporcell_cluster_known:
     # Same one solve. Its start sits on other sites' genotypes, so the fit takes
@@ -73,10 +87,12 @@ set-resources:
     threads: 1
     mem: "4GB"
     runtime: 480
+    queue: normalsr
   souporcell_troublet_known:
     threads: 1
     mem: "4GB"
     runtime: 30
+    queue: normalsr
   souporcell_consensus_known:
     # Memory grows with the attempt in the rule, as for souporcell_consensus;
     # no mem here. It runs the same script on the same matrices, so its cost
@@ -84,7 +100,11 @@ set-resources:
     # not measured.
     threads: 1
     runtime: 30
+    queue: normalsr
   # --- vireo ---
+  subset_vcf:
+    # bcftools subset of the pool's panel; default resources otherwise.
+    queue: normalsr
   vireo:
     # 16 workers, 32 GB and 30 min, kept for speed. Fixed-mode vireo assigns cells
     # on one thread; --callAmbientRNAs fits each cell's ambient share in a pool of
@@ -104,9 +124,11 @@ set-resources:
     threads: 16  # cheaper and slower: 8 or 4 workers (see above)
     mem: "32GB"
     runtime: 30
+    queue: normalsr
   vireosnp:
     mem: "10GB"
     runtime: 30
+    queue: normalsr
   # --- Python diagnostics / pre-flight screen ---
   # report_variant_embedding (UMAP) OOM-killed at 4GB; PBS has since recorded at
   # most 4.0GB over 17 captures. Its memory grows with the attempt in the rule
@@ -117,18 +139,22 @@ set-resources:
   # 6-million-site ones. Jobs take under 2 min; the memory request sets the charge.
   report_variant_embedding:
     threads: 1
+    queue: normalsr
   present_absent_screen:
     # Observed peak ~2.5GB.
     threads: 1
     mem: "4GB"
     runtime: 30
+    queue: normalsr
   report_distinctiveness:
     # Observed peak ~2.6GB.
     threads: 1
     mem: "4GB"
     runtime: 30
+    queue: normalsr
   hierarchical_consensus:
     # Observed peak ~0.7GB.
     threads: 1
     mem: "2GB"
     runtime: 30
+    queue: normalsr
