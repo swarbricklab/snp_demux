@@ -42,9 +42,11 @@ long <- bind_rows(lapply(methods, function(m) tibble(
   call    = as_call(assign_tbl[[paste0(m, "_DropletType")]],
                     assign_tbl[[paste0(m, "_Individual_Assignment")]])
 )))
+# a recovered barcode's call is its sample, like a singlet's
+cons_dtype <- assign_tbl[[paste0(consensus, "_DropletType")]]
 cons <- tibble(
   Barcode   = assign_tbl$Barcode,
-  cons_call = as_call(assign_tbl[[paste0(consensus, "_DropletType")]],
+  cons_call = as_call(ifelse(cons_dtype %in% "recovered", "singlet", cons_dtype),
                       assign_tbl[[paste0(consensus, "_Individual_Assignment")]])
 )
 
@@ -57,6 +59,9 @@ mean_agree <- long %>%
 n_cells   <- nrow(cells)
 n_singlet <- sum(cells$status == "singlet", na.rm = TRUE)
 n_doublet <- sum(cells$status == "doublet", na.rm = TRUE)
+# "recovered": one method's lone singlet call (params.consensus.recover_from).
+# Counted apart from singlets; n_recovered below is samples, not barcodes.
+n_rescued <- sum(cells$status == "recovered", na.rm = TRUE)
 recovered <- unique(cells$assignment[cells$status == "singlet"])
 recovered <- recovered[!is.na(recovered)]
 
@@ -66,7 +71,8 @@ tibble(
   n_barcodes            = n_cells,
   n_singlet             = n_singlet,
   n_doublet             = n_doublet,
-  n_unassigned          = n_cells - n_singlet - n_doublet,
+  n_recovered_barcodes  = n_rescued,
+  n_unassigned          = n_cells - n_singlet - n_doublet - n_rescued,
   frac_singlet          = n_singlet / n_cells,
   n_declared            = length(declared),
   n_recovered           = length(intersect(declared, recovered)),

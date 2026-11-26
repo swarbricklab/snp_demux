@@ -233,3 +233,35 @@ def test_build_rejects_unknown_naming():
     import pytest
     with pytest.raises(ValueError):
         c.build([], [], [], [], [], 0.7, cluster_naming="correlation")
+
+
+# ------------------------------------------------------- recovered tier ----
+def test_recover_from():
+    S, D, U = "singlet", "doublet", "unassigned"
+    lone = row([U, U, S, U], [U, U, "d1", U])  # only souporcell calls
+    assert c.informative_majority(lone, 2) == (U, U)  # off by default
+    assert c.informative_majority(lone, 2, ["Souporcell", "Vireo"]) == ("recovered", "d1")
+    assert c.informative_majority(lone, 2, ["Vireo"]) == (U, U)  # method not listed
+    lone_dem = row([S, U, U, U], ["d2", U, U, U])
+    assert c.informative_majority(lone_dem, 2, ["Souporcell", "Vireo"]) == (U, U)
+    # a lone doublet call is not recovered
+    assert c.informative_majority(row([U, U, D, U], [U, U, D, U]), 2, ["Souporcell"]) == (U, U)
+    # two or more calls: the ordinary majority rule, unchanged
+    both = ["Souporcell", "Vireo", "Demuxlet"]
+    assert c.informative_majority(row([S, U, S, U], ["d1", U, "d1", U]), 2, both) == (S, "d1")
+    assert c.informative_majority(row([S, U, D, U], ["d1", U, D, U]), 2, both) == (U, U)
+    # min_informative 1 already makes a lone singlet a singlet
+    assert c.informative_majority(lone, 1, both) == (S, "d1")
+
+
+def test_build_recovered_by():
+    dem = popscle([("A", "AMB", "d1,d2,0.00"), ("B", "SNG", "d2,d2,0.00")])
+    fmx = popscle([])
+    sop = soup([("A", "singlet", "0"), ("B", "singlet", "1")])
+    vir = vireo([("A", "unassigned"), ("B", "d2")])
+    scores = {"Freemuxlet": [], "Souporcell": gpb({"0": {"d1": 0.1, "d2": 0.4}, "1": {"d1": 0.4, "d2": 0.1}})}
+    a, b = c.build(dem, fmx, sop, vir, [], 0.7, cluster_naming="genotype", scores=scores,
+                   recover_from=["Souporcell", "Vireo"])
+    assert (a["Consensus_DropletType"], a["Consensus_Individual_Assignment"]) == ("recovered", "d1")
+    assert a["Consensus_recovered_by"] == "Souporcell"
+    assert (b["Consensus_DropletType"], b["Consensus_recovered_by"]) == ("singlet", "NA")
