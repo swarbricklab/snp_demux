@@ -52,6 +52,38 @@ def hier_param(key):
 # than deep inside a rule. Schema in workflow/schemas/config.schema.yaml.
 validate(config, "../schemas/config.schema.yaml")
 
+# --- vireo options (params.vireo; optional) ---------------------------------
+# call_ambient (default true): pass --callAmbientRNAs, which writes
+#   prop_ambient.tsv (mkobj reads it) and is 85-99% of vireo's CPU; no call
+#   depends on it. false: the vireo rule writes a stub with NA for every cell,
+#   so mkobj's ambient_other and logLik_ratio are NA for every cell.
+# seed (default none; 0 to 2**32 - 1, numpy's range): pass --randSeed.
+#   Fixed-mode calls never depend on it. With a seed and one worker,
+#   prop_ambient.tsv was byte-identical between two runs on different nodes;
+#   above one worker a seed does not make it repeat (each worker draws its own
+#   starts). For one worker, pass a copy of profiles/workflow whose vireo entry
+#   sets threads: 1 as --workflow-profile; --set-resources on the command line
+#   would replace the profile's whole set-resources list.
+# The schema above checks the keys and their types first. The checks here also
+# stop a float such as 4.0, which the schema's integer type accepts.
+_vireo_params = config.get("params", {}).get("vireo") or {}
+VIREO_CALL_AMBIENT = _vireo_params.get("call_ambient", True)
+if not isinstance(VIREO_CALL_AMBIENT, bool):
+    raise WorkflowError(
+        "params.vireo.call_ambient must be true or false, got %r"
+        % (VIREO_CALL_AMBIENT,)
+    )
+VIREO_SEED = _vireo_params.get("seed")
+if VIREO_SEED is not None and (
+    isinstance(VIREO_SEED, bool)
+    or not isinstance(VIREO_SEED, int)
+    or not 0 <= VIREO_SEED <= 2**32 - 1
+):
+    raise WorkflowError(
+        "params.vireo.seed must be an integer from 0 to 2**32 - 1, or null, got %r"
+        % (VIREO_SEED,)
+    )
+
 samples = pd.read_csv(config["deps"]["samples"], dtype=str, index_col="sample_id")
 samples.index = samples.index.astype(str)
 captures = pd.read_csv(config["deps"]["captures"], dtype=str, index_col="capture_id")

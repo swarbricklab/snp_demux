@@ -71,6 +71,9 @@ rule vireo:
     params:
         field="GT",
         n=get_number_of_samples_in_capture_pool,
+        # params.vireo (common.smk). The defaults give --callAmbientRNAs and no seed.
+        ambient_flag="--callAmbientRNAs" if VIREO_CALL_AMBIENT else "",
+        seed_flag="" if VIREO_SEED is None else "--randSeed=%d" % VIREO_SEED,
     shell:
         """
         base={input.base}
@@ -90,13 +93,26 @@ rule vireo:
             --donorFile={input.donor_vcf} \
             --nDonor=$n \
             --nproc={resources.threads} \
-            --callAmbientRNAs \
+            {params.ambient_flag} {params.seed_flag} \
             --outDir=$vireo_dir \
             --genoTag={params.field} \
             > {log.console} 2>&1"
         echo $cmd
         eval $cmd
         mv $vireo_dir/_log.txt {log.vireo}
+
+        # call_ambient false -> vireo writes no prop_ambient.tsv. Write vireo's header
+        # (cell, the donor file's donors in order, logLik_ratio) and NA for every cell
+        # of donor_ids.tsv, so relabel_vireo and summarise_ambient run unchanged; the
+        # capture report then says there is no vireo estimate.
+        if [ -z "{params.ambient_flag}" ]; then
+            donors=$(grep -m1 '^#CHROM' {input.donor_vcf} | cut -f10-)
+            awk -v donors="$donors" 'BEGIN {{ FS = OFS = "\\t"; n = split(donors, d, "\\t") }}
+                NR == 1 {{ print "cell", donors, "logLik_ratio"; next }}
+                {{ line = $1; for (i = 0; i <= n; i++) line = line OFS "NA"; print line }}' \
+                {output.donor_ids} >{output.prop_ambient}
+            echo "params.vireo.call_ambient is false: prop_ambient.tsv is a stub (NA for every cell)" >>{log.console}
+        fi
 
         # Touch optional outputs if they don't exist
         [ -f {output.fig_input} ] || touch {output.fig_input}
