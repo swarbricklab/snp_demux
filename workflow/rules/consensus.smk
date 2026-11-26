@@ -9,6 +9,8 @@
 CONSENSUS = {
     "method": "informative_majority",
     "min_informative": 2,
+    "cluster_naming": "genotype",
+    "min_genotype_margin": 0.1,
     **config["params"].get("consensus", {}),
 }
 
@@ -20,6 +22,9 @@ rule consensus:
         souporcell=rules.souporcell_troublet.output.clusters,
         vireo=rules.relabel_vireo.output.donor_ids,
         vireosnp=rules.vireosnp.output.clusters_annotated,
+        souporcell_scores=rules.vireosnp.output.scores_full,
+        freemuxlet_scores=rules.freemuxlet_genotype_match.output.scores,
+        genotyped_donors=rules.extract_genotyped_donors.output.genotyped_donors,
     output:
         calls=temp(out_dir / "assignment/{capture_id}/consensus_calls.tsv"),
     log:
@@ -30,6 +35,9 @@ rule consensus:
         pct_agreement=config["params"]["demuxafy"]["pct_agreement"],
         method=CONSENSUS["method"],
         min_informative=CONSENSUS["min_informative"],
+        cluster_naming=CONSENSUS["cluster_naming"],
+        min_genotype_margin=CONSENSUS["min_genotype_margin"],
+        pool_donors=get_donors_in_capture,
     script:
         "../scripts/consensus.py"
 

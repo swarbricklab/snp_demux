@@ -40,8 +40,30 @@ rule freemuxlet:
         """
 
 
+# Score freemuxlet's cluster genotypes against the known donor genotypes with the
+# same vireoSNP GPb_diff that names souporcell's clusters (rule vireosnp). The
+# consensus names freemuxlet clusters from this matrix.
+rule freemuxlet_genotype_match:
+    input:
+        vcf=rules.freemuxlet.output.vcf,
+        known_genotype_vcf=rules.known_genotypes.output.vcf,
+    output:
+        scores=out_dir
+        / "freemuxlet/{capture_id}/full_GPb_diff_scores_cluster_genotype.tsv",
+    log:
+        logs / "freemuxlet/{capture_id}/genotype_match.log",
+    container:
+        config["containers"]["vireosnp"]
+    params:
+        cluster_prefix="CLUST",
+    script:
+        "../scripts/match_cluster_genotypes.py"
+
+
 # Match freemuxlet's anonymous clusters to named donors by correlating the
 # cluster genotypes against the known donor VCF (Demuxafy's Assign_Indiv_by_Geno.R).
+# Diagnostic only: the consensus names freemuxlet clusters from
+# freemuxlet_genotype_match instead.
 rule freemuxlet_assign:
     input:
         vcf=rules.freemuxlet.output.vcf,

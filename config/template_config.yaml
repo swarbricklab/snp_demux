@@ -44,6 +44,8 @@ params:
   consensus:
     method: informative_majority
     min_informative: 2
+    cluster_naming: genotype    # or vireo_agreement (uses demuxafy.pct_agreement)
+    min_genotype_margin: 0.1    # relative GPb_diff margin, best vs second-best donor
   # souporcell clustering (remap+vartrix now done upstream by sc_pileup).
   souporcell:
     restarts: 100   # souporcell default
