@@ -1,6 +1,6 @@
 #! /bin/bash
 # Run the snp_demux demultiplexing pipeline on the bundled OneK1K test fixture
-# (all four methods + the Demuxafy consensus), locally with singularity, and
+# (all four methods + the consensus), locally with singularity, and
 # (with --check) verify the fresh output against the DVC-tracked golden.
 #
 # Assumes:

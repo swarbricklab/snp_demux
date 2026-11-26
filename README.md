@@ -44,7 +44,7 @@ The main difference between this workflow and the [demuxafy](https://github.com/
 
 ## Method
 
-Briefly, this workflow runs four well-established SNP demux methods in parallel and then uses [Demuxafy](https://demultiplexing-doublet-detecting-docs.readthedocs.io/en/latest/index.html) to call doublets and find a consensus sample-barcode assignment.
+Briefly, this workflow runs four well-established SNP demux methods in parallel and then combines their calls into a consensus sample-barcode assignment, using the [Demuxafy](https://demultiplexing-doublet-detecting-docs.readthedocs.io/en/latest/index.html) consensus method.
 The four methods are
 1. vireo [docs](https://vireosnp.readthedocs.io/en/latest/)| [paper](https://genomebiology.biomedcentral.com/articles/10.1186/s13059-019-1865-2) | [GitHub](https://github.com/single-cell-genetics/vireo)
 2. souporcell [paper](https://www.nature.com/articles/s41592-020-0820-1) | [GitHub](https://github.com/wheaton5/souporcell)
@@ -53,14 +53,15 @@ The four methods are
 
 See the links above for details on the algorithms used by each of these methods.
 
-The results of each method are combined using Demuxafy's [AtLeastHalfSinglet](https://demultiplexing-doublet-detecting-docs.readthedocs.io/en/latest/CombineResults.html) option, but there is scope to extend this workflow to include other options for combining results.
+The results of each method are combined with Demuxafy's [AtLeastHalfSinglet](https://demultiplexing-doublet-detecting-docs.readthedocs.io/en/latest/CombineResults.html) rule.
+The combining step ([`workflow/scripts/consensus.py`](workflow/scripts/consensus.py)) is a port of Demuxafy's `Combine_Results.R` for the four methods used here, verified to give identical output; it no longer runs `Combine_Results.R` itself.
 
 ### souporcell cluster annotation
 
 souporcell is genotype-free: it clusters barcodes by SNP profile but cannot name the clusters.
 The workflow maps those clusters onto the known donor genotypes twice, by two independent routes:
 
-1. Demuxafy's own correlation-based matching, which feeds the consensus above.
+1. Agreement with vireo: a cluster is named after the vireo donor shared by at least `params.demuxafy.pct_agreement` of its barcodes (Demuxafy's method). This feeds the consensus above.
 2. [vireoSNP](https://vireosnp.readthedocs.io/en/latest/), which scores each cluster against each donor genotype and is run separately.
 
 The vireoSNP annotation is appended to the combined results as an additional assignment column *after* the consensus has been called, so it does not influence it.
@@ -88,7 +89,7 @@ flowchart TB
     FM --> DX
     SO --> DX
 
-    DX["<b>Demuxafy</b><br/>matches the genotype-free clusters to donors<br/>by correlation, then calls the<br/>AtLeastHalfSinglet consensus"]
+    DX["<b>consensus</b><br/>names the genotype-free clusters<br/>by agreement with vireo, then calls the<br/>AtLeastHalfSinglet consensus"]
 
     SO --> VS["<b>vireoSNP</b><br/>names souporcell's clusters<br/>independently"]
 
@@ -165,10 +166,10 @@ See [`config/template_config.yaml`](config/template_config.yaml) for a starting 
 | `outs.reports` | Optional. Where the HTML reports are written; defaults to `<outs.root>/report` |
 | `params.cellsnp_lite` | Legacy pileup thresholds; the pileup is now done upstream in sc_pileup, so these are unused here |
 | `params.demuxlet` | `coeff` and `offset` for the demuxlet doublet prior |
-| `params.demuxafy` | Correlation limits for matching souporcell and freemuxlet clusters to donors, and the agreement threshold for the consensus |
+| `params.demuxafy` | `pct_agreement`: the share of a souporcell/freemuxlet cluster's barcodes that must agree with one vireo donor for the cluster to take that donor in the consensus. `freemuxlet_correlation_limit` and `souporcell_correlation_limit` are not used |
 | `params.doublet` | Optional. `rate_per_1k` (doublet rate per 1,000 cells recovered, here barcodes demultiplexed, keyed by chip, from 10x's multiplet-rate table; default `standard: 0.008`, `HT: 0.004`) and `default_chip` (default `standard`). Used for `doublet_rate_loading` in `doublet_summary.csv` |
 | `ref.souporcell.genome_fasta` | Reference genome FASTA, matching the transcriptome used by `cellranger` |
-| `containers.*` | Per-tool container images (replaces the old monolithic Demuxafy.sif): `bcftools`, `popscle` (demuxlet/freemuxlet), `vireo` (demux CLI), `vireosnp` (souporcell-genotyping + cell counts), `souporcell`, `r` (all R/Rmd rules), `demuxafy` (consensus/summary/assign scripts). See `config/template_config.yaml` and the recipes under [`containers/`](containers) |
+| `containers.*` | Per-tool container images (replaces the old monolithic Demuxafy.sif): `bcftools`, `popscle` (demuxlet/freemuxlet), `vireo` (demux CLI), `vireosnp` (souporcell-genotyping + cell counts), `souporcell`, `r` (all R/Rmd rules), `demuxafy` (Demuxafy's summary and freemuxlet genotype-assignment scripts). See `config/template_config.yaml` and the recipes under [`containers/`](containers) |
 
 Set `outs.reports` when the reports should be published alongside a dataset's other reports rather than buried in the data tree.
 For example, in a dataset repository:
@@ -257,7 +258,7 @@ flowchart TB
     FM --> DX
     VI --> DX
     SO --> DX
-    DX["Demuxafy consensus"] --> ASSIGN
+    DX["consensus"] --> ASSIGN
     VS --> ASSIGN
 
     ASSIGN["<b>sample_barcode_assignments.tsv</b><br/>per capture"] --> STATS["cell counts<br/>per sample"]
