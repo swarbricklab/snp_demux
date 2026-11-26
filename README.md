@@ -166,6 +166,7 @@ See [`config/template_config.yaml`](config/template_config.yaml) for a starting 
 | `params.cellsnp_lite` | Legacy pileup thresholds; the pileup is now done upstream in sc_pileup, so these are unused here |
 | `params.demuxlet` | `coeff` and `offset` for the demuxlet doublet prior |
 | `params.demuxafy` | Correlation limits for matching souporcell and freemuxlet clusters to donors, and the agreement threshold for the consensus |
+| `params.souporcell` | `min_ref` and `min_alt` (cells, not reads) and `ploidy`. Both souporcell runs start from known genotypes and run one solve; `restarts` and `known_gt` are read by no rule (see the comments in `workflow/rules/souporcell.smk`) |
 | `params.doublet` | Optional. `rate_per_1k` (doublet rate per 1,000 cells recovered, here barcodes demultiplexed, keyed by chip, from 10x's multiplet-rate table; default `standard: 0.008`, `HT: 0.004`) and `default_chip` (default `standard`). Used for `doublet_rate_loading` in `doublet_summary.csv` |
 | `ref.souporcell.genome_fasta` | Reference genome FASTA, matching the transcriptome used by `cellranger` |
 | `containers.*` | Per-tool container images (replaces the old monolithic Demuxafy.sif): `bcftools`, `popscle` (demuxlet/freemuxlet), `vireo` (demux CLI), `vireosnp` (souporcell-genotyping + cell counts), `souporcell`, `r` (all R/Rmd rules), `demuxafy` (consensus/summary/assign scripts). See `config/template_config.yaml` and the recipes under [`containers/`](containers) |
