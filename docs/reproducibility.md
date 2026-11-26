@@ -42,8 +42,8 @@ given the same frozen pileups + panel:
 souporcell's **clustering** is deterministic: `clusters.tsv` reproduces exactly
 given the same inputs. The rule passes `--known_genotypes`, so every restart starts
 its cluster centres from the donor genotypes and draws no random numbers (`--seed`,
-default 4, is passed to that code path but not used), and the rule passes no
-`--threads`, so souporcell runs on one thread (its default). Its per-cluster
+default 4, is passed to that code path but not used), and the rule passes
+`--restarts 1 --threads 1`, so souporcell runs one solve on one thread. Its per-cluster
 **genotype inference** is not bit-stable, though (see below); that affects only
 `cluster_genotypes.vcf`, never the cluster assignments or anything downstream.
 

@@ -25,7 +25,6 @@ rule souporcell_cluster:
     params:
         k=get_number_of_samples_in_capture_pool,
         donors=get_donors_in_capture,
-        restarts=config["params"]["souporcell"]["restarts"],
         min_ref=config["params"]["souporcell"]["min_ref"],
         min_alt=config["params"]["souporcell"]["min_alt"],
     shell:
@@ -33,8 +32,9 @@ rule souporcell_cluster:
         # Restrict --known_genotypes_sample_names to donors actually present as
         # samples in variants.vcf. A donor absent from every genotype source has
         # no column here, and souporcell panics ("no entry found for key") on a
-        # missing name. k is left unchanged: souporcell treats clusters beyond the
-        # supplied known names as de-novo, so the pool's resolvable donors still cluster.
+        # missing name. k is left unchanged: clusters beyond the supplied names
+        # start at 0.5 at every site (no random start), so an ungenotyped donor
+        # still gets a cluster.
         # NB: strict-mode-safe (snakemake wraps shell in `set -euo pipefail`).
         # `|| true` swallows the SIGPIPE from grep -m1 closing the reader; the
         # if/then keeps a not-found grep from aborting the loop.
@@ -43,8 +43,17 @@ rule souporcell_cluster:
         for d in $(echo {params.donors} | tr ',' ' '); do
             if printf '%s\n' "$avail" | grep -qxF -- "$d"; then names="$names $d"; fi
         done
+        # One solve on one thread. With --known_genotypes souporcell starts each
+        # cluster from a donor's genotypes (a cluster with no donor genotype at
+        # 0.5) and never draws a random number
+        # (init_cluster_centers_known_genotypes), so every restart is the same
+        # solve and the first is kept (strict >). 100 restarts on 16 threads ran
+        # 112 identical solves. --threads is a literal 1, not resources.threads:
+        # each thread runs ceil(restarts/threads) solves. A run WITHOUT
+        # --known_genotypes needs restarts, --seed and a fixed --threads again
+        # (params.souporcell.restarts is kept for that).
         /opt/souporcell/souporcell/target/release/souporcell -k {params.k} -a {input.alt} -r {input.ref} -b {input.barcodes} \
-            --restarts {params.restarts} --min_ref {params.min_ref} --min_alt {params.min_alt} --threads {resources.threads} \
+            --restarts 1 --min_ref {params.min_ref} --min_alt {params.min_alt} --threads 1 \
             --known_genotypes {input.variants} --known_genotypes_sample_names $names \
             >{output.clusters_tmp} 2>{log}
         """
@@ -94,15 +103,14 @@ rule souporcell_consensus:
 
 
 # ---------------------------------------------------------------------------
-# souporcell KNOWN-GT second mode (parallel to the de-novo rules above).
+# souporcell KNOWN-GT second run (parallel to the rules above).
 # ---------------------------------------------------------------------------
-# The de-novo rules above pass sc_pileup's variants.vcf (a bare site list) to
-# --known_genotypes, so clustering is genotype-free (the recovery backbone).
-# These parallel rules instead point --known_genotypes at the REAL per-pool donor
-# genotypes (rule known_genotypes in split.smk = the informative panel subset to
-# the pool's donors), giving a direct genotype-anchored clustering to compare
-# against de-novo. Outputs live under souporcell/{c}/known/ so the de-novo path
-# is untouched. NB: known_genotypes.vcf is built from the SAME informative panel
+# Both runs start from genotypes. The rules above pass sc_pileup's variants.vcf
+# to --known_genotypes, and it carries the donor columns, so that run is not de
+# novo. These parallel rules instead point --known_genotypes at the pool's whole
+# panel (rule known_genotypes in split.smk = the panel subset to the pool's
+# donors). Outputs live under souporcell/{c}/known/ so the first run's path is
+# untouched. NB: known_genotypes.vcf is built from the SAME informative panel
 # sc_pileup piled against (see panel_path docstring), so its sites match the
 # alt/ref matrices by construction; souporcell matches genotype rows by position.
 rule souporcell_cluster_known:
@@ -120,23 +128,24 @@ rule souporcell_cluster_known:
     params:
         k=get_number_of_samples_in_capture_pool,
         donors=get_donors_in_capture,
-        restarts=config["params"]["souporcell"]["restarts"],
         min_ref=config["params"]["souporcell"]["min_ref"],
         min_alt=config["params"]["souporcell"]["min_alt"],
     shell:
         """
-        # Same guard as the de-novo rule: only pass known-genotype names that are
+        # Same guard as souporcell_cluster: only pass known-genotype names that are
         # real samples in the panel (a donor absent from all sources is ./.-only /
         # missing and makes souporcell panic or produce degenerate clusters).
-        # strict-mode-safe (see de-novo rule): || true swallows grep -m1 SIGPIPE;
+        # strict-mode-safe (see souporcell_cluster): || true swallows grep -m1 SIGPIPE;
         # if/then keeps a not-found grep from aborting the loop under `set -e`.
         avail=$( (zcat -f {input.known_gt} 2>/dev/null || cat {input.known_gt}) | grep -m1 '^#CHROM' | cut -f10- | tr '\t' '\n') || true
         names=""
         for d in $(echo {params.donors} | tr ',' ' '); do
             if printf '%s\n' "$avail" | grep -qxF -- "$d"; then names="$names $d"; fi
         done
+        # One solve on one thread, as in souporcell_cluster: this run also passes
+        # --known_genotypes, so every restart is the same solve.
         /opt/souporcell/souporcell/target/release/souporcell -k {params.k} -a {input.alt} -r {input.ref} -b {input.barcodes} \
-            --restarts {params.restarts} --min_ref {params.min_ref} --min_alt {params.min_alt} --threads {resources.threads} \
+            --restarts 1 --min_ref {params.min_ref} --min_alt {params.min_alt} --threads 1 \
             --known_genotypes {input.known_gt} --known_genotypes_sample_names $names \
             >{output.clusters_tmp} 2>{log}
         """

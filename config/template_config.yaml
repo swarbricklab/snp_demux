@@ -57,6 +57,8 @@ params:
     pct_agreement: 0.7 # default
   # souporcell clustering (remap+vartrix now done upstream by sc_pileup).
   souporcell:
+    # restarts: read by no rule while both runs pass --known_genotypes (one
+    # solve each; see souporcell.smk). Kept for a run without known genotypes.
     restarts: 100   # souporcell default
     min_ref: 10     # souporcell default
     min_alt: 10     # souporcell default
