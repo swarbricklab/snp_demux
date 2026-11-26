@@ -24,6 +24,7 @@ COMMANDS = {
     "score": ("scorer", "reproduce vireo's fixed-mode calls for one capture, with each cell's evidence"),
     "score-many": ("scorer", "score the captures of a manifest in parallel, with a summary and validation table"),
     "site-terms": ("scorer", "one cell's log-likelihood under each donor, site by site"),
+    "sites": ("sites", "site lists for the Scorer: annotate with a GTF and INFO, thin, take from a panel"),
     "synth": ("synth", "write a synthetic capture: cellsnp folder, donor VCF and truth table"),
     "validate-vireo": ("scorer", "compare Scorer calls with vireo's donor_ids.tsv cell by cell"),
     "version": ("cli", "print the package version, its git commit and library versions"),
