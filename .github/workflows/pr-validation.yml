@@ -6,7 +6,8 @@ name: PR Validation
 #   2. reproduce  — dvc pull the fixture + golden, run all four demux methods +
 #                   the Demuxafy consensus on the OneK1K fixture, and
 #                   content-compare the fresh output to the golden
-#                   (run_test.sh --check)
+#                   (run_test.sh --check); then the missing-genotype scenarios
+#                   (run_test.sh --scenario missing1|missing2, non-blocking)
 #   3. cleanup    — remove the per-PR scratch clone
 #
 # Gated on the PR coming from this repository: forks cannot use the self-hosted
@@ -83,6 +84,26 @@ jobs:
           # sources conda itself (CONDA_PROFILE default) and activates snakemake.
           qxub exec -v --queue normal --mem 48GB --cpus 8 --mod singularity --var CORES=8 --execdir "$CLONE" \
             -- ./run_test.sh --check
+
+      # Missing-genotype scenarios (#4): the golden has every donor genotyped, so
+      # these exercise the by-elimination path on a panel with donors removed.
+      # Non-blocking until the recall/agreement thresholds in
+      # .tests/integration/compare_missing.py are calibrated on a real run.
+      - name: "Scenario: one donor without a genotype (must complete + recover it)"
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          qxub exec -v --queue normal --mem 48GB --cpus 8 --mod singularity --var CORES=8 --execdir "$CLONE" \
+            -- ./run_test.sh --scenario missing1
+
+      - name: "Scenario: two donors without a genotype (must fail explicitly)"
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          qxub exec -v --queue normal --mem 48GB --cpus 8 --mod singularity --var CORES=8 --execdir "$CLONE" \
+            -- ./run_test.sh --scenario missing2
 
   cleanup:
     needs: [clone, reproduce]

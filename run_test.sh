@@ -13,6 +13,11 @@
 #   ./run_test.sh            # run all methods into .tests/integration/results
 #   ./run_test.sh --check    # run, then content-compare .tests/integration/results to .tests/integration/golden
 #   ./run_test.sh -n         # dry run
+#   ./run_test.sh --scenario missing1   # one donor without a genotype: must complete
+#                                       # and recover that donor (vs the golden)
+#   ./run_test.sh --scenario missing2   # two donors without a genotype: must fail
+#                                       # with the explicit unsupported error
+#   (scenarios: see .tests/integration/scenario.sh; need the golden pulled)
 #   CORES=8 ./run_test.sh    # more local cores
 set -euo pipefail
 
@@ -33,25 +38,47 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export PROJECT="${PROJECT:-a56}"
 module load singularity 2>/dev/null || true
 
-# Pull --check out of the args passed through to snakemake.
+# Pull --check / --scenario NAME out of the args passed through to snakemake.
 check=false
+scenario=""
 sm_args=()
-for a in "$@"; do
-    if [[ "$a" == "--check" ]]; then check=true; else sm_args+=("$a"); fi
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --check) check=true ;;
+    --scenario)
+        scenario="$2"
+        shift
+        ;;
+    *) sm_args+=("$1") ;;
+    esac
+    shift
 done
+
+configfiles=("$HERE/config/test_config.yaml")
+if [[ -n "$scenario" ]]; then
+    # A derived panel + an overlay config redirecting panel_root and outputs.
+    configfiles+=("$("$HERE/.tests/integration/scenario.sh" prepare "$scenario")")
+fi
 
 # Local execution with singularity (not the PBS fan-out profile): run_test.sh is
 # for the small CI fixture and is invoked inside a single compute job in CI, which
 # cannot itself submit cluster jobs. Containers are reused from the shared prefix.
+rc=0
 snakemake \
     --snakefile "$HERE/workflow/Snakefile" \
-    --configfile "$HERE/config/test_config.yaml" \
+    --configfile "${configfiles[@]}" \
     --workflow-profile "$HERE/profiles/workflow" \
     --use-singularity \
     --singularity-args "--bind /g/data/a56,/scratch/a56" \
     --singularity-prefix "${SINGULARITY_PREFIX:-/g/data/a56/software/singularity/images}" \
     --cores "${CORES:-4}" \
-    ${sm_args[@]+"${sm_args[@]}"}
+    ${sm_args[@]+"${sm_args[@]}"} || rc=$?
+
+if [[ -n "$scenario" ]]; then
+    echo "=== checking scenario $scenario (snakemake exit $rc) ==="
+    exec "$HERE/.tests/integration/scenario.sh" check "$scenario" "$rc"
+fi
+[[ "$rc" -eq 0 ]] || exit "$rc"
 
 if [[ "$check" == true ]]; then
     echo "=== comparing .tests/integration/results to the golden (.tests/integration/golden) ==="
