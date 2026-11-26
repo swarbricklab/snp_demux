@@ -1,0 +1,3 @@
+# Written by running the tests without -p no:cacheprovider or PYTHONDONTWRITEBYTECODE=1.
+__pycache__/
+.pytest_cache/
